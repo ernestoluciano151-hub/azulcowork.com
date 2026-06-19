@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8" />
+<link rel="icon" href="favicon.ico" />
+<link rel="preload" href="https://scripts.converteai.net/3bc96b23-cdc7-40f5-9939-d1cff052c96e/players/69b286d6d04b0a3cfd7caae8/v4/player.js" as="script">
+<link rel="preload" href="https://scripts.converteai.net/lib/js/smartplayer-wc/v4/smartplayer.js" as="script">
+<link rel="preload" href="https://cdn.converteai.net/3bc96b23-cdc7-40f5-9939-d1cff052c96e/69b2790eec3c62fc7c1901d8/main.m3u8" as="fetch">
+<link rel="dns-prefetch" href="https://cdn.converteai.net">
+<link rel="dns-prefetch" href="https://scripts.converteai.net">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Azul Coworking — Espaços de trabalho em Luanda</title>
+<meta name="description" content="Coworking moderno em Luanda. Hot desks, salas privadas e salas de reunião. A partir de 9.900 AOA/dia." />
+<meta property="og:title" content="Azul Coworking" />
+<meta property="og:description" content="O seu espaço de trabalho ideal em Luanda." />
+<meta property="og:type" content="website" />
+
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: {
+        display: ['"Plus Jakarta Sans"', 'sans-serif'],
+        sans: ['Inter', 'sans-serif'],
+      },
+      colors: {
+        azul: { DEFAULT: '#1E88E5', light: '#42A5F5' },
+        navy: { DEFAULT: '#0A1628', light: '#142339', foreground: '#F1F5F9' },
+        primary: { DEFAULT: '#1E88E5', foreground: '#FFFFFF' },
+      },
+      boxShadow: {
+        azul: '0 10px 30px -10px rgba(30,136,229,0.5)',
+      },
+      animation: {
+        'fade-up': 'fadeUp .8s ease-out both',
+      },
+      keyframes: {
+        fadeUp: { '0%': { opacity: 0, transform: 'translateY(20px)' }, '100%': { opacity: 1, transform: 'translateY(0)' } },
+      },
+    }
+  }
+}
+</script>
+<style>
+  body { font-family: 'Inter', sans-serif; background: #fff; color: #0A1628; }
+  .font-display { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .text-gradient-azul {
+    background: linear-gradient(135deg, #1E88E5, #42A5F5);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .bg-gradient-hero { background: linear-gradient(135deg, rgba(10,22,40,.4), rgba(10,22,40,.8)); }
+  html { scroll-behavior: smooth; }
+  /* simple carousel */
+  .carousel { position: relative; overflow: hidden; }
+  .carousel-track { display: flex; transition: transform .6s ease; }
+  .carousel-slide { flex: 0 0 100%; }
+  .dots button.active { width: 2rem; background: #1E88E5; }
+</style>
+
+<!-- Meta Pixel -->
+<script>
+  !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+  n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
+  n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+  t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,
+  document,'script','https://connect.facebook.net/en_US/fbevents.js');
+  fbq('init', '991251830472277');
+  fbq('init', '3945584295744589');
+  fbq('track', 'PageView');
+  function trackLead(name){ try{ fbq('track','Lead',{content_name:name}); }catch(e){} }
+</script>
+</head>
+<body class="min-h-screen">
+
+<noscript><img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=991251830472277&ev=PageView&noscript=1"/></noscript>
+<noscript><img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=3945584295744589&ev=PageView&noscript=1"/></noscript>
+
+<!-- NAV -->
+<nav class="fixed top-0 left-0 right-0 z-50 bg-navy/95 backdrop-blur-md border-b border-azul/10">
+  <div class="container mx-auto px-4 md:px-8">
+    <div class="flex items-center justify-between h-16 md:h-20">
+      <a href="#inicio" class="flex items-center gap-2">
+        <img src="assets/logo-azul.jpeg" alt="Azul Coworking" class="h-10 md:h-12 rounded-lg" />
+      </a>
+      <div class="hidden md:flex items-center gap-8">
+        <a href="#inicio" class="text-navy-foreground/80 hover:text-azul transition-colors text-sm font-medium">Início</a>
+        <a href="#espacos" class="text-navy-foreground/80 hover:text-azul transition-colors text-sm font-medium">Espaços</a>
+        <a href="#vantagens" class="text-navy-foreground/80 hover:text-azul transition-colors text-sm font-medium">Vantagens</a>
+        <a href="#precos" class="text-navy-foreground/80 hover:text-azul transition-colors text-sm font-medium">Preços</a>
+        <a href="#contacto" class="text-navy-foreground/80 hover:text-azul transition-colors text-sm font-medium">Contacto</a>
+        <a href="https://wa.me/244976467124?text=Ol%C3%A1%2C%20gostaria%20de%20saber%20mais%20sobre%20os%20espa%C3%A7os%20dispon%C3%ADveis%20na%20Azul%20Space."
+           target="_blank" rel="noopener" onclick="trackLead('navbar_contactar')"
+           class="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-lg font-semibold text-sm hover:bg-azul-light transition-colors shadow-azul">
+          📞 Contactar
+        </a>
+      </div>
+      <button id="navToggle" class="md:hidden text-navy-foreground text-2xl">☰</button>
+    </div>
+    <div id="navMobile" class="hidden md:hidden pb-6">
+      <div class="flex flex-col gap-4">
+        <a href="#inicio" class="text-navy-foreground/80 hover:text-azul text-sm font-medium">Início</a>
+        <a href="#espacos" class="text-navy-foreground/80 hover:text-azul text-sm font-medium">Espaços</a>
+        <a href="#vantagens" class="text-navy-foreground/80 hover:text-azul text-sm font-medium">Vantagens</a>
+        <a href="#precos" class="text-navy-foreground/80 hover:text-azul text-sm font-medium">Preços</a>
+        <a href="#contacto" class="text-navy-foreground/80 hover:text-azul text-sm font-medium">Contacto</a>
+        <a href="https://wa.me/244976467124?text=Ol%C3%A1%2C%20gostaria%20de%20saber%20mais%20sobre%20os%20espa%C3%A7os%20dispon%C3%ADveis%20na%20Azul%20Space."
+           target="_blank" rel="noopener" onclick="trackLead('navbar_mobile')"
+           class="flex items-center justify-center gap-2 bg-primary text-white px-5 py-2.5 rounded-lg font-semibold text-sm">
+          📞 +244 976 467 124
+        </a>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section id="inicio" class="relative min-h-screen flex items-center overflow-hidden">
+  <div class="absolute inset-0">
+    <img src="assets/hero-coworking.jpg" alt="Azul Coworking espaço" class="w-full h-full object-cover" />
+    <div class="absolute inset-0 bg-gradient-hero"></div>
+    <div class="absolute inset-0 bg-navy/70"></div>
+  </div>
+  <div class="relative container mx-auto px-4 md:px-8 pt-24 pb-16">
+    <div class="max-w-3xl">
+      <div class="inline-flex items-center gap-2 bg-azul/10 border border-azul/20 rounded-full px-4 py-1.5 mb-6 animate-fade-up">
+        <span class="text-azul">📍</span>
+        <span class="text-azul text-sm font-medium">Bairro Azul, Edifício 18 — Luanda</span>
+      </div>
+      <h1 class="font-display text-4xl md:text-6xl lg:text-7xl font-bold text-navy-foreground leading-tight mb-6 animate-fade-up">
+        O seu <span class="text-gradient-azul">espaço de trabalho</span><br/>ideal.
+      </h1>
+      <p class="text-navy-foreground/70 text-lg md:text-xl max-w-xl mb-8 animate-fade-up">
+        Flexível, profissional e acessível. Coworking moderno em Luanda para freelancers, startups e empresas — sem contratos longos. A partir de <strong class="text-azul">9.900 AOA/dia</strong>.
+      </p>
+      <div class="flex flex-col sm:flex-row gap-4 animate-fade-up">
+        <a href="https://wa.me/244976467124?text=Ol%C3%A1%2C%20gostaria%20de%20saber%20mais%20sobre%20os%20espa%C3%A7os%20dispon%C3%ADveis%20na%20Azul%20Space."
+           target="_blank" rel="noopener" onclick="trackLead('hero_reservar')"
+           class="inline-flex items-center justify-center gap-2 bg-primary text-white px-8 py-4 rounded-xl font-bold text-base hover:bg-azul-light transition-all shadow-azul">
+          Reservar Agora →
+        </a>
+        <a href="#espacos" class="inline-flex items-center justify-center gap-2 border border-navy-foreground/20 text-navy-foreground px-8 py-4 rounded-xl font-semibold text-base hover:bg-white/5 transition-all">
+          Ver Espaços
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- VIDEO -->
+<section class="py-16 md:py-24 bg-white">
+  <div class="container mx-auto px-4 md:px-8">
+    <div class="max-w-4xl mx-auto">
+      <h2 class="font-display text-3xl md:text-4xl font-bold text-navy text-center mb-4">
+        Conheça o <span class="text-primary">Azul Coworking</span>
+      </h2>
+      <p class="text-slate-500 text-center mb-10 max-w-2xl mx-auto">
+        Descubra como os nossos espaços podem transformar a sua forma de trabalhar.
+      </p>
+      <div class="rounded-2xl overflow-hidden shadow-lg bg-white border border-slate-200">
+        <div class="w-full aspect-video">
+          <vturb-smartplayer id="vid-69b286d6d04b0a3cfd7caae8" style="display:block;margin:0 auto;width:100%;height:100%"></vturb-smartplayer>
+        </div>
+      </div>
+      <div id="videoCta" class="flex justify-center mt-8 opacity-0 translate-y-4 pointer-events-none transition-all duration-700">
+        <a href="https://wa.me/244976467124?text=Ol%C3%A1%2C%20gostaria%20de%20saber%20mais%20sobre%20os%20espa%C3%A7os%20dispon%C3%ADveis%20na%20Azul%20Space."
+           target="_blank" rel="noopener" onclick="trackLead('video_cta_whatsapp')"
+           class="inline-flex items-center gap-2 text-base px-8 py-4 rounded-full shadow-lg bg-[#25D366] text-white hover:opacity-90 font-semibold">
+          💬 Solicitar Informações →
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  // Load VTurb player
+  (function(){
+    var s = document.createElement('script');
+    s.src = 'https://scripts.converteai.net/3bc96b23-cdc7-40f5-9939-d1cff052c96e/players/69b286d6d04b0a3cfd7caae8/v4/player.js';
+    s.async = true;
+    document.head.appendChild(s);
+  })();
+  // CTA after 2 min
+  setTimeout(function(){
+    var el = document.getElementById('videoCta');
+    if(el){ el.classList.remove('opacity-0','translate-y-4','pointer-events-none'); el.classList.add('opacity-100','translate-y-0'); }
+  }, 120000);
+</script>
+
+<!-- GALLERY CAROUSEL -->
+<section class="py-16 md:py-24 bg-slate-50">
+  <div class="container mx-auto px-4 md:px-8">
+    <h2 class="font-display text-3xl md:text-4xl font-bold text-navy text-center mb-4">
+      Os Nossos <span class="text-primary">Espaços</span>
+    </h2>
+    <p class="text-slate-500 text-center mb-10 max-w-2xl mx-auto">Escritórios totalmente equipados, modernos e funcionais no Bairro Azul.</p>
+    <div class="relative max-w-5xl mx-auto carousel" data-carousel data-autoplay="4000">
+      <div class="carousel-track rounded-2xl">
+        <div class="carousel-slide px-2"><img src="assets/carousel-1.jpeg" alt="Sala de Reunião/Formação" class="w-full aspect-square md:aspect-[4/3] object-cover rounded-2xl"/></div>
+        <div class="carousel-slide px-2"><img src="assets/carousel-2.jpeg" alt="Sala Privada Executivo" class="w-full aspect-square md:aspect-[4/3] object-cover rounded-2xl"/></div>
+        <div class="carousel-slide px-2"><img src="assets/carousel-3.jpeg" alt="Sala de Reunião/Formação" class="w-full aspect-square md:aspect-[4/3] object-cover rounded-2xl"/></div>
+        <div class="carousel-slide px-2"><img src="assets/carousel-4.jpeg" alt="Ilha Open Space" class="w-full aspect-square md:aspect-[4/3] object-cover rounded-2xl"/></div>
+        <div class="carousel-slide px-2"><img src="assets/carousel-5.jpeg" alt="Sala Privada" class="w-full aspect-square md:aspect-[4/3] object-cover rounded-2xl"/></div>
+      </div>
+      <button data-prev class="absolute left-2 md:-left-5 top-1/2 -translate-y-1/2 bg-white/90 border border-slate-200 rounded-full p-2 shadow-lg hover:bg-white">‹</button>
+      <button data-next class="absolute right-2 md:-right-5 top-1/2 -translate-y-1/2 bg-white/90 border border-slate-200 rounded-full p-2 shadow-lg hover:bg-white">›</button>
+      <div data-dots class="dots flex justify-center gap-2 mt-6"></div>
+    </div>
+  </div>
+</section>
+
+<!-- SPACES -->
+<section id="espacos" class="py-20 md:py-28 bg-white">
+  <div class="container mx-auto px-4 md:px-8">
+    <div class="text-center mb-16">
+      <span class="text-primary font-semibold text-sm uppercase tracking-widest">Nossos Espaços</span>
+      <h2 class="font-display text-3xl md:text-5xl font-bold text-navy mt-3">Encontre o espaço <span class="text-gradient-azul">ideal</span></h2>
+      <p class="text-slate-500 mt-4 max-w-lg mx-auto">Escritórios modernos e totalmente equipados no coração de Luanda.</p>
+    </div>
+    <div class="grid md:grid-cols-3 gap-8">
+
+      <div class="group bg-white rounded-2xl overflow-hidden border border-slate-200 hover:shadow-azul transition-all duration-500 hover:-translate-y-1">
+        <div class="carousel h-56" data-carousel data-autoplay="3500">
+          <div class="carousel-track h-full">
+            <div class="carousel-slide h-full"><img src="assets/openspace-1.jpeg" alt="Open Space 1" class="w-full h-56 object-cover"/></div>
+            <div class="carousel-slide h-full"><img src="assets/openspace-2.jpeg" alt="Open Space 2" class="w-full h-56 object-cover"/></div>
+            <div class="carousel-slide h-full"><img src="assets/openspace-3.jpeg" alt="Open Space 3" class="w-full h-56 object-cover"/></div>
+          </div>
+          <div data-dots class="dots absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5"></div>
+        </div>
+        <div class="p-6">
+          <h3 class="font-display text-xl font-bold text-navy mb-2">Hot Desk / Open Space</h3>
+          <p class="text-slate-500 text-sm leading-relaxed mb-4">Mesas partilhadas em ambiente colaborativo, com internet rápida. Ideal para freelancers que precisam de flexibilidade diária.</p>
+          <div class="flex items-center justify-between">
+            <span class="text-primary font-bold text-sm">Desde 9.900 AOA/dia</span>
+            <a href="https://wa.me/244976467124?text=Ol%C3%A1%2C%20gostaria%20de%20saber%20mais%20sobre%20os%20espa%C3%A7os%20dispon%C3%ADveis%20na%20Azul%20Space." target="_blank" rel="noopener" class="text-primary hover:text-azul-light text-sm font-semibold">Saber mais →</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="group bg-white rounded-2xl overflow-hidden border border-slate-200 hover:shadow-azul transition-all duration-500 hover:-translate-y-1">
+        <div class="carousel h-56" data-carousel data-autoplay="3500">
+          <div class="carousel-track h-full">
+            <div class="carousel-slide h-full"><img src="assets/privada-1.jpeg" alt="Sala Privada 1" class="w-full h-56 object-cover"/></div>
+            <div class="carousel-slide h-full"><img src="assets/privada-2.jpeg" alt="Sala Privada 2" class="w-full h-56 object-cover"/></div>
+            <div class="carousel-slide h-full"><img src="assets/privada-3.jpeg" alt="Sala Privada 3" class="w-full h-56 object-cover"/></div>
+          </div>
+          <div data-dots class="dots absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5"></div>
+        </div>
+        <div class="p-6">
+          <h3 class="font-display text-xl font-bold text-navy mb-2">Sala Privada</h3>
+          <p class="text-slate-500 text-sm leading-relaxed mb-4">Escritórios privados para equipas de 4 a 12 pessoas. Total privacidade, conforto e ambiente profissional dedicado.</p>
+          <div class="flex items-center justify-between">
+            <span class="text-primary font-bold text-sm">Desde 119.900 AOA/mês</span>
+            <a href="https://wa.me/244976467124?text=Ol%C3%A1%2C%20gostaria%20de%20saber%20mais%20sobre%20os%20espa%C3%A7os%20dispon%C3%ADveis%20na%20Azul%20Space." target="_blank" rel="noopener" class="text-primary hover:text-azul-light text-sm font-semibold">Saber mais →</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="group bg-white rounded-2xl overflow-hidden border border-slate-200 hover:shadow-azul transition-all duration-500 hover:-translate-y-1">
+        <div class="carousel h-56" data-carousel data-autoplay="3500">
+          <div class="carousel-track h-full">
+            <div class="carousel-slide h-full"><img src="assets/reuniao-1.jpeg" alt="Reunião 1" class="w-full h-56 object-cover"/></div>
+            <div class="carousel-slide h-full"><img src="assets/reuniao-2.jpeg" alt="Reunião 2" class="w-full h-56 object-cover"/></div>
+            <div class="carousel-slide h-full"><img src="assets/reuniao-3.jpeg" alt="Reunião 3" class="w-full h-56 object-cover"/></div>
+            <div class="carousel-slide h-full"><img src="assets/reuniao-4.jpeg" alt="Reunião 4" class="w-full h-56 object-cover"/></div>
+          </div>
+          <div data-dots class="dots absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5"></div>
+        </div>
+        <div class="p-6">
+          <h3 class="font-display text-xl font-bold text-navy mb-2">Sala de Reunião</h3>
+          <p class="text-slate-500 text-sm leading-relaxed mb-4">Sala executiva preparada para até 24 pessoas, com água, café e chá incluídos. Ideal para apresentações e reuniões.</p>
+          <div class="flex items-center justify-between">
+            <span class="text-primary font-bold text-sm">15.000 AOA/hora (mín. 4h)</span>
+            <a href="https://wa.me/244976467124?text=Ol%C3%A1%2C%20gostaria%20de%20saber%20mais%20sobre%20os%20espa%C3%A7os%20dispon%C3%ADveis%20na%20Azul%20Space." target="_blank" rel="noopener" class="text-primary hover:text-azul-light text-sm font-semibold">Saber mais →</a>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section id="vantagens" class="py-20 md:py-28 bg-navy">
+  <div class="container mx-auto px-4 md:px-8">
+    <div class="text-center mb-16">
+      <span class="text-azul font-semibold text-sm uppercase tracking-widest">Vantagens</span>
+      <h2 class="font-display text-3xl md:text-5xl font-bold text-navy-foreground mt-3">Tudo o que precisa, <span class="text-gradient-azul">incluído</span></h2>
+    </div>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div class="bg-navy-light/50 border border-azul/10 rounded-xl p-6 hover:border-azul/30 transition-all">
+        <div class="w-12 h-12 rounded-lg bg-azul/10 flex items-center justify-center mb-4 text-azul text-2xl">📶</div>
+        <h3 class="font-display text-lg font-bold text-navy-foreground mb-1">Internet de Alta Velocidade</h3>
+        <p class="text-navy-foreground/60 text-sm">Conexão fibra óptica estável e rápida</p>
+      </div>
+      <div class="bg-navy-light/50 border border-azul/10 rounded-xl p-6 hover:border-azul/30 transition-all">
+        <div class="w-12 h-12 rounded-lg bg-azul/10 flex items-center justify-center mb-4 text-azul text-2xl">❄️</div>
+        <h3 class="font-display text-lg font-bold text-navy-foreground mb-1">Climatização</h3>
+        <p class="text-navy-foreground/60 text-sm">Ar condicionado em todos os espaços</p>
+      </div>
+      <div class="bg-navy-light/50 border border-azul/10 rounded-xl p-6 hover:border-azul/30 transition-all">
+        <div class="w-12 h-12 rounded-lg bg-azul/10 flex items-center justify-center mb-4 text-azul text-2xl">🛡️</div>
+        <h3 class="font-display text-lg font-bold text-navy-foreground mb-1">Segurança 24h</h3>
+        <p class="text-navy-foreground/60 text-sm">Vigilância e controlo de acesso</p>
+      </div>
+      <div class="bg-navy-light/50 border border-azul/10 rounded-xl p-6 hover:border-azul/30 transition-all">
+        <div class="w-12 h-12 rounded-lg bg-azul/10 flex items-center justify-center mb-4 text-azul text-2xl">☕</div>
+        <h3 class="font-display text-lg font-bold text-navy-foreground mb-1">Copa Equipada</h3>
+        <p class="text-navy-foreground/60 text-sm">Espaço de café e convívio</p>
+      </div>
+      <div class="bg-navy-light/50 border border-azul/10 rounded-xl p-6 hover:border-azul/30 transition-all">
+        <div class="w-12 h-12 rounded-lg bg-azul/10 flex items-center justify-center mb-4 text-azul text-2xl">🖨️</div>
+        <h3 class="font-display text-lg font-bold text-navy-foreground mb-1">Impressora</h3>
+        <p class="text-navy-foreground/60 text-sm">Equipamento de impressão e scanner</p>
+      </div>
+      <div class="bg-navy-light/50 border border-azul/10 rounded-xl p-6 hover:border-azul/30 transition-all">
+        <div class="w-12 h-12 rounded-lg bg-azul/10 flex items-center justify-center mb-4 text-azul text-2xl">⏰</div>
+        <h3 class="font-display text-lg font-bold text-navy-foreground mb-1">Horário Flexível</h3>
+        <p class="text-navy-foreground/60 text-sm">Acesso em horários adaptáveis</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section id="precos" class="py-20 md:py-28 bg-white">
+  <div class="container mx-auto px-4 md:px-8">
+    <div class="text-center mb-16">
+      <span class="text-primary font-semibold text-sm uppercase tracking-widest">Preços</span>
+      <h2 class="font-display text-3xl md:text-5xl font-bold text-navy mt-3">Planos <span class="text-gradient-azul">acessíveis</span></h2>
+    </div>
+    <div id="pricingGrid" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto"></div>
+  </div>
+</section>
+
+<!-- CONTACT -->
+<section id="contacto" class="py-20 md:py-28 bg-navy">
+  <div class="container mx-auto px-4 md:px-8">
+    <div class="text-center mb-16">
+      <span class="text-azul font-semibold text-sm uppercase tracking-widest">Contacto</span>
+      <h2 class="font-display text-3xl md:text-5xl font-bold text-navy-foreground mt-3">Venha <span class="text-gradient-azul">conhecer</span></h2>
+    </div>
+    <div class="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
+      <div class="text-center p-6">
+        <div class="w-14 h-14 rounded-xl bg-azul/10 flex items-center justify-center mx-auto mb-4 text-azul text-2xl">📍</div>
+        <h3 class="font-display text-lg font-bold text-navy-foreground mb-2">Localização</h3>
+        <p class="text-navy-foreground/60 text-sm">Bairro Azul, Edifício 18<br/>Perto do Cine Tivoli — Luanda</p>
+      </div>
+      <div class="text-center p-6">
+        <div class="w-14 h-14 rounded-xl bg-azul/10 flex items-center justify-center mx-auto mb-4 text-azul text-2xl">📞</div>
+        <h3 class="font-display text-lg font-bold text-navy-foreground mb-2">Telefone</h3>
+        <a href="tel:+244976467124" onclick="trackLead('contact_phone')" class="text-azul font-semibold text-lg hover:text-azul-light">+244 976 467 124</a>
+      </div>
+      <div class="text-center p-6">
+        <div class="w-14 h-14 rounded-xl bg-azul/10 flex items-center justify-center mx-auto mb-4 text-azul text-2xl">🕐</div>
+        <h3 class="font-display text-lg font-bold text-navy-foreground mb-2">Horário</h3>
+        <p class="text-navy-foreground/60 text-sm">Segunda a Sexta<br/>08:00 — 18:00</p>
+      </div>
+    </div>
+    <div class="flex justify-center gap-6 mt-10">
+      <a href="https://www.instagram.com/azulcoworking.ao?igsh=MXVtMWhzMmxiMmZ1aA%3D%3D&utm_source=qr" target="_blank" rel="noopener" class="w-14 h-14 rounded-xl bg-azul/10 hover:bg-azul/20 flex items-center justify-center text-azul text-2xl">📷</a>
+      <a href="https://www.facebook.com/share/1CacvhGJRR/?mibextid=wwXIfr" target="_blank" rel="noopener" class="w-14 h-14 rounded-xl bg-azul/10 hover:bg-azul/20 flex items-center justify-center text-azul text-2xl">f</a>
+    </div>
+    <div class="text-center mt-12">
+      <a href="https://wa.me/244976467124?text=Ol%C3%A1%2C%20gostaria%20de%20saber%20mais%20sobre%20os%20espa%C3%A7os%20dispon%C3%ADveis%20na%20Azul%20Space."
+         target="_blank" rel="noopener" onclick="trackLead('contact_whatsapp')"
+         class="inline-flex items-center gap-3 bg-[#25D366] text-white px-8 py-4 rounded-xl font-bold text-base hover:opacity-90">
+        💬 Falar no WhatsApp
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="bg-navy border-t border-azul/10 py-10">
+  <div class="container mx-auto px-4 md:px-8">
+    <div class="flex flex-col md:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <img src="assets/logo-azul.jpeg" alt="Azul Coworking" class="h-10 rounded-lg" />
+        <span class="text-navy-foreground/60 text-sm">© <span id="year"></span> Azul Coworking. Todos os direitos reservados.</span>
+      </div>
+      <div class="flex gap-6">
+        <a href="#inicio" class="text-navy-foreground/50 hover:text-azul text-sm">Início</a>
+        <a href="#espacos" class="text-navy-foreground/50 hover:text-azul text-sm">Espaços</a>
+        <a href="#precos" class="text-navy-foreground/50 hover:text-azul text-sm">Preços</a>
+        <a href="#contacto" class="text-navy-foreground/50 hover:text-azul text-sm">Contacto</a>
+      </div>
+    </div>
+    <div class="mt-6 text-center">
+      <span class="text-navy-foreground/40 text-xs">Desenvolvido por
+        <a href="https://versaodigitallda.com" target="_blank" rel="noopener" class="text-navy-foreground/60 font-semibold hover:text-azul">VERSÃO DIGITAL</a>
+      </span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  document.getElementById('year').textContent = new Date().getFullYear();
+  // Mobile nav
+  document.getElementById('navToggle').addEventListener('click', function(){
+    document.getElementById('navMobile').classList.toggle('hidden');
+  });
+
+  // Pricing
+  var plans = [
+    { name:'Hot Desk', price:'9.900', unit:'AOA/dia', features:['Mesas partilhadas','Internet rápida','Ambiente colaborativo','Mínimo 3 dias','Ou 79.900 AOA/mês'], popular:false },
+    { name:'Mesa Fixa', price:'79.900', unit:'AOA/mês', features:['Lugar garantido','Maior produtividade','Comunidade ativa','Internet rápida','Café e chá incluídos'], popular:true },
+    { name:'Sala Privada Pequena', price:'119.900', unit:'AOA/mês', features:['Até 4 pessoas','Privacidade total','Espaço dedicado','Mínimo 3 meses','Ambiente profissional'], popular:false },
+    { name:'Sala Premium', price:'199.900', unit:'AOA/mês', features:['Mais silenciosa','Maior conforto','Experiência premium','Ou 35.000 AOA/dia','Mín. 3 dias (diária)'], popular:false },
+    { name:'Sala Privada Grande', price:'299.900', unit:'AOA/mês', features:['Até 12 pessoas','Espaço amplo','Total privacidade','Ideal para equipas','Ambiente executivo'], popular:false },
+    { name:'Escritório Digital', price:'19.900', unit:'AOA/mês', features:['Endereço comercial','Receção de encomendas','1 dia grátis/mês','Sem espaço físico fixo','Ideal para empresas remotas'], popular:false },
+  ];
+  var WA = 'https://wa.me/244976467124?text=Ol%C3%A1%2C%20gostaria%20de%20saber%20mais%20sobre%20os%20espa%C3%A7os%20dispon%C3%ADveis%20na%20Azul%20Space.';
+  var grid = document.getElementById('pricingGrid');
+  plans.forEach(function(p){
+    var card = document.createElement('div');
+    card.className = 'relative rounded-2xl p-8 border transition-all duration-300 hover:-translate-y-1 ' +
+      (p.popular ? 'bg-navy border-azul/30 shadow-azul' : 'bg-white border-slate-200 hover:border-azul/20');
+    var titleColor = p.popular ? 'text-navy-foreground' : 'text-navy';
+    var priceColor = p.popular ? 'text-azul' : 'text-primary';
+    var unitColor = p.popular ? 'text-navy-foreground/60' : 'text-slate-500';
+    var featColor = p.popular ? 'text-navy-foreground/80' : 'text-slate-500';
+    var btn = p.popular
+      ? 'bg-primary text-white hover:bg-azul-light shadow-azul'
+      : 'border border-primary text-primary hover:bg-primary hover:text-white';
+    var feats = p.features.map(function(f){ return '<li class="flex items-center gap-3 text-sm '+featColor+'"><span class="text-azul">✓</span>'+f+'</li>'; }).join('');
+    card.innerHTML =
+      (p.popular ? '<span class="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-white text-xs font-bold px-4 py-1 rounded-full">Mais Popular</span>' : '') +
+      '<h3 class="font-display text-xl font-bold mb-2 '+titleColor+'">'+p.name+'</h3>'+
+      '<div class="mb-6"><span class="text-4xl font-bold '+priceColor+'">'+p.price+'</span><span class="text-sm ml-1 '+unitColor+'">'+p.unit+'</span></div>'+
+      '<ul class="space-y-3 mb-8">'+feats+'</ul>'+
+      '<a href="'+WA+'" target="_blank" rel="noopener" onclick="trackLead(\'pricing_'+p.name+'\')" class="block text-center py-3 rounded-xl font-semibold text-sm transition-all '+btn+'">Contactar</a>';
+    grid.appendChild(card);
+  });
+
+  // Carousels
+  document.querySelectorAll('[data-carousel]').forEach(function(root){
+    var track = root.querySelector('.carousel-track');
+    var slides = root.querySelectorAll('.carousel-slide');
+    var dotsBox = root.querySelector('[data-dots]');
+    var i = 0;
+    function go(n){
+      i = (n + slides.length) % slides.length;
+      track.style.transform = 'translateX(-' + (i*100) + '%)';
+      if(dotsBox){
+        dotsBox.querySelectorAll('button').forEach(function(d, idx){
+          d.className = 'h-2 rounded-full transition-all ' + (idx===i ? 'w-8 bg-primary active' : 'w-2 bg-white/60');
+        });
+      }
+    }
+    if(dotsBox){
+      slides.forEach(function(_, idx){
+        var b = document.createElement('button');
+        b.addEventListener('click', function(){ go(idx); });
+        dotsBox.appendChild(b);
+      });
+    }
+    var prev = root.querySelector('[data-prev]'); if(prev) prev.addEventListener('click', function(){ go(i-1); });
+    var next = root.querySelector('[data-next]'); if(next) next.addEventListener('click', function(){ go(i+1); });
+    go(0);
+    var ms = parseInt(root.getAttribute('data-autoplay')||'0',10);
+    if(ms>0) setInterval(function(){ go(i+1); }, ms);
+  });
+</script>
+
+</body>
+</html>
