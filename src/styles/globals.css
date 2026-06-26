@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: #0B1220;
+  color: #F5F7FA;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.focus-ring {
+  @apply outline-none focus-visible:ring-2 focus-visible:ring-azul-glow focus-visible:ring-offset-2 focus-visible:ring-offset-ink;
+}
+
+/* react-day-picker - tema customizado para a paleta da marca */
+.rdp {
+  --rdp-cell-size: 38px;
+  --rdp-accent-color: #2F6FED;
+  --rdp-background-color: rgba(47,111,237,0.15);
+  margin: 0;
+}
+.rdp-day_selected, .rdp-day_selected:hover {
+  background-color: #2F6FED !important;
+  color: white;
+}
+.rdp-day {
+  color: #F5F7FA;
+}
+.rdp-day:hover {
+  background-color: rgba(47,111,237,0.25);
+}
+.rdp-caption_label, .rdp-head_cell {
+  color: #F5F7FA;
+}
+.rdp-nav_button {
+  color: #F5F7FA;
+}
