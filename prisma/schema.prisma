@@ -2,7 +2,7 @@
 // Para produção: troque provider para "postgresql" e use a DATABASE_URL do Supabase.
 
 datasource db {
-  provider = "sqlite" // troque para "postgresql" em produção
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -10,22 +10,14 @@ generator client {
   provider = "prisma-client-js"
 }
 
-enum LeadStatus {
-  NOVO
-  CONTACTADO
-  EM_NEGOCIACAO
-  CONVERTIDO
-  PERDIDO
-}
-
 model Lead {
-  id            String     @id @default(cuid())
+  id            String   @id @default(cuid())
   firstName     String
   lastName      String
   email         String
   whatsapp      String
   scheduledDate DateTime
-  status        LeadStatus @default(NOVO)
+  status        String   @default("NOVO")
   notes         Note[]
   source        String?    @default("landing-page")
   ip            String?
