@@ -1,25 +1,32 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/dist/style.css";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { getDialInfoFromTimezone, type DialInfo } from "@/lib/countryCode";
 
 type FormState = {
   firstName: string;
   lastName: string;
   email: string;
-  whatsapp: string;
+  whatsappNumber: string; // só o número, sem código
 };
 
-const initialState: FormState = { firstName: "", lastName: "", email: "", whatsapp: "" };
+const initialState: FormState = { firstName: "", lastName: "", email: "", whatsappNumber: "" };
+
+const HOURS = Array.from({ length: 13 }, (_, i) => i + 8); // 08h às 20h
+const MINUTES = ["00", "15", "30", "45"];
 
 export default function LeadForm() {
   const router = useRouter();
   const [form, setForm] = useState<FormState>(initialState);
+  const [dialInfo, setDialInfo] = useState<DialInfo>({ code: "+244", flag: "🇦🇴", name: "Angola" });
   const [date, setDate] = useState<Date | undefined>(undefined);
+  const [hour, setHour] = useState<string>("09");
+  const [minute, setMinute] = useState<string>("00");
   const [showCalendar, setShowCalendar] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -27,8 +34,25 @@ export default function LeadForm() {
   const formStartedAt = useRef<number>(Date.now());
   const honeypotRef = useRef<HTMLInputElement>(null);
 
+  // Detecta fuso horário e define código de país automaticamente
+  useEffect(() => {
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      setDialInfo(getDialInfoFromTimezone(tz));
+    } catch {
+      // mantém o padrão (+244)
+    }
+  }, []);
+
   function update(field: keyof FormState, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function getScheduledDateTime(): Date | null {
+    if (!date) return null;
+    const d = new Date(date);
+    d.setHours(Number(hour), Number(minute), 0, 0);
+    return d;
   }
 
   function validate(): boolean {
@@ -37,9 +61,10 @@ export default function LeadForm() {
     if (!form.lastName.trim()) next.lastName = "Indique o último nome.";
     if (!form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email))
       next.email = "Indique um e-mail válido.";
-    if (!form.whatsapp.trim() || form.whatsapp.replace(/\D/g, "").length < 9)
+    const fullNumber = form.whatsappNumber.replace(/\D/g, "");
+    if (!fullNumber || fullNumber.length < 7)
       next.whatsapp = "Indique um número de WhatsApp válido.";
-    if (!date) next.date = "Escolha uma data para o agendamento.";
+    if (!date) next.date = "Escolha uma data e hora para o agendamento.";
     setErrors(next);
     return Object.keys(next).length === 0;
   }
@@ -49,14 +74,20 @@ export default function LeadForm() {
     setServerError(null);
     if (!validate()) return;
 
+    const scheduledDateTime = getScheduledDateTime();
+    const fullWhatsapp = `${dialInfo.code} ${form.whatsappNumber.trim()}`;
+
     setSubmitting(true);
     try {
       const res = await fetch("/api/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...form,
-          scheduledDate: date!.toISOString(),
+          firstName: form.firstName,
+          lastName: form.lastName,
+          email: form.email,
+          whatsapp: fullWhatsapp,
+          scheduledDate: scheduledDateTime!.toISOString(),
           formStartedAt: formStartedAt.current,
           honeypot: honeypotRef.current?.value || ""
         })
@@ -79,6 +110,8 @@ export default function LeadForm() {
     }
   }
 
+  const scheduledDateTime = getScheduledDateTime();
+
   return (
     <section id="formulario" className="bg-ink py-16 md:py-24">
       <div className="mx-auto max-w-xl px-6">
@@ -87,8 +120,8 @@ export default function LeadForm() {
             Agende a sua sessão estratégica
           </h2>
           <p className="mt-3 text-mist">
-            Preencha os seus dados e escolha o melhor dia. Entraremos em contacto pelo WhatsApp
-            para confirmar o horário.
+            Preencha os seus dados e escolha o melhor dia e hora. Entraremos em contacto pelo
+            WhatsApp para confirmar.
           </p>
         </div>
 
@@ -97,7 +130,7 @@ export default function LeadForm() {
           className="mt-10 space-y-5 rounded-2xl border border-white/10 bg-white/[0.03] p-6 md:p-8"
           noValidate
         >
-          {/* Honeypot - invisível para humanos, capturado por bots */}
+          {/* Honeypot */}
           <input
             ref={honeypotRef}
             type="text"
@@ -141,41 +174,90 @@ export default function LeadForm() {
             />
           </Field>
 
+          {/* WhatsApp com código de país automático */}
           <Field label="Contacto WhatsApp" error={errors.whatsapp}>
-            <input
-              type="tel"
-              className={inputClass(!!errors.whatsapp)}
-              value={form.whatsapp}
-              onChange={(e) => update("whatsapp", e.target.value)}
-              placeholder="+244 9XX XXX XXX"
-              autoComplete="tel"
-            />
+            <div className="flex gap-2">
+              <div className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-ink2 px-3 py-3 text-sm text-paper whitespace-nowrap">
+                <span>{dialInfo.flag}</span>
+                <span className="font-medium">{dialInfo.code}</span>
+              </div>
+              <input
+                type="tel"
+                className={inputClass(!!errors.whatsapp) + " flex-1"}
+                value={form.whatsappNumber}
+                onChange={(e) => update("whatsappNumber", e.target.value)}
+                placeholder="9XX XXX XXX"
+                autoComplete="tel"
+              />
+            </div>
+            <p className="mt-1 text-xs text-mist/60">
+              Detectado: {dialInfo.flag} {dialInfo.name}
+            </p>
           </Field>
 
-          <Field label="Data para o agendamento" error={errors.date}>
+          {/* Data + Hora */}
+          <Field label="Data e hora do agendamento" error={errors.date}>
             <button
               type="button"
               onClick={() => setShowCalendar((s) => !s)}
               className={inputClass(!!errors.date) + " flex items-center justify-between text-left"}
             >
-              <span className={date ? "text-paper" : "text-mist"}>
-                {date ? format(date, "PPP", { locale: ptBR }) : "Selecionar data no calendário"}
+              <span className={scheduledDateTime ? "text-paper" : "text-mist"}>
+                {scheduledDateTime
+                  ? format(scheduledDateTime, "PPP 'às' HH:mm", { locale: ptBR })
+                  : "Selecionar data e hora"}
               </span>
               <span aria-hidden>📅</span>
             </button>
 
             {showCalendar && (
-              <div className="mt-3 rounded-xl border border-white/10 bg-ink2 p-3">
+              <div className="mt-3 rounded-xl border border-white/10 bg-ink2 p-4">
                 <DayPicker
                   mode="single"
                   selected={date}
-                  onSelect={(d) => {
-                    setDate(d);
-                    setShowCalendar(false);
-                  }}
+                  onSelect={(d) => setDate(d)}
                   fromDate={new Date()}
                   locale={ptBR}
                 />
+
+                {/* Seletor de hora */}
+                {date && (
+                  <div className="mt-4 border-t border-white/10 pt-4">
+                    <p className="mb-2 text-xs font-medium text-mist">Escolha a hora</p>
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={hour}
+                        onChange={(e) => setHour(e.target.value)}
+                        className="focus-ring flex-1 rounded-lg border border-white/10 bg-ink px-3 py-2 text-sm text-paper"
+                      >
+                        {HOURS.map((h) => (
+                          <option key={h} value={String(h).padStart(2, "0")}>
+                            {String(h).padStart(2, "0")}h
+                          </option>
+                        ))}
+                      </select>
+                      <span className="text-mist font-bold">:</span>
+                      <select
+                        value={minute}
+                        onChange={(e) => setMinute(e.target.value)}
+                        className="focus-ring flex-1 rounded-lg border border-white/10 bg-ink px-3 py-2 text-sm text-paper"
+                      >
+                        {MINUTES.map((m) => (
+                          <option key={m} value={m}>
+                            {m} min
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => setShowCalendar(false)}
+                        className="rounded-lg bg-azul px-4 py-2 text-xs font-semibold text-white hover:bg-azul-dim"
+                      >
+                        Confirmar
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </Field>

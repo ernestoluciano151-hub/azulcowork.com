@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import Sidebar from "@/components/admin/Sidebar";
 import StatsCard from "@/components/admin/StatsCard";
+import LeadsChart from "@/components/admin/LeadsChart";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -47,6 +48,8 @@ export default async function DashboardPage() {
           <StatsCard label="Leads hoje" value={today} />
           <StatsCard label="Leads esta semana" value={week} />
         </div>
+
+        <LeadsChart />
 
         <div className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] p-6">
           <h2 className="font-display text-lg font-bold text-paper">Próximos agendamentos</h2>

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { isRateLimited, looksLikeBot } from "@/lib/rateLimit";
 import { isValidEmail, isValidWhatsapp, sanitizeText } from "@/lib/validators";
 import { getSession } from "@/lib/auth";
+import { sendNewLeadEmail } from "@/lib/email";
 
 // POST /api/leads -> usado pelo formulário público da landing page
 export async function POST(req: NextRequest) {
@@ -42,6 +43,9 @@ export async function POST(req: NextRequest) {
         source: "landing-page"
       }
     });
+
+    // Envia email de notificação (não bloqueia a resposta)
+    sendNewLeadEmail(lead).catch(() => {});
 
     return NextResponse.json({ ok: true, id: lead.id }, { status: 201 });
   } catch (err) {

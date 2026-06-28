@@ -68,6 +68,13 @@ export default function LeadsPage() {
     window.open(`/api/leads/export?${params.toString()}`, "_blank");
   }
 
+  function exportXlsx() {
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (status !== "ALL") params.set("status", status);
+    window.open(`/api/leads/export-xlsx?${params.toString()}`, "_blank");
+  }
+
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
@@ -79,12 +86,20 @@ export default function LeadsPage() {
             <h1 className="font-display text-2xl font-bold text-paper">Leads</h1>
             <p className="mt-1 text-sm text-mist">{total} lead(s) encontrados.</p>
           </div>
-          <button
-            onClick={exportCsv}
-            className="focus-ring rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-paper hover:bg-white/5"
-          >
-            Exportar CSV
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={exportCsv}
+              className="focus-ring rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-paper hover:bg-white/5"
+            >
+              Exportar CSV
+            </button>
+            <button
+              onClick={exportXlsx}
+              className="focus-ring rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-300 hover:bg-emerald-500/20"
+            >
+              Exportar Excel
+            </button>
+          </div>
         </div>
 
         {/* Filtros */}
