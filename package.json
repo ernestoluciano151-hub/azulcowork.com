@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma migrate deploy && next build",
+    "build": "next build",
+    "build:prod": "prisma migrate deploy && next build",
     "start": "next start",
     "lint": "next lint",
     "postinstall": "prisma generate",
@@ -13,7 +14,6 @@
   },
   "dependencies": {
     "@prisma/client": "^5.18.0",
-    "@types/nodemailer": "^8.0.1",
     "bcryptjs": "^2.4.3",
     "date-fns": "^3.6.0",
     "jose": "^5.6.3",
@@ -29,6 +29,7 @@
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.14.0",
+    "@types/nodemailer": "^8.0.1",
     "@types/react": "^18.3.0",
     "autoprefixer": "^10.4.19",
     "postcss": "^8.4.38",
