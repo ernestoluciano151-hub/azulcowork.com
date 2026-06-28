@@ -21,7 +21,9 @@ body {
 }
 
 .focus-ring {
-  @apply outline-none focus-visible:ring-2 focus-visible:ring-azul-glow focus-visible:ring-offset-2 focus-visible:ring-offset-ink;
+  @apply outline-none focus-visible:ring-2 focus-visible:ring-offset-2;
+  --tw-ring-color: #5C8FFF;
+  --tw-ring-offset-color: #0B1220;
 }
 
 /* react-day-picker - tema customizado para a paleta da marca */
