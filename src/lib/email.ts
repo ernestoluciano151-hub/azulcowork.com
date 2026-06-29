@@ -27,7 +27,7 @@ const valStyle  = "color:#f1f5f9;font-weight:500;padding:8px 0 8px 10px";
 const btnStyle  = "display:inline-block;margin-top:22px;background:#2F6FED;color:#fff;padding:11px 22px;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px";
 const footStyle = "margin-top:20px;font-size:11px;color:#475569";
 
-const siteUrl = () => process.env.NEXT_PUBLIC_SITE_URL || "https://leadgen-crm-ooz8.vercel.app";
+const siteUrl = () => process.env.NEXT_PUBLIC_SITE_URL || "https://azulcowork.com";
 
 // ─── Novo lead coworking ──────────────────────────────────────────────────────
 export async function sendNewLeadEmail(lead: {
