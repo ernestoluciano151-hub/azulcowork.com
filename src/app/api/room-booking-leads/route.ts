@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { isRateLimited } from "@/lib/rateLimit";
+import { sendNewRoomLeadEmail } from "@/lib/email";
 
 export async function POST(req: NextRequest) {
   try {
@@ -28,6 +29,9 @@ export async function POST(req: NextRequest) {
         ip,
       }
     });
+    // Notificação por email (não bloqueia a resposta)
+    sendNewRoomLeadEmail(lead).catch(() => {});
+
     return NextResponse.json({ ok: true, id: lead.id }, { status: 201 });
   } catch (err) {
     console.error("Erro ao criar room booking lead:", err);

@@ -61,7 +61,13 @@ export async function POST(req: NextRequest) {
     });
 
     if (!_adminCreate) {
-      sendNewLeadEmail(lead).catch(() => {});
+      sendNewLeadEmail({
+        ...lead,
+        spaceType: lead.spaceType ?? null,
+        planName: lead.planName ?? null,
+        appointmentType: lead.appointmentType ?? null,
+        source: lead.source ?? null,
+      }).catch(() => {});
     }
 
     return NextResponse.json({ ok: true, id: lead.id }, { status: 201 });
