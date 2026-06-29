@@ -24,11 +24,30 @@ export async function GET(req: NextRequest) {
     ];
   }
 
-  const companies = await prisma.company.findMany({
+  const rawCompanies = await prisma.company.findMany({
     where,
     orderBy: { contractEnd: "asc" },
-    include: { payments: { orderBy: { dueDate: "desc" }, take: 5 } }
+    include: {
+      payments: { orderBy: { dueDate: "desc" }, take: 5 },
+      _count: false,
+    }
   });
+
+  const debtMap = await prisma.payment.groupBy({
+    by: ["companyId"],
+    where: { status: "ATRASADO" },
+    _sum: { amount: true },
+  });
+
+  const debtByCompany: Record<string, number> = {};
+  for (const d of debtMap) {
+    debtByCompany[d.companyId] = d._sum.amount || 0;
+  }
+
+  const companies = rawCompanies.map((c) => ({
+    ...c,
+    debtAmount: debtByCompany[c.id] || 0,
+  }));
 
   return NextResponse.json({ companies });
 }

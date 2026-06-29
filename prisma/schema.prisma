@@ -71,7 +71,25 @@ model AdminUser {
   email        String   @unique
   passwordHash String
   name         String?
+  role         String   @default("ADMIN")
+  totpSecret   String?
+  totpEnabled  Boolean  @default(false)
+  active       Boolean  @default(true)
   createdAt    DateTime @default(now())
+}
+
+model DeleteRequest {
+  id          String   @id @default(cuid())
+  requestedBy String
+  entityType  String
+  entityId    String
+  entityLabel String
+  reason      String
+  status      String   @default("PENDING")
+  reviewedBy  String?
+  reviewNote  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model Company {

@@ -2,6 +2,7 @@
 export const dynamic = "force-dynamic";
 import { useEffect, useState, useCallback } from "react";
 import Sidebar from "@/components/admin/Sidebar";
+import DeleteRequestModal from "@/components/admin/DeleteRequestModal";
 import { format } from "date-fns";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -39,6 +40,7 @@ export default function LeadsSalasPage() {
 
   // Modal detail/observações
   const [detail, setDetail] = useState<any | null>(null);
+  const [deleteModal, setDeleteModal] = useState<{ id: string; label: string } | null>(null);
 
   const fetchLeads = useCallback(async () => {
     setLoading(true);
@@ -188,13 +190,22 @@ export default function LeadsSalasPage() {
                   </td>
                   <td className="px-4 py-3 text-mist text-xs whitespace-nowrap">{format(new Date(l.createdAt), "dd/MM/yy HH:mm")}</td>
                   <td className="px-4 py-3">
-                    <select
-                      value={l.status}
-                      onChange={e => updateStatus(l.id, e.target.value)}
-                      className="focus-ring rounded border border-white/10 bg-ink px-2 py-1 text-xs text-paper"
-                    >
-                      {Object.entries(STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                    </select>
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={l.status}
+                        onChange={e => updateStatus(l.id, e.target.value)}
+                        className="focus-ring rounded border border-white/10 bg-ink px-2 py-1 text-xs text-paper"
+                      >
+                        {Object.entries(STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                      </select>
+                      <button
+                        onClick={() => setDeleteModal({ id: l.id, label: `${l.firstName} ${l.lastName}` })}
+                        className="rounded-lg border border-red-500/20 px-2 py-1.5 text-xs text-red-400 hover:bg-red-500/10"
+                        title="Pedir eliminação"
+                      >
+                        🗑️
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -284,6 +295,17 @@ export default function LeadsSalasPage() {
             </form>
           </div>
         </div>
+      )}
+
+      {deleteModal && (
+        <DeleteRequestModal
+          isOpen={true}
+          onClose={() => setDeleteModal(null)}
+          entityType="roomLead"
+          entityId={deleteModal.id}
+          entityLabel={deleteModal.label}
+          onSuccess={() => { setDeleteModal(null); fetchLeads(); }}
+        />
       )}
 
       {/* Modal: Ver observações completas */}

@@ -4,8 +4,10 @@ import { prisma } from "@/lib/prisma";
 import Sidebar from "@/components/admin/Sidebar";
 import StatsCard from "@/components/admin/StatsCard";
 import LeadsChart from "@/components/admin/LeadsChart";
+import Link from "next/link";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatKz } from "@/lib/currency";
 
 function startOfDay(d: Date) {
   const x = new Date(d);
@@ -33,7 +35,7 @@ export default async function DashboardPage() {
   const weekStart = startOfWeekFn(now);
   const in60 = new Date(now); in60.setDate(in60.getDate() + 60);
 
-  const [total, today, week, upcoming, totalCompanies, expiringContracts, overduePayments, todayReservations, weekReservations] = await Promise.all([
+  const [total, today, week, upcoming, totalCompanies, expiringContracts, overduePayments, todayReservations, weekReservations, pendingDeletes, totalPaidAgg, totalDebtAgg] = await Promise.all([
     prisma.lead.count(),
     prisma.lead.count({ where: { createdAt: { gte: todayStart } } }),
     prisma.lead.count({ where: { createdAt: { gte: weekStart } } }),
@@ -60,7 +62,10 @@ export default async function DashboardPage() {
         startDatetime: { gte: now, lte: new Date(now.getTime() + 7 * 86400000) },
         status: "CONFIRMADA"
       }
-    })
+    }),
+    prisma.deleteRequest.count({ where: { status: "PENDING" } }),
+    prisma.payment.aggregate({ where: { status: "PAGO" }, _sum: { amount: true } }),
+    prisma.payment.aggregate({ where: { status: "ATRASADO" }, _sum: { amount: true } }),
   ]);
 
   return (
@@ -100,6 +105,28 @@ export default async function DashboardPage() {
           <StatsCard label="Reservas hoje" value={todayReservations} />
           <StatsCard label="Eventos esta semana" value={weekReservations} />
         </div>
+
+        {/* Pagamentos stats */}
+        <h2 className="mt-6 text-xs font-semibold uppercase tracking-wider text-mist">Pagamentos</h2>
+        <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-5">
+            <p className="text-xs font-semibold uppercase tracking-wider text-emerald-400">Total em caixa (recebido)</p>
+            <p className="mt-2 text-2xl font-bold text-emerald-300">{formatKz(totalPaidAgg._sum.amount || 0)}</p>
+          </div>
+          <div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-5">
+            <p className="text-xs font-semibold uppercase tracking-wider text-red-400">Em atraso (AOA)</p>
+            <p className="mt-2 text-2xl font-bold text-red-300">{formatKz(totalDebtAgg._sum.amount || 0)}</p>
+          </div>
+        </div>
+
+        {pendingDeletes > 0 && (
+          <div className="mt-4 rounded-2xl border border-orange-500/20 bg-orange-500/5 p-4 flex items-center justify-between">
+            <p className="text-sm text-orange-300">🗑️ {pendingDeletes} pedido(s) de eliminação aguardam a sua aprovação</p>
+            <Link href="/admin/delete-requests" className="rounded-lg bg-orange-500/20 px-4 py-1.5 text-xs font-medium text-orange-300 hover:bg-orange-500/30">
+              Ver pedidos
+            </Link>
+          </div>
+        )}
 
         {overduePayments > 0 && (
           <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/5 p-4">

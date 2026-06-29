@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Sidebar from "@/components/admin/Sidebar";
 import CompanyModal, { Company } from "@/components/admin/CompanyModal";
+import DeleteRequestModal from "@/components/admin/DeleteRequestModal";
 import { format } from "date-fns";
 import { formatKz } from "@/lib/currency";
 
@@ -27,6 +28,7 @@ export default function EmpresasPage() {
   const [q, setQ] = useState("");
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [creatingCompany, setCreatingCompany] = useState(false);
+  const [deleteModal, setDeleteModal] = useState<{ id: string; label: string } | null>(null);
 
   const fetchCompanies = useCallback(async () => {
     setLoading(true);
@@ -106,6 +108,7 @@ export default function EmpresasPage() {
                 <th className="px-4 py-3 font-medium">Plano</th>
                 <th className="px-4 py-3 font-medium">Fim contrato</th>
                 <th className="px-4 py-3 font-medium">Renda</th>
+                <th className="px-4 py-3 font-medium">Dívida</th>
                 <th className="px-4 py-3 font-medium">Contrato</th>
                 <th className="px-4 py-3 font-medium">Pagamento</th>
                 <th className="px-4 py-3 font-medium" />
@@ -114,12 +117,12 @@ export default function EmpresasPage() {
             <tbody className="divide-y divide-white/5">
               {loading && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-mist">A carregar...</td>
+                  <td colSpan={10} className="px-4 py-8 text-center text-mist">A carregar...</td>
                 </tr>
               )}
               {!loading && companies.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-mist">
+                  <td colSpan={10} className="px-4 py-8 text-center text-mist">
                     Nenhuma empresa encontrada.
                   </td>
                 </tr>
@@ -137,6 +140,13 @@ export default function EmpresasPage() {
                   <td className="px-4 py-3">{format(new Date(c.contractEnd), "dd/MM/yyyy")}</td>
                   <td className="px-4 py-3">{formatKz(c.rentAmount)}</td>
                   <td className="px-4 py-3">
+                    {(c as any).debtAmount > 0 ? (
+                      <span className="font-semibold text-red-400">{formatKz((c as any).debtAmount)}</span>
+                    ) : (
+                      <span className="text-mist">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
                     <span className={`rounded-full px-3 py-1 text-xs font-medium ${CONTRACT_STATUS_COLORS[c.contractStatus] || "bg-white/10 text-mist"}`}>
                       {c.contractStatus.replace("_", " ")}
                     </span>
@@ -147,12 +157,21 @@ export default function EmpresasPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setSelectedCompany(c); }}
-                      className="focus-ring rounded-lg border border-white/10 px-3 py-1.5 text-xs hover:bg-white/5"
-                    >
-                      Editar
-                    </button>
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setSelectedCompany(c); }}
+                        className="focus-ring rounded-lg border border-white/10 px-3 py-1.5 text-xs hover:bg-white/5"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setDeleteModal({ id: c.id, label: c.name }); }}
+                        className="rounded-lg border border-red-500/20 px-2 py-1.5 text-xs text-red-400 hover:bg-red-500/10"
+                        title="Pedir eliminação"
+                      >
+                        🗑️
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -172,6 +191,16 @@ export default function EmpresasPage() {
         <CompanyModal
           onClose={() => setCreatingCompany(false)}
           onSaved={() => { fetchCompanies(); setCreatingCompany(false); }}
+        />
+      )}
+      {deleteModal && (
+        <DeleteRequestModal
+          isOpen={true}
+          onClose={() => setDeleteModal(null)}
+          entityType="company"
+          entityId={deleteModal.id}
+          entityLabel={deleteModal.label}
+          onSuccess={() => { setDeleteModal(null); fetchCompanies(); }}
         />
       )}
     </div>

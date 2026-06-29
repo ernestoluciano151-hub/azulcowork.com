@@ -8,12 +8,9 @@ export default function ObrigadoPage() {
           <h1 className="font-display text-3xl font-bold text-paper mb-4">Obrigado pelo seu interesse!</h1>
           <p className="text-mist text-lg mb-2">Recebemos o seu pedido com sucesso.</p>
           <p className="text-mist text-sm mb-8">A nossa equipa irá entrar em contacto consigo em breve pelo WhatsApp para confirmar os detalhes.</p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a href="/" className="inline-flex items-center justify-center gap-2 bg-azul text-white px-6 py-3 rounded-xl font-semibold text-sm hover:bg-azul-dim transition-all">
+          <div className="flex justify-center">
+            <a href="/" className="inline-flex items-center justify-center gap-2 bg-azul text-white px-8 py-3 rounded-xl font-semibold text-sm hover:bg-azul-dim transition-all">
               ← Voltar ao início
-            </a>
-            <a href="https://wa.me/244976467124" target="_blank" rel="noopener" className="inline-flex items-center justify-center gap-2 bg-[#25D366] text-white px-6 py-3 rounded-xl font-semibold text-sm hover:opacity-90 transition-all">
-              💬 Falar no WhatsApp
             </a>
           </div>
         </div>

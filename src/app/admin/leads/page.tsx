@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Sidebar from "@/components/admin/Sidebar";
 import LeadModal, { Lead } from "@/components/admin/LeadModal";
+import DeleteRequestModal from "@/components/admin/DeleteRequestModal";
 import { format } from "date-fns";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -38,6 +39,7 @@ export default function LeadsPage() {
   const [loading, setLoading] = useState(true);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [creatingLead, setCreatingLead] = useState(false);
+  const [deleteModal, setDeleteModal] = useState<{ id: string; label: string } | null>(null);
 
   const fetchLeads = useCallback(async () => {
     setLoading(true);
@@ -211,12 +213,21 @@ export default function LeadsPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => setEditingLead(lead)}
-                      className="focus-ring rounded-lg border border-white/10 px-3 py-1.5 text-xs hover:bg-white/5"
-                    >
-                      Editar
-                    </button>
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => setEditingLead(lead)}
+                        className="focus-ring rounded-lg border border-white/10 px-3 py-1.5 text-xs hover:bg-white/5"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => setDeleteModal({ id: lead.id, label: `${lead.firstName} ${lead.lastName}` })}
+                        className="rounded-lg border border-red-500/20 px-2 py-1.5 text-xs text-red-400 hover:bg-red-500/10"
+                        title="Pedir eliminação"
+                      >
+                        🗑️
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -259,6 +270,16 @@ export default function LeadsPage() {
           mode="create"
           onClose={() => setCreatingLead(false)}
           onSaved={() => fetchLeads()}
+        />
+      )}
+      {deleteModal && (
+        <DeleteRequestModal
+          isOpen={true}
+          onClose={() => setDeleteModal(null)}
+          entityType="lead"
+          entityId={deleteModal.id}
+          entityLabel={deleteModal.label}
+          onSuccess={() => { setDeleteModal(null); fetchLeads(); }}
         />
       )}
     </div>

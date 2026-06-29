@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 const SESSION_COOKIE = "vd_admin_session";
 const secret = () => new TextEncoder().encode(process.env.JWT_SECRET || "fallback-secret-troque-me");
 
-export async function createSession(payload: { sub: string; email: string }) {
+export async function createSession(payload: { sub: string; email: string; role?: string; name?: string }) {
   const token = await new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
@@ -29,7 +29,7 @@ export async function getSession() {
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, secret());
-    return payload as { sub: string; email: string };
+    return payload as { sub: string; email: string; role?: string; name?: string };
   } catch {
     return null;
   }
