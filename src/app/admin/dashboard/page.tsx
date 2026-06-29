@@ -67,8 +67,22 @@ export default async function DashboardPage() {
     <div className="flex min-h-screen bg-ink">
       <Sidebar />
       <main className="flex-1 p-8">
-        <h1 className="font-display text-2xl font-bold text-paper">Dashboard</h1>
-        <p className="mt-1 text-sm text-mist">Visão geral do CRM.</p>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="font-display text-2xl font-bold text-paper">Dashboard</h1>
+            <p className="mt-1 text-sm text-mist">Visão geral do CRM.</p>
+          </div>
+          <a
+            href="/api/export-crm"
+            download
+            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition-colors shadow"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+            </svg>
+            Exportar CRM completo (.xlsx)
+          </a>
+        </div>
 
         {/* Leads stats */}
         <h2 className="mt-6 text-xs font-semibold uppercase tracking-wider text-mist">Leads</h2>
