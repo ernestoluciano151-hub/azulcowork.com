@@ -1,62 +1,118 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { format } from "date-fns";
+
+export type MeetingPlan = {
+  id: string;
+  name: string;
+  maxPeople: number;
+  description?: string | null;
+  coffeeBreakAvailable: boolean;
+  customPricingAllowed: boolean;
+  minHoursForCustom?: number | null;
+  active: boolean;
+};
 
 export type Reservation = {
   id: string;
-  roomId: string;
-  companyId?: string | null;
   eventName: string;
+  companyName?: string | null;
   responsible: string;
+  planId: string;
+  plan?: MeetingPlan;
+  participants: number;
   startDatetime: string;
   endDatetime: string;
-  participants: number;
-  notes?: string | null;
+  totalHours: number;
+  coffeeBreak: boolean;
+  observations?: string | null;
   status: string;
-  room?: { id: string; name: string };
-  company?: { id: string; name: string } | null;
+  isCustomPricing: boolean;
+  customRequest?: string | null;
+  createdAt: string;
 };
-
-export type RoomOption = { id: string; name: string; capacity: number };
-export type CompanyOption = { id: string; name: string };
 
 type Props = {
   reservation?: Reservation | null;
-  rooms: RoomOption[];
-  companies: CompanyOption[];
-  defaultRoomId?: string;
+  plans: MeetingPlan[];
   onClose: () => void;
   onSaved: () => void;
 };
 
-export default function ReservationModal({ reservation, rooms, companies, defaultRoomId, onClose, onSaved }: Props) {
+function toDateTimeLocal(dt: string) {
+  return format(new Date(dt), "yyyy-MM-dd'T'HH:mm");
+}
+
+export default function ReservationModal({ reservation, plans, onClose, onSaved }: Props) {
   const isCreate = !reservation;
 
-  function toDateTimeLocal(dt: string) {
-    return format(new Date(dt), "yyyy-MM-dd'T'HH:mm");
-  }
-
-  const [roomId, setRoomId] = useState(reservation?.roomId ?? defaultRoomId ?? (rooms[0]?.id || ""));
-  const [companyId, setCompanyId] = useState(reservation?.companyId ?? "");
   const [eventName, setEventName] = useState(reservation?.eventName ?? "");
+  const [companyName, setCompanyName] = useState(reservation?.companyName ?? "");
   const [responsible, setResponsible] = useState(reservation?.responsible ?? "");
+  const [planId, setPlanId] = useState(reservation?.planId ?? (plans[0]?.id || ""));
+  const [participants, setParticipants] = useState(String(reservation?.participants ?? "1"));
   const [startDatetime, setStartDatetime] = useState(
     reservation?.startDatetime ? toDateTimeLocal(reservation.startDatetime) : ""
   );
   const [endDatetime, setEndDatetime] = useState(
     reservation?.endDatetime ? toDateTimeLocal(reservation.endDatetime) : ""
   );
-  const [participants, setParticipants] = useState(String(reservation?.participants ?? "1"));
-  const [notes, setNotes] = useState(reservation?.notes ?? "");
+  const [coffeeBreak, setCoffeeBreak] = useState(reservation?.coffeeBreak ?? false);
+  const [observations, setObservations] = useState(reservation?.observations ?? "");
+  const [isCustomPricing, setIsCustomPricing] = useState(reservation?.isCustomPricing ?? false);
+  const [customRequest, setCustomRequest] = useState(reservation?.customRequest ?? "");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
   const [error, setError] = useState("");
+  const [conflictWarning, setConflictWarning] = useState("");
+
+  const selectedPlan = plans.find(p => p.id === planId);
+  const participantsNum = Number(participants) || 0;
+  const participantsWarning = selectedPlan && participantsNum > selectedPlan.maxPeople
+    ? `Atenção: excede a capacidade máxima do plano ${selectedPlan.name} (${selectedPlan.maxPeople} pessoas).`
+    : "";
+
+  // Calculate totalHours
+  let totalHours = 0;
+  if (startDatetime && endDatetime) {
+    const diff = new Date(endDatetime).getTime() - new Date(startDatetime).getTime();
+    if (diff > 0) totalHours = diff / 3600000;
+  }
+
+  const showCustomPricing = selectedPlan?.customPricingAllowed && totalHours >= (selectedPlan?.minHoursForCustom || 16);
+
+  // Check for conflicts when times change
+  useEffect(() => {
+    if (!startDatetime || !endDatetime) return;
+    const start = new Date(startDatetime);
+    const end = new Date(endDatetime);
+    if (end <= start) return;
+
+    const params = new URLSearchParams({
+      from: start.toISOString(),
+      to: end.toISOString(),
+      status: "CONFIRMADA"
+    });
+
+    fetch(`/api/reservations?${params.toString()}`)
+      .then(r => r.json())
+      .then(data => {
+        const conflicts = (data.reservations || []).filter((r: Reservation) => {
+          if (!isCreate && r.id === reservation?.id) return false;
+          const rStart = new Date(r.startDatetime).getTime();
+          const rEnd = new Date(r.endDatetime).getTime();
+          return rStart < end.getTime() && rEnd > start.getTime();
+        });
+        setConflictWarning(conflicts.length > 0 ? "Aviso: existe sobreposição com outra reserva neste período." : "");
+      })
+      .catch(() => {});
+  }, [startDatetime, endDatetime, isCreate, reservation?.id]);
 
   async function save() {
     setError("");
-    if (!roomId || !eventName || !responsible || !startDatetime || !endDatetime) {
+    if (!eventName || !responsible || !planId || !startDatetime || !endDatetime) {
       setError("Preencha todos os campos obrigatórios.");
       return;
     }
@@ -66,6 +122,11 @@ export default function ReservationModal({ reservation, rooms, companies, defaul
       setError("A hora de fim deve ser posterior à hora de início.");
       return;
     }
+    if (selectedPlan?.customPricingAllowed && isCustomPricing && totalHours < (selectedPlan?.minHoursForCustom || 16)) {
+      setError(`O plano Personalizado requer no mínimo ${selectedPlan.minHoursForCustom} horas.`);
+      return;
+    }
+
     setSaving(true);
     try {
       let res: Response;
@@ -74,13 +135,12 @@ export default function ReservationModal({ reservation, rooms, companies, defaul
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            roomId,
-            companyId: companyId || null,
-            eventName, responsible,
+            eventName, companyName: companyName || null, responsible, planId,
+            participants: Number(participants),
             startDatetime: start.toISOString(),
             endDatetime: end.toISOString(),
-            participants: Number(participants),
-            notes: notes || null
+            coffeeBreak, observations: observations || null,
+            isCustomPricing, customRequest: customRequest || null
           })
         });
       } else {
@@ -88,12 +148,12 @@ export default function ReservationModal({ reservation, rooms, companies, defaul
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            companyId: companyId || null,
-            eventName, responsible,
+            eventName, companyName: companyName || null, responsible,
+            participants: Number(participants),
             startDatetime: start.toISOString(),
             endDatetime: end.toISOString(),
-            participants: Number(participants),
-            notes: notes || null
+            coffeeBreak, observations: observations || null,
+            isCustomPricing, customRequest: customRequest || null
           })
         });
       }
@@ -105,7 +165,7 @@ export default function ReservationModal({ reservation, rooms, companies, defaul
     }
   }
 
-  async function doDelete() {
+  async function doCancel() {
     setDeleting(true);
     try {
       await fetch(`/api/reservations/${reservation!.id}`, { method: "DELETE" });
@@ -121,74 +181,113 @@ export default function ReservationModal({ reservation, rooms, companies, defaul
         <h2 className="font-display text-lg font-bold text-paper">
           {isCreate ? "Nova Reserva" : "Editar Reserva"}
         </h2>
+
         {error && (
           <p className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">{error}</p>
         )}
+        {conflictWarning && (
+          <p className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-300">{conflictWarning}</p>
+        )}
+
         <div className="mt-4 space-y-3">
           <div>
-            <label className="mb-1 block text-xs text-mist">Sala *</label>
-            <select value={roomId} onChange={(e) => setRoomId(e.target.value)}
-              disabled={!isCreate}
-              className="focus-ring w-full rounded-lg border border-white/10 bg-ink px-3 py-2 text-sm text-paper disabled:opacity-60">
-              {rooms.map((r) => <option key={r.id} value={r.id}>{r.name} (cap. {r.capacity})</option>)}
-            </select>
+            <label className="mb-1 block text-xs text-mist">Nome do evento *</label>
+            <input value={eventName} onChange={e => setEventName(e.target.value)}
+              className="focus-ring w-full rounded-lg border border-white/10 bg-ink px-3 py-2 text-sm text-paper" />
           </div>
           <div>
             <label className="mb-1 block text-xs text-mist">Empresa (opcional)</label>
-            <select value={companyId} onChange={(e) => setCompanyId(e.target.value)}
-              className="focus-ring w-full rounded-lg border border-white/10 bg-ink px-3 py-2 text-sm text-paper">
-              <option value="">— Sem empresa —</option>
-              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs text-mist">Nome do evento *</label>
-            <input value={eventName} onChange={(e) => setEventName(e.target.value)}
+            <input value={companyName} onChange={e => setCompanyName(e.target.value)}
               className="focus-ring w-full rounded-lg border border-white/10 bg-ink px-3 py-2 text-sm text-paper" />
           </div>
           <div>
             <label className="mb-1 block text-xs text-mist">Responsável *</label>
-            <input value={responsible} onChange={(e) => setResponsible(e.target.value)}
+            <input value={responsible} onChange={e => setResponsible(e.target.value)}
               className="focus-ring w-full rounded-lg border border-white/10 bg-ink px-3 py-2 text-sm text-paper" />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-mist">Plano *</label>
+            <select value={planId} onChange={e => setPlanId(e.target.value)}
+              className="focus-ring w-full rounded-lg border border-white/10 bg-ink px-3 py-2 text-sm text-paper">
+              {plans.map(p => (
+                <option key={p.id} value={p.id}>{p.name} (máx. {p.maxPeople} pessoas)</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-mist">Participantes</label>
+            <input type="number" value={participants} onChange={e => setParticipants(e.target.value)} min="1"
+              className="focus-ring w-full rounded-lg border border-white/10 bg-ink px-3 py-2 text-sm text-paper" />
+            {participantsWarning && (
+              <p className="mt-1 text-xs text-amber-300">{participantsWarning}</p>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="mb-1 block text-xs text-mist">Início *</label>
-              <input type="datetime-local" value={startDatetime} onChange={(e) => setStartDatetime(e.target.value)}
+              <input type="datetime-local" value={startDatetime} onChange={e => setStartDatetime(e.target.value)}
                 className="focus-ring w-full rounded-lg border border-white/10 bg-ink px-3 py-2 text-sm text-paper" />
             </div>
             <div>
               <label className="mb-1 block text-xs text-mist">Fim *</label>
-              <input type="datetime-local" value={endDatetime} onChange={(e) => setEndDatetime(e.target.value)}
+              <input type="datetime-local" value={endDatetime} onChange={e => setEndDatetime(e.target.value)}
                 className="focus-ring w-full rounded-lg border border-white/10 bg-ink px-3 py-2 text-sm text-paper" />
             </div>
           </div>
-          <div>
-            <label className="mb-1 block text-xs text-mist">Participantes</label>
-            <input type="number" value={participants} onChange={(e) => setParticipants(e.target.value)} min="1"
-              className="focus-ring w-full rounded-lg border border-white/10 bg-ink px-3 py-2 text-sm text-paper" />
+          {totalHours > 0 && (
+            <div className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-mist">
+              Total: <span className="font-semibold text-paper">{totalHours.toFixed(2)} horas</span>
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <input type="checkbox" id="coffeeBreak" checked={coffeeBreak} onChange={e => setCoffeeBreak(e.target.checked)}
+              className="rounded border-white/20" />
+            <label htmlFor="coffeeBreak" className="text-sm text-paper cursor-pointer">
+              Coffee Break{" "}
+              <span className="text-xs text-mist">— opcional, custos adicionais aplicáveis</span>
+            </label>
           </div>
           <div>
-            <label className="mb-1 block text-xs text-mist">Notas</label>
-            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2}
+            <label className="mb-1 block text-xs text-mist">Observações</label>
+            <textarea value={observations} onChange={e => setObservations(e.target.value)} rows={2}
               className="focus-ring w-full rounded-lg border border-white/10 bg-ink px-3 py-2 text-sm text-paper" />
           </div>
+          {showCustomPricing && (
+            <div className="space-y-2 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+              <div className="flex items-center gap-2">
+                <input type="checkbox" id="isCustomPricing" checked={isCustomPricing} onChange={e => setIsCustomPricing(e.target.checked)}
+                  className="rounded border-white/20" />
+                <label htmlFor="isCustomPricing" className="text-sm text-amber-300 cursor-pointer font-medium">
+                  Solicitar preço personalizado
+                </label>
+              </div>
+              {isCustomPricing && (
+                <div>
+                  <label className="mb-1 block text-xs text-mist">Descrição do pedido</label>
+                  <textarea value={customRequest} onChange={e => setCustomRequest(e.target.value)} rows={2}
+                    placeholder="Descreva as necessidades especiais do evento..."
+                    className="focus-ring w-full rounded-lg border border-amber-500/20 bg-ink px-3 py-2 text-sm text-paper" />
+                </div>
+              )}
+            </div>
+          )}
         </div>
+
         <div className="mt-6 flex items-center justify-between">
-          {!isCreate && !confirmDelete && (
-            <button onClick={() => setConfirmDelete(true)}
+          {!isCreate && !confirmCancel && (
+            <button onClick={() => setConfirmCancel(true)}
               className="focus-ring rounded-lg border border-red-500/30 px-4 py-2 text-sm text-red-400 hover:bg-red-500/10">
               Cancelar reserva
             </button>
           )}
-          {!isCreate && confirmDelete && (
+          {!isCreate && confirmCancel && (
             <div className="flex items-center gap-2">
               <span className="text-sm text-red-400">Confirmar?</span>
-              <button onClick={doDelete} disabled={deleting}
+              <button onClick={doCancel} disabled={deleting}
                 className="focus-ring rounded-lg bg-red-500 px-3 py-1.5 text-sm text-white hover:bg-red-600 disabled:opacity-60">
                 {deleting ? "..." : "Sim"}
               </button>
-              <button onClick={() => setConfirmDelete(false)}
+              <button onClick={() => setConfirmCancel(false)}
                 className="focus-ring rounded-lg border border-white/10 px-3 py-1.5 text-sm text-mist hover:bg-white/5">
                 Não
               </button>
@@ -198,7 +297,7 @@ export default function ReservationModal({ reservation, rooms, companies, defaul
           <div className="flex gap-3">
             <button onClick={onClose}
               className="focus-ring rounded-lg border border-white/10 px-4 py-2 text-sm text-mist hover:bg-white/5">
-              Cancelar
+              Fechar
             </button>
             <button onClick={save} disabled={saving}
               className="focus-ring rounded-lg bg-azul px-4 py-2 text-sm font-semibold text-white hover:bg-azul-dim disabled:opacity-60">

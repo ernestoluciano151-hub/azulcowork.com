@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import Sidebar from "@/components/admin/Sidebar";
 import CompanyModal, { Company } from "@/components/admin/CompanyModal";
 import { format } from "date-fns";
+import { formatKz } from "@/lib/currency";
 
 const CONTRACT_STATUS_COLORS: Record<string, string> = {
   ATIVO: "bg-emerald-500/15 text-emerald-300",
@@ -134,7 +135,7 @@ export default function EmpresasPage() {
                   <td className="px-4 py-3 text-mist">{c.roomNumber}</td>
                   <td className="px-4 py-3 text-mist">{c.planType}</td>
                   <td className="px-4 py-3">{format(new Date(c.contractEnd), "dd/MM/yyyy")}</td>
-                  <td className="px-4 py-3">{c.rentAmount.toLocaleString("pt-PT", { style: "currency", currency: "EUR" })}</td>
+                  <td className="px-4 py-3">{formatKz(c.rentAmount)}</td>
                   <td className="px-4 py-3">
                     <span className={`rounded-full px-3 py-1 text-xs font-medium ${CONTRACT_STATUS_COLORS[c.contractStatus] || "bg-white/10 text-mist"}`}>
                       {c.contractStatus.replace("_", " ")}

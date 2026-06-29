@@ -66,7 +66,6 @@ model Company {
   contractFileUrl  String?
   notes            String?
   payments         Payment[]
-  reservations     Reservation[]
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
@@ -90,33 +89,39 @@ model Payment {
   @@index([dueDate])
 }
 
-model MeetingRoom {
-  id           String        @id @default(cuid())
-  name         String
-  capacity     Int
-  status       String        @default("DISPONIVEL")
-  description  String?
-  reservations Reservation[]
-  createdAt    DateTime      @default(now())
+model MeetingPlan {
+  id                    String        @id @default(cuid())
+  name                  String
+  maxPeople             Int
+  description           String?
+  coffeeBreakAvailable  Boolean       @default(true)
+  customPricingAllowed  Boolean       @default(false)
+  minHoursForCustom     Int?          @default(16)
+  active                Boolean       @default(true)
+  reservations          Reservation[]
+  createdAt             DateTime      @default(now())
 }
 
 model Reservation {
-  id            String      @id @default(cuid())
-  roomId        String
-  room          MeetingRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  companyId     String?
-  company       Company?    @relation(fields: [companyId], references: [id])
-  eventName     String
-  responsible   String
-  startDatetime DateTime
-  endDatetime   DateTime
-  participants  Int         @default(1)
-  notes         String?
-  status        String      @default("CONFIRMADA")
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  id              String      @id @default(cuid())
+  eventName       String
+  companyName     String?
+  responsible     String
+  planId          String
+  plan            MeetingPlan @relation(fields: [planId], references: [id])
+  participants    Int
+  startDatetime   DateTime
+  endDatetime     DateTime
+  totalHours      Float
+  coffeeBreak     Boolean     @default(false)
+  observations    String?
+  status          String      @default("CONFIRMADA")
+  isCustomPricing Boolean     @default(false)
+  customRequest   String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 
-  @@index([roomId])
+  @@index([planId])
   @@index([startDatetime])
   @@index([status])
 }

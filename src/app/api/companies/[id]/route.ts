@@ -11,8 +11,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const company = await prisma.company.findUnique({
     where: { id: params.id },
     include: {
-      payments: { orderBy: { dueDate: "desc" } },
-      reservations: { include: { room: true }, orderBy: { startDatetime: "desc" }, take: 10 }
+      payments: { orderBy: { dueDate: "desc" } }
     }
   });
 

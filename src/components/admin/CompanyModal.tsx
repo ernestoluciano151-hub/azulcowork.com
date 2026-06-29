@@ -144,7 +144,7 @@ export default function CompanyModal({ company, onClose, onSaved }: Props) {
               {PLAN_TYPES.map((p) => <option key={p} value={p}>{p}</option>)}
             </select>
           </div>
-          <FInput label="Renda Mensal (€) *" value={rentAmount} onChange={setRentAmount} type="number" />
+          <FInput label="Renda Mensal (Kz) *" value={rentAmount} onChange={setRentAmount} type="number" />
         </div>
         <div className="mt-3 grid grid-cols-2 gap-3">
           <div>

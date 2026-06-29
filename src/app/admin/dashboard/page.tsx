@@ -12,7 +12,7 @@ function startOfDay(d: Date) {
   x.setHours(0, 0, 0, 0);
   return x;
 }
-function startOfWeek(d: Date) {
+function startOfWeekFn(d: Date) {
   const x = startOfDay(d);
   const day = x.getDay();
   const diff = (day + 6) % 7;
@@ -30,10 +30,10 @@ const CONTRACT_STATUS_COLORS: Record<string, string> = {
 export default async function DashboardPage() {
   const now = new Date();
   const todayStart = startOfDay(now);
-  const weekStart = startOfWeek(now);
+  const weekStart = startOfWeekFn(now);
   const in60 = new Date(now); in60.setDate(in60.getDate() + 60);
 
-  const [total, today, week, upcoming, totalCompanies, expiringContracts, overduePayments, rooms] = await Promise.all([
+  const [total, today, week, upcoming, totalCompanies, expiringContracts, overduePayments, todayReservations, weekReservations] = await Promise.all([
     prisma.lead.count(),
     prisma.lead.count({ where: { createdAt: { gte: todayStart } } }),
     prisma.lead.count({ where: { createdAt: { gte: weekStart } } }),
@@ -49,11 +49,19 @@ export default async function DashboardPage() {
       take: 5
     }),
     prisma.payment.count({ where: { status: "ATRASADO" } }),
-    prisma.meetingRoom.findMany({ include: { _count: true } })
+    prisma.reservation.count({
+      where: {
+        startDatetime: { gte: todayStart, lt: new Date(todayStart.getTime() + 86400000) },
+        status: "CONFIRMADA"
+      }
+    }),
+    prisma.reservation.count({
+      where: {
+        startDatetime: { gte: now, lte: new Date(now.getTime() + 7 * 86400000) },
+        status: "CONFIRMADA"
+      }
+    })
   ]);
-
-  const availableRooms = rooms.filter((r) => r.status === "DISPONIVEL").length;
-  const occupiedRooms = rooms.filter((r) => r.status !== "DISPONIVEL").length;
 
   return (
     <div className="flex min-h-screen bg-ink">
@@ -70,14 +78,20 @@ export default async function DashboardPage() {
           <StatsCard label="Leads esta semana" value={week} />
         </div>
 
-        {/* Company stats */}
-        <h2 className="mt-6 text-xs font-semibold uppercase tracking-wider text-mist">Empresas & Salas</h2>
+        {/* Company & Sala stats */}
+        <h2 className="mt-6 text-xs font-semibold uppercase tracking-wider text-mist">Empresas & Sala de Reunião</h2>
         <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatsCard label="Total de empresas" value={totalCompanies} />
           <StatsCard label="Contratos a expirar (60d)" value={expiringContracts.length} />
-          <StatsCard label="Pagamentos em atraso" value={overduePayments} />
-          <StatsCard label="Salas disponíveis" value={availableRooms} />
+          <StatsCard label="Reservas hoje" value={todayReservations} />
+          <StatsCard label="Eventos esta semana" value={weekReservations} />
         </div>
+
+        {overduePayments > 0 && (
+          <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/5 p-4">
+            <p className="text-sm text-red-300">⚠ {overduePayments} pagamento(s) em atraso</p>
+          </div>
+        )}
 
         {/* Alerts */}
         {expiringContracts.length > 0 && (

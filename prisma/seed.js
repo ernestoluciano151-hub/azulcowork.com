@@ -19,20 +19,22 @@ async function main() {
     console.log(`Admin criado: ${email}`);
   }
 
-  // Seed default meeting rooms
-  const defaultRooms = [
-    { name: "Sala Alpha", capacity: 8, description: "Sala de reuniões principal" },
-    { name: "Sala Beta", capacity: 15, description: "Sala de conferências" },
-    { name: "Sala Gamma", capacity: 4, description: "Sala de pequenas reuniões" }
+  // Seed MeetingPlans (single room with plans)
+  const plans = [
+    { name: "Alpha", maxPeople: 24, description: "Sala climatizada para até 24 pessoas. Inclui projetor, internet de alta velocidade, impressões limitadas e ambiente profissional.", coffeeBreakAvailable: true, customPricingAllowed: false },
+    { name: "Beta", maxPeople: 15, description: "Sala climatizada para até 15 pessoas. Inclui projetor, internet de alta velocidade, impressões limitadas e ambiente profissional.", coffeeBreakAvailable: true, customPricingAllowed: false },
+    { name: "Gamma", maxPeople: 8, description: "Sala climatizada para até 8 pessoas. Inclui projetor, internet de alta velocidade, impressões limitadas e ambiente profissional.", coffeeBreakAvailable: true, customPricingAllowed: false },
+    { name: "Easy", maxPeople: 4, description: "Sala climatizada para até 4 pessoas. Inclui projetor, internet de alta velocidade, impressões limitadas e ambiente profissional.", coffeeBreakAvailable: true, customPricingAllowed: false },
+    { name: "Personalizado", maxPeople: 24, description: "Plano especial para reuniões, formações e eventos corporativos com mais de 16 horas. Valores negociáveis.", coffeeBreakAvailable: true, customPricingAllowed: true, minHoursForCustom: 16 },
   ];
 
-  for (const room of defaultRooms) {
-    const existingRoom = await prisma.meetingRoom.findFirst({ where: { name: room.name } });
-    if (!existingRoom) {
-      await prisma.meetingRoom.create({ data: room });
-      console.log(`Sala criada: ${room.name}`);
+  for (const plan of plans) {
+    const existing = await prisma.meetingPlan.findFirst({ where: { name: plan.name } });
+    if (!existing) {
+      await prisma.meetingPlan.create({ data: plan });
+      console.log(`Plano criado: ${plan.name}`);
     } else {
-      console.log(`Sala já existe: ${room.name}`);
+      console.log(`Plano já existe: ${plan.name}`);
     }
   }
 }
