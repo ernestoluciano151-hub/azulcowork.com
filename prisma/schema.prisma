@@ -110,6 +110,7 @@ model Company {
   contractFileUrl  String?
   notes            String?
   payments         Payment[]
+  invoices         Invoice[]
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
@@ -118,19 +119,68 @@ model Company {
 }
 
 model Payment {
-  id          String    @id @default(cuid())
-  companyId   String
-  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  dueDate     DateTime
-  paidDate    DateTime?
-  amount      Float
-  status      String    @default("PENDENTE")
-  notes       String?
-  createdAt   DateTime  @default(now())
+  id            String    @id @default(cuid())
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  dueDate       DateTime
+  paidDate      DateTime?
+  amount        Float
+  status        String    @default("PENDENTE")
+  notes         String?
+  invoiceId     String?
+  paymentMethod String?
+  receiptUrl    String?
+  category      String?
+  createdAt     DateTime  @default(now())
 
   @@index([companyId])
   @@index([status])
   @@index([dueDate])
+}
+
+model Invoice {
+  id            String    @id @default(cuid())
+  invoiceNumber String    @unique
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  serviceType   String
+  amount        Float
+  issueDate     DateTime  @default(now())
+  dueDate       DateTime
+  paymentMethod String?
+  status        String    @default("PENDENTE")
+  receiptUrl    String?
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([companyId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  category    String
+  description String
+  amount      Float
+  expenseDate DateTime
+  supplier    String?
+  status      String   @default("PAGO")
+  receiptUrl  String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+  @@index([expenseDate])
+}
+
+model RevenueCategory {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
 }
 
 model MeetingPlan {
