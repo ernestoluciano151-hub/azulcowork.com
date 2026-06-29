@@ -36,7 +36,10 @@ export async function GET(req: NextRequest) {
     "Nome": `${l.firstName} ${l.lastName}`,
     "E-mail": l.email,
     "WhatsApp": l.whatsapp,
+    "Empresa": l.company || "",
     "Data Agendada": l.scheduledDate.toLocaleString("pt-PT", { timeZone: "Africa/Luanda" }),
+    "Hora": l.appointmentTime || "",
+    "Tipo de Agendamento": l.appointmentType || "",
     "Data de Registo": l.createdAt.toLocaleString("pt-PT", { timeZone: "Africa/Luanda" }),
     "Estado": STATUS_LABELS[l.status] || l.status,
     "Fonte": l.source || "landing-page"
@@ -45,10 +48,9 @@ export async function GET(req: NextRequest) {
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.json_to_sheet(rows);
 
-  // Largura das colunas
   ws["!cols"] = [
-    { wch: 25 }, { wch: 30 }, { wch: 20 },
-    { wch: 22 }, { wch: 22 }, { wch: 18 }, { wch: 15 }
+    { wch: 25 }, { wch: 30 }, { wch: 20 }, { wch: 20 },
+    { wch: 22 }, { wch: 10 }, { wch: 22 }, { wch: 22 }, { wch: 18 }, { wch: 15 }
   ];
 
   XLSX.utils.book_append_sheet(wb, ws, "Leads");

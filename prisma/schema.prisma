@@ -11,18 +11,21 @@ generator client {
 }
 
 model Lead {
-  id            String   @id @default(cuid())
-  firstName     String
-  lastName      String
-  email         String
-  whatsapp      String
-  scheduledDate DateTime
-  status        String   @default("NOVO")
-  notes         Note[]
-  source        String?    @default("landing-page")
-  ip            String?
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  id              String   @id @default(cuid())
+  firstName       String
+  lastName        String
+  email           String
+  whatsapp        String
+  scheduledDate   DateTime
+  status          String   @default("NOVO")
+  notes           Note[]
+  source          String?    @default("landing-page")
+  ip              String?
+  appointmentTime String?
+  appointmentType String?  @default("Pedido de contacto")
+  company         String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
 
   @@index([status])
   @@index([scheduledDate])
@@ -43,4 +46,77 @@ model AdminUser {
   passwordHash String
   name         String?
   createdAt    DateTime @default(now())
+}
+
+model Company {
+  id               String        @id @default(cuid())
+  name             String
+  nif              String?
+  responsible      String
+  email            String
+  whatsapp         String
+  roomNumber       String
+  numEmployees     Int           @default(1)
+  planType         String
+  contractStart    DateTime
+  contractEnd      DateTime
+  rentAmount       Float
+  contractStatus   String        @default("ATIVO")
+  paymentStatus    String        @default("EM_DIA")
+  contractFileUrl  String?
+  notes            String?
+  payments         Payment[]
+  reservations     Reservation[]
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@index([contractStatus])
+  @@index([contractEnd])
+}
+
+model Payment {
+  id          String    @id @default(cuid())
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  dueDate     DateTime
+  paidDate    DateTime?
+  amount      Float
+  status      String    @default("PENDENTE")
+  notes       String?
+  createdAt   DateTime  @default(now())
+
+  @@index([companyId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+model MeetingRoom {
+  id           String        @id @default(cuid())
+  name         String
+  capacity     Int
+  status       String        @default("DISPONIVEL")
+  description  String?
+  reservations Reservation[]
+  createdAt    DateTime      @default(now())
+}
+
+model Reservation {
+  id            String      @id @default(cuid())
+  roomId        String
+  room          MeetingRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  companyId     String?
+  company       Company?    @relation(fields: [companyId], references: [id])
+  eventName     String
+  responsible   String
+  startDatetime DateTime
+  endDatetime   DateTime
+  participants  Int         @default(1)
+  notes         String?
+  status        String      @default("CONFIRMADA")
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([roomId])
+  @@index([startDatetime])
+  @@index([status])
 }

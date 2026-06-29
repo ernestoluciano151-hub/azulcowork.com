@@ -24,12 +24,15 @@ export async function GET(req: NextRequest) {
 
   const leads = await prisma.lead.findMany({ where, orderBy: { createdAt: "desc" } });
 
-  const header = ["Nome", "Email", "WhatsApp", "Data Agendada", "Data de Registo", "Estado"];
+  const header = ["Nome", "Email", "WhatsApp", "Empresa", "Data Agendada", "Hora", "Tipo Agendamento", "Data de Registo", "Estado"];
   const rows = leads.map((l) => [
     `${l.firstName} ${l.lastName}`,
     l.email,
     l.whatsapp,
+    l.company || "",
     l.scheduledDate.toISOString(),
+    l.appointmentTime || "",
+    l.appointmentType || "",
     l.createdAt.toISOString(),
     l.status
   ]);

@@ -15,11 +15,21 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { firstName, lastName, email, whatsapp, scheduledDate, formStartedAt, honeypot } = body;
+    const {
+      firstName, lastName, email, whatsapp, scheduledDate,
+      formStartedAt, honeypot,
+      appointmentTime, appointmentType, company,
+      // admin manual creation flag
+      _adminCreate
+    } = body;
 
-    if (looksLikeBot(Number(formStartedAt) || 0, honeypot || "")) {
-      // Resposta "de sucesso" para não dar pistas a bots, mas não grava nada.
+    if (!_adminCreate && looksLikeBot(Number(formStartedAt) || 0, honeypot || "")) {
       return NextResponse.json({ ok: true }, { status: 201 });
+    }
+
+    if (_adminCreate) {
+      const session = await getSession();
+      if (!session) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
     }
 
     if (!firstName || !lastName || !email || !whatsapp || !scheduledDate) {
@@ -39,13 +49,17 @@ export async function POST(req: NextRequest) {
         email: sanitizeText(email).toLowerCase(),
         whatsapp: sanitizeText(whatsapp),
         scheduledDate: new Date(scheduledDate),
-        ip,
-        source: "landing-page"
+        ip: _adminCreate ? undefined : ip,
+        source: _adminCreate ? "admin" : "landing-page",
+        appointmentTime: appointmentTime ? String(appointmentTime) : undefined,
+        appointmentType: appointmentType ? String(appointmentType) : "Pedido de contacto",
+        company: company ? sanitizeText(company) : undefined
       }
     });
 
-    // Envia email de notificação (não bloqueia a resposta)
-    sendNewLeadEmail(lead).catch(() => {});
+    if (!_adminCreate) {
+      sendNewLeadEmail(lead).catch(() => {});
+    }
 
     return NextResponse.json({ ok: true, id: lead.id }, { status: 201 });
   } catch (err) {
@@ -62,6 +76,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q")?.trim();
   const status = searchParams.get("status");
+  const appointmentType = searchParams.get("appointmentType");
   const from = searchParams.get("from");
   const to = searchParams.get("to");
   const sort = searchParams.get("sort") || "scheduledDate";
@@ -71,6 +86,7 @@ export async function GET(req: NextRequest) {
 
   const where: any = {};
   if (status && status !== "ALL") where.status = status;
+  if (appointmentType && appointmentType !== "ALL") where.appointmentType = appointmentType;
   if (from || to) {
     where.scheduledDate = {};
     if (from) where.scheduledDate.gte = new Date(from);

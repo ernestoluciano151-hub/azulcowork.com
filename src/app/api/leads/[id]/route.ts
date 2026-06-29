@@ -8,7 +8,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (!session) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
 
   const body = await req.json();
-  const { firstName, lastName, email, whatsapp, scheduledDate, status, newNote } = body;
+  const {
+    firstName, lastName, email, whatsapp, scheduledDate, status, newNote,
+    appointmentTime, appointmentType, company
+  } = body;
 
   const data: any = {};
   if (firstName !== undefined) data.firstName = firstName;
@@ -17,6 +20,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (whatsapp !== undefined) data.whatsapp = whatsapp;
   if (scheduledDate !== undefined) data.scheduledDate = new Date(scheduledDate);
   if (status !== undefined) data.status = status;
+  if (appointmentTime !== undefined) data.appointmentTime = appointmentTime;
+  if (appointmentType !== undefined) data.appointmentType = appointmentType;
+  if (company !== undefined) data.company = company;
 
   if (newNote && String(newNote).trim()) {
     data.notes = { create: { content: String(newNote).trim() } };
