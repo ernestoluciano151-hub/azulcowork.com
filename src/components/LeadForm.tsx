@@ -210,7 +210,6 @@ export default function LeadForm() {
               <option value="Hot Desk">Hot Desk</option>
               <option value="Mesa Fixa">Mesa Fixa</option>
               <option value="Sala Privada">Sala Privada</option>
-              <option value="Sala de Reunião">Sala de Reunião</option>
               <option value="Outro">Outro</option>
             </select>
           </Field>
