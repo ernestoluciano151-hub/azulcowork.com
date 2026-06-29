@@ -13,9 +13,11 @@ type FormState = {
   lastName: string;
   email: string;
   whatsappNumber: string; // só o número, sem código
+  spaceType: string;
+  planName: string;
 };
 
-const initialState: FormState = { firstName: "", lastName: "", email: "", whatsappNumber: "" };
+const initialState: FormState = { firstName: "", lastName: "", email: "", whatsappNumber: "", spaceType: "", planName: "" };
 
 const HOURS = Array.from({ length: 13 }, (_, i) => i + 8); // 08h às 20h
 const MINUTES = ["00", "15", "30", "45"];
@@ -89,7 +91,9 @@ export default function LeadForm() {
           whatsapp: fullWhatsapp,
           scheduledDate: scheduledDateTime!.toISOString(),
           formStartedAt: formStartedAt.current,
-          honeypot: honeypotRef.current?.value || ""
+          honeypot: honeypotRef.current?.value || "",
+          spaceType: form.spaceType || undefined,
+          planName: form.planName || undefined,
         })
       });
 
@@ -193,6 +197,32 @@ export default function LeadForm() {
             <p className="mt-1 text-xs text-mist/60">
               Detectado: {dialInfo.flag} {dialInfo.name}
             </p>
+          </Field>
+
+          {/* Tipo de espaço */}
+          <Field label="Tipo de espaço">
+            <select
+              className={inputClass(false)}
+              value={form.spaceType}
+              onChange={(e) => update("spaceType", e.target.value)}
+            >
+              <option value="">Selecionar (opcional)</option>
+              <option value="Hot Desk">Hot Desk</option>
+              <option value="Mesa Fixa">Mesa Fixa</option>
+              <option value="Sala Privada">Sala Privada</option>
+              <option value="Sala de Reunião">Sala de Reunião</option>
+              <option value="Outro">Outro</option>
+            </select>
+          </Field>
+
+          {/* Plano de interesse */}
+          <Field label="Plano de interesse">
+            <input
+              className={inputClass(false)}
+              value={form.planName}
+              onChange={(e) => update("planName", e.target.value)}
+              placeholder="Ex: Mesa Fixa — 79.900 AOA/mês (opcional)"
+            />
           </Field>
 
           {/* Data + Hora */}

@@ -24,12 +24,38 @@ model Lead {
   appointmentTime String?
   appointmentType String?  @default("Pedido de contacto")
   company         String?
+  spaceType       String?
+  planName        String?
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
 
   @@index([status])
   @@index([scheduledDate])
   @@index([createdAt])
+}
+
+model RoomBookingLead {
+  id              String   @id @default(cuid())
+  firstName       String
+  lastName        String
+  company         String?
+  email           String
+  whatsapp        String
+  planName        String
+  participants    Int?
+  preferredDate   DateTime?
+  preferredTime   String?
+  observations    String?
+  coffeeBreak     Boolean  @default(false)
+  status          String   @default("NOVO")
+  source          String   @default("landing-sala")
+  ip              String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([planName])
 }
 
 model Note {

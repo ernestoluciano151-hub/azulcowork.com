@@ -1,37 +1,23 @@
-import Link from "next/link";
-
-export const metadata = {
-  title: "Obrigado pelo seu interesse!",
-  robots: { index: false, follow: false }
-};
-
 export default function ObrigadoPage() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-ink bg-mesh px-6 py-20">
-      <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-white/[0.03] p-10 text-center shadow-glow">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-azul/15 text-3xl">
-          ✅
+    <main className="min-h-screen bg-ink flex items-center justify-center px-4">
+      <div className="max-w-lg w-full text-center">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-10">
+          <div className="text-6xl mb-6">🎉</div>
+          <img src="/assets/logo-azul.jpeg" alt="Azul Coworking" className="h-12 rounded-lg mx-auto mb-6" />
+          <h1 className="font-display text-3xl font-bold text-paper mb-4">Obrigado pelo seu interesse!</h1>
+          <p className="text-mist text-lg mb-2">Recebemos o seu pedido com sucesso.</p>
+          <p className="text-mist text-sm mb-8">A nossa equipa irá entrar em contacto consigo em breve pelo WhatsApp para confirmar os detalhes.</p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <a href="/" className="inline-flex items-center justify-center gap-2 bg-azul text-white px-6 py-3 rounded-xl font-semibold text-sm hover:bg-azul-dim transition-all">
+              ← Voltar ao início
+            </a>
+            <a href="https://wa.me/244976467124" target="_blank" rel="noopener" className="inline-flex items-center justify-center gap-2 bg-[#25D366] text-white px-6 py-3 rounded-xl font-semibold text-sm hover:opacity-90 transition-all">
+              💬 Falar no WhatsApp
+            </a>
+          </div>
         </div>
-
-        <h1 className="mt-6 font-display text-2xl font-bold text-paper md:text-3xl">
-          Obrigado pelo seu interesse!
-        </h1>
-
-        <p className="mt-4 text-mist">
-          Recebemos as suas informações com sucesso. Entraremos em contacto consigo o mais breve
-          possível, pelo WhatsApp indicado, para confirmar o seu agendamento.
-        </p>
-
-        <p className="mt-2 text-sm text-mist">
-          Enquanto isso, fique atento ao seu telefone — a nossa equipa entra em contacto em breve.
-        </p>
-
-        <Link
-          href="/"
-          className="focus-ring mt-8 inline-flex items-center justify-center rounded-xl bg-azul px-6 py-3 text-sm font-semibold text-white transition hover:bg-azul-dim"
-        >
-          Voltar ao site principal
-        </Link>
+        <p className="text-mist/40 text-xs mt-6">© {new Date().getFullYear()} Azul Coworking — Bairro Azul, Edifício 18, Luanda</p>
       </div>
     </main>
   );

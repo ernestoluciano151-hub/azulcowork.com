@@ -19,6 +19,7 @@ export async function POST(req: NextRequest) {
       firstName, lastName, email, whatsapp, scheduledDate,
       formStartedAt, honeypot,
       appointmentTime, appointmentType, company,
+      spaceType, planName,
       // admin manual creation flag
       _adminCreate
     } = body;
@@ -53,7 +54,9 @@ export async function POST(req: NextRequest) {
         source: _adminCreate ? "admin" : "landing-page",
         appointmentTime: appointmentTime ? String(appointmentTime) : undefined,
         appointmentType: appointmentType ? String(appointmentType) : "Pedido de contacto",
-        company: company ? sanitizeText(company) : undefined
+        company: company ? sanitizeText(company) : undefined,
+        spaceType: spaceType || null,
+        planName: planName || null,
       }
     });
 
