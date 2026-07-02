@@ -5,33 +5,44 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 const links = [
-  { href: "/admin/dashboard", label: "Dashboard", icon: "📊" },
-  { href: "/admin/leads", label: "Leads", icon: "👥" },
-  { href: "/admin/leads-salas", label: "Leads Salas", icon: "🏨" },
-  { href: "/admin/empresas", label: "Empresas", icon: "🏢" },
-  { href: "/admin/pagamentos", label: "Pagamentos", icon: "💳" },
-  { href: "/admin/salas", label: "Sala de Reunião", icon: "🚪" },
-  { href: "/admin/calendario", label: "Calendário", icon: "📅" },
-  { href: "/admin/delete-requests", label: "Aprovações", icon: "🗑️", badge: true },
-  { href: "/admin/settings", label: "Definições", icon: "⚙️" }
+  { href: "/admin/dashboard",      label: "Dashboard",      icon: "📊", adminOnly: false },
+  { href: "/admin/leads",          label: "Leads",          icon: "👥", adminOnly: false },
+  { href: "/admin/leads-salas",    label: "Leads Salas",    icon: "🏨", adminOnly: false },
+  { href: "/admin/empresas",       label: "Empresas",       icon: "🏢", adminOnly: false },
+  { href: "/admin/pagamentos",     label: "Pagamentos",     icon: "💳", adminOnly: false },
+  { href: "/admin/salas",          label: "Sala de Reunião",icon: "🚪", adminOnly: false },
+  { href: "/admin/calendario",     label: "Calendário",     icon: "📅", adminOnly: false },
+  { href: "/admin/delete-requests",label: "Aprovações",     icon: "🗑️", adminOnly: true, badge: true },
+  { href: "/admin/settings",       label: "Definições",     icon: "⚙️", adminOnly: true },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [pendingDeletes, setPendingDeletes] = useState(0);
+  const [role, setRole] = useState<string | null>(null);
 
   useEffect(() => {
+    fetch("/api/admin/me")
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d) setRole(d.role); })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (role !== "ADMIN") return;
     fetch("/api/delete-requests")
       .then((r) => r.ok ? r.json() : null)
       .then((d) => { if (d && Array.isArray(d.requests)) setPendingDeletes(d.requests.length); })
       .catch(() => {});
-  }, [pathname]);
+  }, [pathname, role]);
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/admin/login");
   }
+
+  const visibleLinks = links.filter(l => !l.adminOnly || role === "ADMIN");
 
   return (
     <aside className="flex h-screen w-60 flex-col border-r border-white/10 bg-ink2 p-5">
@@ -40,7 +51,7 @@ export default function Sidebar() {
       </div>
 
       <nav className="mt-8 flex-1 space-y-1">
-        {links.map((link) => (
+        {visibleLinks.map((link) => (
           <Link
             key={link.href}
             href={link.href}

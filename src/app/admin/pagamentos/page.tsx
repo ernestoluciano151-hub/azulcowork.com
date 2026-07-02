@@ -78,12 +78,12 @@ export default function PagamentosPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>("Dashboard");
 
-  // Auth check
+  // Auth check — qualquer utilizador autenticado tem acesso (ADMIN e USER)
   useEffect(() => {
     fetch("/api/admin/me")
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (!d || d.role !== "ADMIN") router.push("/admin/dashboard"); })
-      .catch(() => router.push("/admin/dashboard"));
+      .then((d) => { if (!d) router.push("/admin/login"); })
+      .catch(() => router.push("/admin/login"));
   }, [router]);
 
   return (
