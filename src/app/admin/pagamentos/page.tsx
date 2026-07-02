@@ -580,12 +580,22 @@ function FaturasTab() {
                   ) : "—"}
                 </td>
                 <td className="px-4 py-3">
-                  <button
-                    onClick={() => deleteInvoice(inv.id)}
-                    className="rounded-lg border border-red-500/20 px-2 py-1 text-xs text-red-400 hover:bg-red-500/10"
-                  >
-                    🗑️
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={`/api/invoices/${inv.id}/download`}
+                      download
+                      className="rounded-lg border border-[#2F6FED]/30 px-2 py-1 text-xs text-[#5C8FFF] hover:bg-[#2F6FED]/10 transition-colors"
+                      title="Baixar recibo em PDF"
+                    >
+                      ⬇️ PDF
+                    </a>
+                    <button
+                      onClick={() => deleteInvoice(inv.id)}
+                      className="rounded-lg border border-red-500/20 px-2 py-1 text-xs text-red-400 hover:bg-red-500/10"
+                    >
+                      🗑️
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
