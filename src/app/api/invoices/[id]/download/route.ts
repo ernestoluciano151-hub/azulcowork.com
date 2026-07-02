@@ -1,3 +1,5 @@
+export const runtime = "nodejs";
+
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -217,10 +219,11 @@ export async function GET(
 
   const filename = `Recibo_${receiptRef.replace(/\//g, "-")}_${companyName.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
 
-  return new NextResponse(pdfBuffer as unknown as BodyInit, {
+  return new NextResponse(new Uint8Array(pdfBuffer), {
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": `attachment; filename="${filename}"`,
+      "Cache-Control": "no-store",
     },
   });
 }

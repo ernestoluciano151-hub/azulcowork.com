@@ -575,27 +575,26 @@ function FaturasTab() {
                   </select>
                 </td>
                 <td className="px-4 py-3">
-                  {inv.receiptUrl ? (
-                    <a href={inv.receiptUrl} target="_blank" rel="noreferrer" className="text-xs text-[#2F6FED] hover:underline">Ver</a>
-                  ) : "—"}
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-col items-start gap-1">
+                    {inv.receiptUrl && (
+                      <a href={inv.receiptUrl} target="_blank" rel="noreferrer" className="text-xs text-[#2F6FED] hover:underline">Ver</a>
+                    )}
                     <a
                       href={`/api/invoices/${inv.id}/download`}
-                      download
-                      className="rounded-lg border border-[#2F6FED]/30 px-2 py-1 text-xs text-[#5C8FFF] hover:bg-[#2F6FED]/10 transition-colors"
+                      className="text-xs text-[#5C8FFF] hover:underline"
                       title="Baixar recibo em PDF"
                     >
-                      ⬇️ PDF
+                      download
                     </a>
-                    <button
-                      onClick={() => deleteInvoice(inv.id)}
-                      className="rounded-lg border border-red-500/20 px-2 py-1 text-xs text-red-400 hover:bg-red-500/10"
-                    >
-                      🗑️
-                    </button>
                   </div>
+                </td>
+                <td className="px-4 py-3">
+                  <button
+                    onClick={() => deleteInvoice(inv.id)}
+                    className="rounded-lg border border-red-500/20 px-2 py-1 text-xs text-red-400 hover:bg-red-500/10"
+                  >
+                    🗑️
+                  </button>
                 </td>
               </tr>
             ))}
