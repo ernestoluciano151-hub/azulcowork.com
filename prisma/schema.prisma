@@ -93,30 +93,33 @@ model DeleteRequest {
 }
 
 model Company {
-  id               String        @id @default(cuid())
-  name             String
-  nif              String?
-  responsible      String
-  email            String
-  whatsapp         String
-  roomNumber       String
-  numEmployees     Int           @default(1)
-  planType         String
-  contractStart    DateTime
-  contractEnd      DateTime
-  rentAmount       Float
-  contractStatus   String        @default("ATIVO")
-  paymentStatus    String        @default("EM_DIA")
-  contractFileUrl  String?
-  notes            String?
-  payments         Payment[]
-  invoices         Invoice[]
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  id                String             @id @default(cuid())
+  name              String
+  nif               String?
+  responsible       String
+  email             String
+  whatsapp          String
+  roomNumber        String
+  numEmployees      Int                @default(1)
+  planType          String
+  contractStart     DateTime
+  contractEnd       DateTime
+  rentAmount        Float
+  paymentFrequency  String             @default("MENSAL")
+  contractStatus    String             @default("ATIVO")
+  paymentStatus     String             @default("EM_DIA")
+  contractFileUrl   String?
+  notes             String?
+  payments          Payment[]
+  invoices          Invoice[]
+  financialHistory  FinancialHistory[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 
   @@index([contractStatus])
   @@index([contractEnd])
 }
+
 
 model Payment {
   id            String    @id @default(cuid())
@@ -157,6 +160,23 @@ model Invoice {
   @@index([companyId])
   @@index([status])
   @@index([dueDate])
+}
+
+model FinancialHistory {
+  id             String   @id @default(cuid())
+  companyId      String
+  company        Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  type           String   // PAGAMENTO | FATURA | AJUSTE | NOTA
+  description    String
+  amount         Float
+  runningBalance Float    @default(0)
+  method         String?
+  reference      String?  // paymentId or invoiceId
+  createdBy      String?
+  createdAt      DateTime @default(now())
+
+  @@index([companyId])
+  @@index([createdAt])
 }
 
 model Expense {

@@ -17,14 +17,19 @@ import {
 // ── tipos ────────────────────────────────────────────────────────────────────
 export type InvoiceData = {
   invoiceNumber: string;
-  receiptRef: string;        // AZC/REC/YYYY-NNNN
-  issueDate: string;         // dd/MM/yyyy
-  dueDate: string;           // dd/MM/yyyy
-  status: string;            // PAGO | PENDENTE | CANCELADO
+  receiptRef: string;
+  issueDate: string;
+  dueDate: string;
+  status: string;
   paymentMethod: string;
   serviceType: string;
   amount: number;
   notes?: string | null;
+  // contrato
+  totalContracted?: number;
+  totalPaid?: number;
+  balance?: number;
+  months?: number;
   company: {
     name: string;
     nif?: string | null;
@@ -246,11 +251,51 @@ export function InvoiceDocument({ inv }: { inv: InvoiceData }) {
           </View>
         )}
 
+        {/* ── RESUMO DO CONTRATO (se disponível) ─────────────────────── */}
+        {inv.totalContracted != null && (
+          <>
+            <Text style={[S.sectionTitle, { marginTop: 14 }]}>Resumo do Contrato</Text>
+            <View style={[S.divider, { marginBottom: 8 }]} />
+            <View style={S.fieldRow}>
+              <Text style={S.fieldLabel}>Valor contratado:</Text>
+              <Text style={S.fieldValue}>{formatKz(inv.totalContracted!)}</Text>
+            </View>
+            <View style={S.fieldRow}>
+              <Text style={S.fieldLabel}>Total recebido:</Text>
+              <Text style={[S.fieldValue, { color: C.green }]}>{formatKz(inv.totalPaid ?? 0)}</Text>
+            </View>
+            <View style={S.fieldRow}>
+              <Text style={S.fieldLabel}>Meses contratados:</Text>
+              <Text style={S.fieldValue}>{inv.months}</Text>
+            </View>
+          </>
+        )}
+
         {/* ── TOTAL ──────────────────────────────────────────────────── */}
         <View style={S.totalBox}>
-          <Text style={S.totalLabel}>Total pago</Text>
+          <Text style={S.totalLabel}>Total pago nesta fatura</Text>
           <Text style={S.totalValue}>{formatKz(inv.amount)}</Text>
         </View>
+
+        {/* ── SALDO / LIQUIDADO ───────────────────────────────────────── */}
+        {inv.balance != null && (
+          <View style={{
+            marginTop: 8,
+            borderRadius: 4,
+            padding: 10,
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+            backgroundColor: (inv.balance ?? 0) <= 0 ? "#dcfce7" : "#fee2e2",
+          }}>
+            <Text style={{ fontSize: 9, fontFamily: "Helvetica-Bold", color: (inv.balance ?? 0) <= 0 ? C.green : C.red }}>
+              {(inv.balance ?? 0) <= 0 ? "✓ TOTALMENTE LIQUIDADO" : "SALDO EM DÍVIDA"}
+            </Text>
+            <Text style={{ fontSize: 13, fontFamily: "Helvetica-Bold", color: (inv.balance ?? 0) <= 0 ? C.green : C.red }}>
+              {formatKz(Math.abs(inv.balance ?? 0))}
+            </Text>
+          </View>
+        )}
 
         {/* ── FECHO ──────────────────────────────────────────────────── */}
         <Text style={S.disclaimer}>

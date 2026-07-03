@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import Sidebar from "@/components/admin/Sidebar";
 import CompanyModal, { Company } from "@/components/admin/CompanyModal";
 import DeleteRequestModal from "@/components/admin/DeleteRequestModal";
@@ -158,6 +159,14 @@ export default function EmpresasPage() {
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">
+                      <Link
+                        href={`/admin/financeiro/empresa/${c.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="focus-ring rounded-lg border border-[#2F6FED]/30 px-3 py-1.5 text-xs text-[#5C8FFF] hover:bg-[#2F6FED]/10"
+                        title="Ver financeiro"
+                      >
+                        💳 Financeiro
+                      </Link>
                       <button
                         onClick={(e) => { e.stopPropagation(); setSelectedCompany(c); }}
                         className="focus-ring rounded-lg border border-white/10 px-3 py-1.5 text-xs hover:bg-white/5"

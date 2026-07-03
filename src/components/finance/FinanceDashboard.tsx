@@ -18,6 +18,8 @@ type SummaryData = {
   previsao: number;
   empresasEmAtraso: number;
   caixaAtual: number;
+  totalContratado: number;
+  totalEmDivida: number;
   receitaMensal: { month: string; receita: number; despesa: number }[];
   despesasPorCategoria: { category: string; total: number }[];
   alertasVencer: AlertPayment[];
@@ -133,14 +135,30 @@ export default function FinanceDashboard() {
         />
       </div>
 
-      {/* Row 3 — All-time totals */}
+      {/* Row 3 — Contract totals */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <KpiCard
+          label="Total Contratado (activo)"
+          value={formatKz(data.totalContratado)}
+          colorClass="border-[#2F6FED]/20 bg-[#2F6FED]/5 text-[#5C8FFF]"
+          labelClass="text-[#5C8FFF]"
+        />
         <KpiCard
           label="Total Recebido (geral)"
           value={formatKz(data.totalRecebido)}
-          colorClass="border-white/10 bg-white/[0.03] text-[#F5F7FA]"
-          labelClass="text-[#94A3B8]"
+          colorClass="border-emerald-500/20 bg-emerald-500/5 text-emerald-300"
+          labelClass="text-emerald-400"
         />
+        <KpiCard
+          label="Saldo em Dívida"
+          value={formatKz(data.totalEmDivida)}
+          colorClass={data.totalEmDivida > 0 ? "border-red-500/20 bg-red-500/5 text-red-300" : "border-emerald-500/20 bg-emerald-500/5 text-emerald-300"}
+          labelClass={data.totalEmDivida > 0 ? "text-red-400" : "text-emerald-400"}
+        />
+      </div>
+
+      {/* Row 4 — All-time totals */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <KpiCard
           label="Total Pendente (geral)"
           value={formatKz(data.totalPendente)}
@@ -152,6 +170,12 @@ export default function FinanceDashboard() {
           value={formatKz(data.totalAtrasado)}
           colorClass="border-red-500/20 bg-red-500/5 text-red-300"
           labelClass="text-red-400"
+        />
+        <KpiCard
+          label="Caixa Actual (ano)"
+          value={formatKz(data.caixaAtual)}
+          colorClass={data.caixaAtual >= 0 ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-300" : "border-red-500/20 bg-red-500/5 text-red-300"}
+          labelClass={data.caixaAtual >= 0 ? "text-emerald-400" : "text-red-400"}
         />
       </div>
 
