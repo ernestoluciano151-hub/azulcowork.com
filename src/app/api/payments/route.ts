@@ -52,24 +52,54 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
 
   const data = await req.json();
-  const { companyId, amount, dueDate, paymentMethod, notes, status, category } = data;
+  const {
+    companyId, amount, dueDate, paidDate,
+    paymentMethod, notes, status, category,
+    receiptUrl, doc2Url, operationRef,
+  } = data;
 
   if (!companyId || !amount || !dueDate) {
     return NextResponse.json({ error: "Campos obrigatórios em falta." }, { status: 400 });
   }
 
-  const isPago = (status || "PENDENTE") === "PAGO";
+  const isPago    = (status || "PENDENTE") === "PAGO";
+  const amountNum = Number(amount);
+
+  // ── auto-gerar número de recibo ──────────────────────────────────────────
+  const year  = new Date().getFullYear();
+  const count = await prisma.payment.count({
+    where: { receiptNumber: { startsWith: `REC-${year}-` } },
+  });
+  const receiptNumber = `REC-${year}-${String(count + 1).padStart(6, "0")}`;
+
+  // ── saldo anterior (auditoria) ───────────────────────────────────────────
+  const company = await prisma.company.findUnique({ where: { id: companyId } });
+  let previousBalance: number | null = null;
+  if (company) {
+    const paidAgg = await prisma.payment.aggregate({
+      where: { companyId, status: "PAGO" },
+      _sum: { amount: true },
+    });
+    const { calcTotalContracted } = await import("@/lib/finance");
+    const totalContracted = calcTotalContracted(company.rentAmount, company.contractStart, company.contractEnd);
+    previousBalance = totalContracted - (paidAgg._sum.amount ?? 0);
+  }
 
   const payment = await prisma.payment.create({
     data: {
       companyId,
-      amount:        Number(amount),
-      dueDate:       new Date(dueDate),
-      paidDate:      isPago ? new Date() : null,
-      paymentMethod: paymentMethod || null,
-      notes:         notes || null,
-      status:        status || "PENDENTE",
-      category:      category || null,
+      amount:          amountNum,
+      dueDate:         new Date(dueDate),
+      paidDate:        isPago ? (paidDate ? new Date(paidDate) : new Date()) : null,
+      paymentMethod:   paymentMethod || null,
+      notes:           notes || null,
+      status:          status || "PENDENTE",
+      category:        category || null,
+      receiptUrl:      receiptUrl || null,
+      doc2Url:         doc2Url || null,
+      operationRef:    operationRef || null,
+      receiptNumber,
+      previousBalance,
     },
     include: { company: { select: { id: true, name: true } } },
   });
@@ -79,8 +109,8 @@ export async function POST(req: NextRequest) {
     await recordFinancialHistory(prisma, {
       companyId,
       type:        "PAGAMENTO",
-      description: `Pagamento registado — ${payment.company.name}`,
-      amount:      Number(amount),
+      description: `${receiptNumber} — ${payment.company.name}`,
+      amount:      amountNum,
       method:      paymentMethod || undefined,
       reference:   payment.id,
       createdBy:   session.name || session.email,

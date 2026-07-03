@@ -122,23 +122,28 @@ model Company {
 
 
 model Payment {
-  id            String    @id @default(cuid())
-  companyId     String
-  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  dueDate       DateTime
-  paidDate      DateTime?
-  amount        Float
-  status        String    @default("PENDENTE")
-  notes         String?
-  invoiceId     String?
-  paymentMethod String?
-  receiptUrl    String?
-  category      String?
-  createdAt     DateTime  @default(now())
+  id              String    @id @default(cuid())
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  dueDate         DateTime
+  paidDate        DateTime?
+  amount          Float
+  status          String    @default("PENDENTE")
+  notes           String?
+  invoiceId       String?
+  paymentMethod   String?
+  receiptUrl      String?   // doc 1 — comprovativo
+  doc2Url         String?   // doc 2 — opcional
+  category        String?
+  receiptNumber   String?   // REC-YYYY-NNNNNN gerado automaticamente
+  operationRef    String?   // referência bancária / multicaixa / POS
+  previousBalance Float?    // saldo antes deste pagamento (auditoria)
+  createdAt       DateTime  @default(now())
 
   @@index([companyId])
   @@index([status])
   @@index([dueDate])
+  @@index([receiptNumber])
 }
 
 model Invoice {

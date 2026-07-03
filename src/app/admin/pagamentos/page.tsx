@@ -7,6 +7,7 @@ import { formatKz } from "@/lib/currency";
 import { format } from "date-fns";
 import DeleteRequestModal from "@/components/admin/DeleteRequestModal";
 import FinanceDashboard from "@/components/finance/FinanceDashboard";
+import NewPaymentModal from "@/components/finance/NewPaymentModal";
 
 const STATUS_COLORS: Record<string, string> = {
   PAGO: "bg-emerald-500/15 text-emerald-300",
@@ -40,6 +41,9 @@ type Payment = {
   notes: string | null;
   paymentMethod?: string | null;
   receiptUrl?: string | null;
+  doc2Url?: string | null;
+  receiptNumber?: string | null;
+  operationRef?: string | null;
 };
 
 type Invoice = {
@@ -146,19 +150,6 @@ function PagamentosTab() {
   const [markingId, setMarkingId] = useState<string | null>(null);
   const [deleteModal, setDeleteModal] = useState<{ id: string; label: string } | null>(null);
   const [showModal, setShowModal] = useState(false);
-  const [companies, setCompanies] = useState<Company[]>([]);
-
-  // New payment form
-  const [form, setForm] = useState({
-    companyId: "", amount: "", dueDate: "", paymentMethod: "", notes: "", status: "PENDENTE",
-  });
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    fetch("/api/companies")
-      .then((r) => r.json())
-      .then((d) => setCompanies(d.companies || []));
-  }, []);
 
   const fetchPayments = useCallback(async () => {
     setLoading(true);
@@ -192,20 +183,6 @@ function PagamentosTab() {
     fetchPayments();
   }
 
-  async function savePayment() {
-    setSaving(true);
-    const res = await fetch("/api/payments", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    setSaving(false);
-    if (res.ok) {
-      setShowModal(false);
-      setForm({ companyId: "", amount: "", dueDate: "", paymentMethod: "", notes: "", status: "PENDENTE" });
-      fetchPayments();
-    }
-  }
 
   return (
     <div>
@@ -262,13 +239,13 @@ function PagamentosTab() {
         <table className="w-full text-left text-sm">
           <thead className="bg-white/[0.03] text-[#94A3B8]">
             <tr>
+              <th className="px-4 py-3 font-medium">Nº Recibo</th>
               <th className="px-4 py-3 font-medium">Empresa</th>
-              <th className="px-4 py-3 font-medium">Vencimento</th>
               <th className="px-4 py-3 font-medium">Valor</th>
               <th className="px-4 py-3 font-medium">Estado</th>
               <th className="px-4 py-3 font-medium">Data Pagamento</th>
               <th className="px-4 py-3 font-medium">Método</th>
-              <th className="px-4 py-3 font-medium">Comprovativo</th>
+              <th className="px-4 py-3 font-medium">Docs</th>
               <th className="px-4 py-3 font-medium">Acções</th>
             </tr>
           </thead>
@@ -281,9 +258,9 @@ function PagamentosTab() {
             )}
             {payments.map((p) => (
               <tr key={p.id} className="text-[#F5F7FA] hover:bg-white/[0.02]">
+                <td className="px-4 py-3 font-mono text-xs text-[#5C8FFF]">{p.receiptNumber || "—"}</td>
                 <td className="px-4 py-3 font-medium">{p.company.name}</td>
-                <td className="px-4 py-3 text-[#94A3B8]">{format(new Date(p.dueDate), "dd/MM/yyyy")}</td>
-                <td className="px-4 py-3">{formatKz(p.amount)}</td>
+                <td className="px-4 py-3 font-semibold">{formatKz(p.amount)}</td>
                 <td className="px-4 py-3">
                   <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_COLORS[p.status] || "bg-white/10 text-[#94A3B8]"}`}>
                     {p.status}
@@ -294,9 +271,15 @@ function PagamentosTab() {
                 </td>
                 <td className="px-4 py-3 text-[#94A3B8] text-xs">{p.paymentMethod || "—"}</td>
                 <td className="px-4 py-3">
-                  {p.receiptUrl ? (
-                    <a href={p.receiptUrl} target="_blank" rel="noreferrer" className="text-xs text-[#2F6FED] hover:underline">Ver</a>
-                  ) : "—"}
+                  <div className="flex gap-2">
+                    {p.receiptUrl && (
+                      <a href={p.receiptUrl} target="_blank" rel="noreferrer" className="text-xs text-[#2F6FED] hover:underline">Doc1</a>
+                    )}
+                    {p.doc2Url && (
+                      <a href={p.doc2Url} target="_blank" rel="noreferrer" className="text-xs text-[#5C8FFF] hover:underline">Doc2</a>
+                    )}
+                    {!p.receiptUrl && !p.doc2Url && <span className="text-[#94A3B8]">—</span>}
+                  </div>
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
@@ -323,89 +306,12 @@ function PagamentosTab() {
         </table>
       </div>
 
-      {/* Add Payment Modal */}
+      {/* ── Modal Novo Pagamento (ERP completo) ── */}
       {showModal && (
-        <Modal title="Novo Pagamento" onClose={() => setShowModal(false)}>
-          <div className="space-y-3">
-            <div>
-              <label className="mb-1 block text-xs text-[#94A3B8]">Empresa *</label>
-              <select
-                value={form.companyId}
-                onChange={(e) => setForm({ ...form, companyId: e.target.value })}
-                className="w-full rounded-lg border border-white/10 bg-[#101a2e] px-3 py-2 text-sm text-[#F5F7FA] focus:outline-none focus:ring-1 focus:ring-[#2F6FED]"
-              >
-                <option value="">Seleccionar empresa...</option>
-                {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="mb-1 block text-xs text-[#94A3B8]">Valor (AOA) *</label>
-                <input
-                  type="number"
-                  value={form.amount}
-                  onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                  className="w-full rounded-lg border border-white/10 bg-[#101a2e] px-3 py-2 text-sm text-[#F5F7FA] focus:outline-none focus:ring-1 focus:ring-[#2F6FED]"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-[#94A3B8]">Vencimento *</label>
-                <input
-                  type="date"
-                  value={form.dueDate}
-                  onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
-                  className="w-full rounded-lg border border-white/10 bg-[#101a2e] px-3 py-2 text-sm text-[#F5F7FA] focus:outline-none focus:ring-1 focus:ring-[#2F6FED]"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="mb-1 block text-xs text-[#94A3B8]">Método de Pagamento</label>
-                <select
-                  value={form.paymentMethod}
-                  onChange={(e) => setForm({ ...form, paymentMethod: e.target.value })}
-                  className="w-full rounded-lg border border-white/10 bg-[#101a2e] px-3 py-2 text-sm text-[#F5F7FA] focus:outline-none focus:ring-1 focus:ring-[#2F6FED]"
-                >
-                  <option value="">Seleccionar...</option>
-                  {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-[#94A3B8]">Estado</label>
-                <select
-                  value={form.status}
-                  onChange={(e) => setForm({ ...form, status: e.target.value })}
-                  className="w-full rounded-lg border border-white/10 bg-[#101a2e] px-3 py-2 text-sm text-[#F5F7FA] focus:outline-none focus:ring-1 focus:ring-[#2F6FED]"
-                >
-                  <option value="PENDENTE">Pendente</option>
-                  <option value="PAGO">Pago</option>
-                  <option value="ATRASADO">Atrasado</option>
-                </select>
-              </div>
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-[#94A3B8]">Notas</label>
-              <textarea
-                value={form.notes}
-                onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                rows={2}
-                className="w-full rounded-lg border border-white/10 bg-[#101a2e] px-3 py-2 text-sm text-[#F5F7FA] focus:outline-none focus:ring-1 focus:ring-[#2F6FED]"
-              />
-            </div>
-            <div className="flex justify-end gap-3 pt-2">
-              <button onClick={() => setShowModal(false)} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-[#94A3B8] hover:text-[#F5F7FA]">
-                Cancelar
-              </button>
-              <button
-                onClick={savePayment}
-                disabled={saving}
-                className="rounded-lg bg-[#2F6FED] px-4 py-2 text-sm font-medium text-white hover:bg-[#1E4FB8] disabled:opacity-50"
-              >
-                {saving ? "A guardar..." : "Guardar"}
-              </button>
-            </div>
-          </div>
-        </Modal>
+        <NewPaymentModal
+          onClose={() => setShowModal(false)}
+          onSuccess={() => { setShowModal(false); fetchPayments(); }}
+        />
       )}
 
       {deleteModal && (
