@@ -88,14 +88,48 @@ export async function GET() {
     }),
   ]);
 
+  // ── Sala de reunião ───────────────────────────────────────────────────────
+  const [salaReceitaMes, salaReceitaAnual, salaPendente] = await Promise.all([
+    prisma.reservation.aggregate({
+      where: { paymentStatus: "PAGO", startDatetime: { gte: startOfMonth } },
+      _sum: { totalAmount: true },
+    }),
+    prisma.reservation.aggregate({
+      where: { paymentStatus: "PAGO", startDatetime: { gte: startOfYear } },
+      _sum: { totalAmount: true },
+    }),
+    prisma.reservation.aggregate({
+      where: { paymentStatus: "PENDENTE", status: { notIn: ["CANCELADA"] } },
+      _sum: { totalAmount: true },
+    }),
+  ]);
+
   const totalPagoGeral    = totalRecebido._sum.amount || 0;
   const totalEmDivida     = Math.max(0, totalContratado - totalPagoGeral);
+  const salaReceitaMesVal = salaReceitaMes._sum.totalAmount  || 0;
+  const salaReceitaAnualVal= salaReceitaAnual._sum.totalAmount || 0;
+  const salaPendenteVal   = salaPendente._sum.totalAmount    || 0;
+
+  // Merge sala into monthly chart
+  for (let i = 11; i >= 0; i--) {
+    const d     = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const nextD = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+    const idx   = 11 - i;
+    const salaRec = await prisma.reservation.aggregate({
+      where: { paymentStatus: "PAGO", startDatetime: { gte: d, lt: nextD } },
+      _sum: { totalAmount: true },
+    });
+    monthlyData[idx].receita += salaRec._sum.totalAmount || 0;
+  }
 
   return NextResponse.json({
-    receitaMes:       receitaMes._sum.amount      || 0,
-    receitaAnual:     receitaAnual._sum.amount     || 0,
-    totalRecebido:    totalPagoGeral,
-    totalPendente:    totalPendente._sum.amount    || 0,
+    receitaMes:        (receitaMes._sum.amount || 0) + salaReceitaMesVal,
+    receitaAnual:      (receitaAnual._sum.amount || 0) + salaReceitaAnualVal,
+    totalRecebido:     totalPagoGeral,
+    salaReceitaMes:    salaReceitaMesVal,
+    salaReceitaAnual:  salaReceitaAnualVal,
+    salaPendente:      salaPendenteVal,
+    totalPendente:    (totalPendente._sum.amount || 0) + salaPendenteVal,
     totalAtrasado:    totalAtrasado._sum.amount    || 0,
     mrr:              mrr._sum.rentAmount          || 0,
     previsao:         totalPendente._sum.amount    || 0,

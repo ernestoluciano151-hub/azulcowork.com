@@ -82,7 +82,7 @@ export async function GET() {
   // ── Folha 4: Pagamentos ───────────────────────────────────────────────────
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
     payments.map(p => ({
-      "Empresa": p.company.name,
+      "Empresa": p.company?.name ?? "—",
       "Vencimento": p.dueDate.toLocaleDateString("pt-PT"),
       "Data de Pagamento": p.paidDate ? p.paidDate.toLocaleDateString("pt-PT") : "",
       "Valor (AOA)": p.amount,

@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
       orderBy: { paidDate: "desc" },
     });
     const rows = payments.map((p) => ({
-      Empresa: p.company.name,
+      Empresa: p.company?.name ?? "—",
       Valor: p.amount,
       "Data Pagamento": p.paidDate ? p.paidDate.toLocaleDateString("pt-PT") : "",
       Vencimento: p.dueDate.toLocaleDateString("pt-PT"),
@@ -67,10 +67,10 @@ export async function GET(req: NextRequest) {
       orderBy: { dueDate: "asc" },
     });
     const rows = atrasados.map((p) => ({
-      Empresa: p.company.name,
-      Responsável: p.company.responsible,
-      Email: p.company.email,
-      WhatsApp: p.company.whatsapp,
+      Empresa:     p.company?.name        ?? "—",
+      Responsável: p.company?.responsible ?? "—",
+      Email:       p.company?.email       ?? "—",
+      WhatsApp:    p.company?.whatsapp    ?? "—",
       Vencimento: p.dueDate.toLocaleDateString("pt-PT"),
       Valor: p.amount,
       "Dias em Atraso": Math.floor((now.getTime() - p.dueDate.getTime()) / (1000 * 60 * 60 * 24)),

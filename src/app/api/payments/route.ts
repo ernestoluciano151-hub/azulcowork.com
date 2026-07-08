@@ -105,11 +105,11 @@ export async function POST(req: NextRequest) {
   });
 
   // ── registar no histórico se pago ────────────────────────────────────────
-  if (isPago) {
+  if (isPago && companyId) {
     await recordFinancialHistory(prisma, {
       companyId,
       type:        "PAGAMENTO",
-      description: `${receiptNumber} — ${payment.company.name}`,
+      description: `${receiptNumber} — ${payment.company?.name ?? "empresa"}`,
       amount:      amountNum,
       method:      paymentMethod || undefined,
       reference:   payment.id,

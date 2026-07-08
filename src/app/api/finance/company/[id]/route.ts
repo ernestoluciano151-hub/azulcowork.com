@@ -15,6 +15,14 @@ export async function GET(
   const summary = await getCompanyFinanceSummary(prisma, params.id);
   if (!summary) return NextResponse.json({ error: "Empresa não encontrada." }, { status: 404 });
 
+  // Fetch sala reservations for this company
+  const reservations = await prisma.reservation.findMany({
+    where:   { companyId: params.id, status: { not: "CANCELADA" } },
+    include: { plan: true },
+    orderBy: { startDatetime: "desc" },
+    take:    50,
+  });
+
   // serialise dates
   const { company, ...rest } = summary;
   return NextResponse.json({
@@ -43,5 +51,12 @@ export async function GET(
         createdAt: h.createdAt.toISOString(),
       })),
     },
+    reservations: reservations.map(r => ({
+      ...r,
+      startDatetime: r.startDatetime.toISOString(),
+      endDatetime:   r.endDatetime.toISOString(),
+      createdAt:     r.createdAt.toISOString(),
+      updatedAt:     r.updatedAt.toISOString(),
+    })),
   });
 }

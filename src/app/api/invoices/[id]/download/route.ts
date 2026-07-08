@@ -45,15 +45,20 @@ export async function GET(
     const fmt = (d: Date) => format(d, "dd/MM/yyyy", { locale: pt });
     const refNum = invoice.invoiceNumber.replace("FT-", "");
 
-    // ── calcular dados do contrato ───────────────────────────────────────
-    const months          = calcContractMonths(invoice.company.contractStart, invoice.company.contractEnd);
-    const totalContracted = calcTotalContracted(invoice.company.rentAmount, invoice.company.contractStart, invoice.company.contractEnd);
-    const paidAgg         = await prisma.payment.aggregate({
-      where: { companyId: invoice.companyId, status: "PAGO" },
-      _sum: { amount: true },
-    });
-    const totalPaid = paidAgg._sum.amount ?? 0;
-    const balance   = totalContracted - totalPaid;
+    // ── calcular dados do contrato (apenas se ligado a empresa) ─────────────
+    const co = invoice.company;
+    const months          = co ? calcContractMonths(co.contractStart, co.contractEnd) : 0;
+    const totalContracted = co ? calcTotalContracted(co.rentAmount, co.contractStart, co.contractEnd) : 0;
+    let totalPaid = 0;
+    let balance   = 0;
+    if (invoice.companyId) {
+      const paidAgg = await prisma.payment.aggregate({
+        where: { companyId: invoice.companyId, status: "PAGO" },
+        _sum: { amount: true },
+      });
+      totalPaid = paidAgg._sum.amount ?? 0;
+      balance   = totalContracted - totalPaid;
+    }
 
     // ── montar dados tipados ─────────────────────────────────────────────
     const inv: InvoiceData = {
@@ -66,18 +71,18 @@ export async function GET(
       serviceType:     invoice.serviceType,
       amount:          invoice.amount,
       notes:           invoice.notes,
-      totalContracted,
-      totalPaid,
-      balance,
-      months,
+      totalContracted: totalContracted || undefined,
+      totalPaid:       totalPaid       || undefined,
+      balance:         balance         || undefined,
+      months:          months          || undefined,
       company: {
-        name:        invoice.company.name,
-        nif:         invoice.company.nif,
-        email:       invoice.company.email,
-        whatsapp:    invoice.company.whatsapp,
-        responsible: invoice.company.responsible,
-        roomNumber:  invoice.company.roomNumber,
-        planType:    invoice.company.planType,
+        name:        co?.name        ?? "Cliente",
+        nif:         co?.nif         ?? null,
+        email:       co?.email       ?? "",
+        whatsapp:    co?.whatsapp    ?? "",
+        responsible: co?.responsible ?? "",
+        roomNumber:  co?.roomNumber  ?? "",
+        planType:    co?.planType    ?? "",
       },
       logoBase64,
     };
@@ -89,7 +94,7 @@ export async function GET(
     );
 
     // ── nome do ficheiro ─────────────────────────────────────────────────
-    const safeName = invoice.company.name.replace(/[^a-zA-Z0-9]/g, "_");
+    const safeName = (co?.name ?? "sala").replace(/[^a-zA-Z0-9]/g, "_");
     const filename  = `Recibo_${refNum}_${safeName}.pdf`;
 
     return new NextResponse(new Uint8Array(pdfBuffer), {

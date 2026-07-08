@@ -14,7 +14,6 @@ export async function PATCH(
 
   const data = await req.json();
 
-  // if marking as PAGO, set paidDate automatically
   if (data.status === "PAGO" && !data.paidDate) {
     data.paidDate = new Date();
   }
@@ -30,12 +29,12 @@ export async function PATCH(
     include: { company: { select: { id: true, name: true } } },
   });
 
-  // ── registar histórico se mudou para PAGO ───────────────────────────────
-  if (data.status === "PAGO" && before?.status !== "PAGO") {
+  // only record history for company-linked payments
+  if (data.status === "PAGO" && before?.status !== "PAGO" && payment.companyId) {
     await recordFinancialHistory(prisma, {
       companyId:   payment.companyId,
       type:        "PAGAMENTO",
-      description: `Pagamento marcado como pago — ${payment.company.name}`,
+      description: `Pagamento marcado como pago — ${payment.company?.name ?? "cliente"}`,
       amount:      payment.amount,
       method:      payment.paymentMethod || undefined,
       reference:   payment.id,

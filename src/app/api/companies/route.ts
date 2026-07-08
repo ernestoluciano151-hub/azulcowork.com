@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
 
   const debtByCompany: Record<string, number> = {};
   for (const d of debtMap) {
-    debtByCompany[d.companyId] = d._sum.amount || 0;
+    if (d.companyId) debtByCompany[d.companyId] = d._sum.amount || 0;
   }
 
   const companies = rawCompanies.map((c) => ({

@@ -113,6 +113,7 @@ model Company {
   payments          Payment[]
   invoices          Invoice[]
   financialHistory  FinancialHistory[]
+  reservations      Reservation[]
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
 
@@ -123,8 +124,9 @@ model Company {
 
 model Payment {
   id              String    @id @default(cuid())
-  companyId       String
-  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  companyId       String?
+  company         Company?  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  reservationId   String?   // link to sala reservation (optional)
   dueDate         DateTime
   paidDate        DateTime?
   amount          Float
@@ -144,15 +146,20 @@ model Payment {
   @@index([status])
   @@index([dueDate])
   @@index([receiptNumber])
+  @@index([reservationId])
 }
 
 model Invoice {
   id            String    @id @default(cuid())
   invoiceNumber String    @unique
-  companyId     String
-  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  companyId     String?
+  company       Company?  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  reservationId String?   // link to sala reservation (optional)
   serviceType   String
   amount        Float
+  discount      Float     @default(0)
+  iva           Float     @default(0)  // percentage
+  totalAmount   Float     @default(0)
   issueDate     DateTime  @default(now())
   dueDate       DateTime
   paymentMethod String?
@@ -165,6 +172,7 @@ model Invoice {
   @@index([companyId])
   @@index([status])
   @@index([dueDate])
+  @@index([reservationId])
 }
 
 model FinancialHistory {
@@ -216,31 +224,67 @@ model MeetingPlan {
   coffeeBreakAvailable  Boolean       @default(true)
   customPricingAllowed  Boolean       @default(false)
   minHoursForCustom     Int?          @default(16)
+  pricePerHour          Float         @default(0)
+  coffeeBreakPrice      Float         @default(0)
   active                Boolean       @default(true)
   reservations          Reservation[]
   createdAt             DateTime      @default(now())
 }
 
 model Reservation {
-  id              String      @id @default(cuid())
-  eventName       String
-  companyName     String?
-  responsible     String
-  planId          String
-  plan            MeetingPlan @relation(fields: [planId], references: [id])
-  participants    Int
-  startDatetime   DateTime
-  endDatetime     DateTime
-  totalHours      Float
-  coffeeBreak     Boolean     @default(false)
-  observations    String?
-  status          String      @default("CONFIRMADA")
-  isCustomPricing Boolean     @default(false)
-  customRequest   String?
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  id                String      @id @default(cuid())
+  reservationNumber String?     // RES-YYYY-NNNNNN
+
+  // Dados do cliente
+  eventName         String
+  companyName       String?     // free-text (external clients)
+  companyId         String?     // link to Company (coworking members)
+  company           Company?    @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  responsible       String
+  email             String?
+  whatsapp          String?
+
+  // Plano e horário
+  planId            String
+  plan              MeetingPlan @relation(fields: [planId], references: [id])
+  participants      Int
+  startDatetime     DateTime
+  endDatetime       DateTime
+  totalHours        Float
+  coffeeBreak       Boolean     @default(false)
+  observations      String?
+
+  // Estado da reserva
+  status            String      @default("CONFIRMADA")
+  // CONFIRMADA | RESERVADO | PENDENTE_APROVACAO | CANCELADA | CONCLUIDA
+  isCustomPricing   Boolean     @default(false)
+  customRequest     String?
+
+  // Financeiro
+  paymentOption     String      @default("PAGAR_NO_DIA")
+  // PAGAR_AGORA | PAGAR_NO_DIA | FACTURAR | ISENTO
+  amount            Float       @default(0)   // base (hours × pricePerHour + coffeeBreak)
+  discount          Float       @default(0)   // discount amount
+  iva               Float       @default(0)   // IVA % (e.g. 14)
+  totalAmount       Float       @default(0)   // final amount
+  paymentStatus     String      @default("PENDENTE")
+  // PAGO | PENDENTE | FACTURADO | ISENTO
+  paymentMethod     String?
+  operationRef      String?
+  receiptUrl        String?
+  financialNotes    String?
+
+  // Linked financial records
+  paymentId         String?
+  invoiceId         String?
+
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
 
   @@index([planId])
+  @@index([companyId])
   @@index([startDatetime])
   @@index([status])
+  @@index([paymentStatus])
+  @@index([reservationNumber])
 }
