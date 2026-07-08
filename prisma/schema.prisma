@@ -35,7 +35,7 @@ model Lead {
 }
 
 model RoomBookingLead {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   firstName       String
   lastName        String
   company         String?
@@ -46,12 +46,16 @@ model RoomBookingLead {
   preferredDate   DateTime?
   preferredTime   String?
   observations    String?
-  coffeeBreak     Boolean  @default(false)
-  status          String   @default("NOVO")
-  source          String   @default("landing-sala")
+  coffeeBreak     Boolean   @default(false)
+  status          String    @default("NOVO")
+  source          String    @default("landing-sala")
   ip              String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  companyId       String?
+  reservationId   String?
+  convertedAt     DateTime?
+  convertedBy     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@index([status])
   @@index([createdAt])
@@ -110,10 +114,12 @@ model Company {
   paymentStatus     String             @default("EM_DIA")
   contractFileUrl   String?
   notes             String?
+  leadSourceId      String?
   payments          Payment[]
   invoices          Invoice[]
   financialHistory  FinancialHistory[]
   reservations      Reservation[]
+  timeline          Timeline[]
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
 
@@ -277,6 +283,7 @@ model Reservation {
   // Linked financial records
   paymentId         String?
   invoiceId         String?
+  roomBookingLeadId String?
 
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
@@ -287,4 +294,23 @@ model Reservation {
   @@index([status])
   @@index([paymentStatus])
   @@index([reservationNumber])
+}
+
+model Timeline {
+  id            String   @id @default(cuid())
+  companyId     String?
+  company       Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  leadId        String?
+  type          String
+  title         String
+  description   String?
+  amount        Float?
+  referenceId   String?
+  referenceType String?
+  createdBy     String?
+  createdAt     DateTime @default(now())
+
+  @@index([companyId])
+  @@index([leadId])
+  @@index([createdAt])
 }

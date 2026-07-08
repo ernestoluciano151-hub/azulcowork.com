@@ -8,6 +8,41 @@ import { format } from "date-fns";
 import { pt } from "date-fns/locale";
 import Link from "next/link";
 
+const TIMELINE_ICONS: Record<string, string> = {
+  LEAD_CRIADO:       "👤",
+  LEAD_CONTACTADO:   "📞",
+  LEAD_CONVERTIDO:   "🏢",
+  RESERVA_CRIADA:    "📅",
+  RESERVA_CONFIRMADA:"✅",
+  RESERVA_CANCELADA: "❌",
+  PAGAMENTO_RECEBIDO:"💰",
+  PAGAMENTO_PENDENTE:"⏳",
+  FACTURA_EMITIDA:   "🧾",
+  CONTRATO_CRIADO:   "📄",
+  NOTA:              "📝",
+  DOCUMENTO:         "📎",
+};
+
+type TimelineEntry = {
+  id: string;
+  type: string;
+  title: string;
+  description: string | null;
+  amount: number | null;
+  createdBy: string | null;
+  createdAt: string;
+};
+
+type RoomLead = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  planName: string;
+  status: string;
+  createdAt: string;
+};
+
 const STATUS_COLORS: Record<string, string> = {
   PAGO:             "bg-emerald-500/15 text-emerald-300",
   PAGO_PARCIALMENTE:"bg-blue-500/15 text-blue-300",
@@ -61,11 +96,19 @@ export default function CompanyFinancePage() {
   const [form, setForm] = useState({ amount: "", paymentMethod: "Transferência Bancária", notes: "", dueDate: new Date().toISOString().split("T")[0] });
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+  const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
+  const [roomLeads, setRoomLeads] = useState<RoomLead[]>([]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const res = await fetch(`/api/finance/company/${id}`);
-    if (res.ok) setData(await res.json());
+    const [finRes, tlRes, leadsRes] = await Promise.all([
+      fetch(`/api/finance/company/${id}`),
+      fetch(`/api/timeline?companyId=${id}`),
+      fetch(`/api/room-booking-leads?companyId=${id}&pageSize=50`),
+    ]);
+    if (finRes.ok) setData(await finRes.json());
+    if (tlRes.ok) { const d = await tlRes.json(); setTimeline(d.timeline || []); }
+    if (leadsRes.ok) { const d = await leadsRes.json(); setRoomLeads(d.leads || []); }
     setLoading(false);
   }, [id]);
 
@@ -280,6 +323,74 @@ export default function CompanyFinancePage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {/* Timeline CRM */}
+        {(timeline.length > 0 || roomLeads.length > 0) && (
+          <div className="rounded-xl border border-white/10 bg-white/[0.03]">
+            <div className="border-b border-white/10 px-5 py-4">
+              <h2 className="font-semibold text-[#F5F7FA]">Timeline CRM</h2>
+            </div>
+            <div className="p-5 space-y-4">
+              {/* Room Booking Leads linked */}
+              {roomLeads.length > 0 && (
+                <div className="mb-4 rounded-lg border border-[#2F6FED]/20 bg-[#2F6FED]/5 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[#5C8FFF] mb-3">Leads de Sala Associados</p>
+                  <div className="space-y-2">
+                    {roomLeads.map(l => (
+                      <div key={l.id} className="flex items-center justify-between text-sm">
+                        <span className="text-[#F5F7FA]">👤 {l.firstName} {l.lastName}</span>
+                        <div className="flex items-center gap-3">
+                          <span className="text-[#94A3B8] text-xs">{l.planName}</span>
+                          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                            l.status === "CONVERTIDO" ? "bg-emerald-500/15 text-emerald-300" :
+                            l.status === "RESERVA_CRIADA" ? "bg-blue-500/15 text-blue-300" :
+                            "bg-white/10 text-[#94A3B8]"
+                          }`}>{l.status}</span>
+                          <span className="text-[#94A3B8] text-xs">{format(new Date(l.createdAt), "dd/MM/yyyy")}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {/* Timeline entries */}
+              <div className="relative pl-6 space-y-0">
+                {/* Vertical line */}
+                {timeline.length > 1 && (
+                  <div className="absolute left-2.5 top-2 bottom-2 w-px bg-white/10" />
+                )}
+                {timeline.map((entry) => (
+                  <div key={entry.id} className="relative pb-5 last:pb-0">
+                    {/* Dot */}
+                    <div className="absolute -left-6 top-0 flex h-5 w-5 items-center justify-center rounded-full border border-white/10 bg-[#0d1829] text-sm">
+                      {TIMELINE_ICONS[entry.type] || "•"}
+                    </div>
+                    <div className="rounded-lg border border-white/5 bg-white/[0.02] px-4 py-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-medium text-[#F5F7FA]">{entry.title}</p>
+                          {entry.description && (
+                            <p className="mt-0.5 text-xs text-[#94A3B8]">{entry.description}</p>
+                          )}
+                          {entry.amount != null && (
+                            <p className="mt-1 text-xs font-semibold text-emerald-300">{formatKz(entry.amount)}</p>
+                          )}
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-xs text-[#94A3B8]">{format(new Date(entry.createdAt), "dd/MM/yyyy HH:mm")}</p>
+                          {entry.createdBy && <p className="text-xs text-[#94A3B8]/70">{entry.createdBy}</p>}
+                        </div>
+                      </div>
+                      <div className="mt-1.5">
+                        <span className="rounded-full bg-[#2F6FED]/10 px-2 py-0.5 text-[10px] font-semibold text-[#5C8FFF]">{entry.type}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}

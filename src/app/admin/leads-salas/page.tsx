@@ -4,18 +4,23 @@ import { useEffect, useState, useCallback } from "react";
 import Sidebar from "@/components/admin/Sidebar";
 import DeleteRequestModal from "@/components/admin/DeleteRequestModal";
 import { format } from "date-fns";
+import Link from "next/link";
 
 const STATUS_LABELS: Record<string, string> = {
   NOVO: "Novo",
   CONTACTADO: "Contactado",
   CONFIRMADO: "Confirmado",
   CANCELADO: "Cancelado",
+  RESERVA_CRIADA: "Reserva Criada",
+  CONVERTIDO: "Convertido",
 };
 const STATUS_COLORS: Record<string, string> = {
   NOVO: "bg-blue-500/15 text-blue-300",
   CONTACTADO: "bg-amber-500/15 text-amber-300",
   CONFIRMADO: "bg-emerald-500/15 text-emerald-300",
   CANCELADO: "bg-red-500/15 text-red-300",
+  RESERVA_CRIADA: "bg-indigo-500/15 text-indigo-300",
+  CONVERTIDO: "bg-emerald-600/20 text-emerald-200",
 };
 const PLANS = ["Alpha", "Beta", "Gamma", "Easy", "Personalizado"];
 
@@ -24,6 +29,17 @@ const EMPTY_FORM = {
   whatsapp: "", planName: "", participants: "",
   preferredDate: "", preferredTime: "", coffeeBreak: false, observations: "",
 };
+
+const EMPTY_CONVERT = {
+  roomNumber: "", planType: "", rentAmount: "", contractStart: "", contractEnd: "",
+};
+
+const EMPTY_RESERVATION = {
+  planId: "", startDatetime: "", endDatetime: "",
+  paymentOption: "PAGAR_NO_DIA", amount: "", discount: "0", iva: "0", totalAmount: "",
+};
+
+type MeetingPlan = { id: string; name: string; pricePerHour: number };
 
 export default function LeadsSalasPage() {
   const [leads, setLeads] = useState<any[]>([]);
@@ -42,6 +58,26 @@ export default function LeadsSalasPage() {
   const [detail, setDetail] = useState<any | null>(null);
   const [deleteModal, setDeleteModal] = useState<{ id: string; label: string } | null>(null);
 
+  // Convert modal
+  const [convertLead, setConvertLead] = useState<any | null>(null);
+  const [convertForm, setConvertForm] = useState({ ...EMPTY_CONVERT });
+  const [convertSaving, setConvertSaving] = useState(false);
+  const [convertError, setConvertError] = useState("");
+
+  // To-reservation modal
+  const [reservLead, setReservLead] = useState<any | null>(null);
+  const [reservForm, setReservForm] = useState({ ...EMPTY_RESERVATION });
+  const [reservSaving, setReservSaving] = useState(false);
+  const [reservError, setReservError] = useState("");
+  const [meetingPlans, setMeetingPlans] = useState<MeetingPlan[]>([]);
+
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+
+  function showToast(msg: string, ok: boolean) {
+    setToast({ msg, ok });
+    setTimeout(() => setToast(null), 4000);
+  }
+
   const fetchLeads = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams();
@@ -53,6 +89,13 @@ export default function LeadsSalasPage() {
   }, [status, planName]);
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
+
+  useEffect(() => {
+    fetch("/api/plans")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.plans) setMeetingPlans(d.plans); })
+      .catch(() => {});
+  }, []);
 
   async function updateStatus(id: string, newStatus: string) {
     await fetch(`/api/room-booking-leads/${id}`, {
@@ -93,6 +136,63 @@ export default function LeadsSalasPage() {
     setSaving(false);
   }
 
+  async function handleConvert(e: React.FormEvent) {
+    e.preventDefault();
+    if (!convertLead) return;
+    setConvertSaving(true); setConvertError("");
+    const res = await fetch(`/api/room-booking-leads/${convertLead.id}/convert`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        roomNumber: convertForm.roomNumber || "A definir",
+        planType: convertForm.planType || convertLead.planName,
+        rentAmount: convertForm.rentAmount ? Number(convertForm.rentAmount) : 0,
+        contractStart: convertForm.contractStart || undefined,
+        contractEnd: convertForm.contractEnd || undefined,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setConvertSaving(false);
+    if (res.ok) {
+      showToast(`Lead convertido em empresa com sucesso!`, true);
+      setConvertLead(null);
+      setConvertForm({ ...EMPTY_CONVERT });
+      fetchLeads();
+    } else {
+      setConvertError(data.error || "Erro ao converter.");
+    }
+  }
+
+  async function handleToReservation(e: React.FormEvent) {
+    e.preventDefault();
+    if (!reservLead) return;
+    setReservSaving(true); setReservError("");
+    const res = await fetch(`/api/room-booking-leads/${reservLead.id}/to-reservation`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        planId: reservForm.planId,
+        startDatetime: reservForm.startDatetime,
+        endDatetime: reservForm.endDatetime,
+        paymentOption: reservForm.paymentOption,
+        amount: Number(reservForm.amount) || 0,
+        discount: Number(reservForm.discount) || 0,
+        iva: Number(reservForm.iva) || 0,
+        totalAmount: Number(reservForm.totalAmount) || 0,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setReservSaving(false);
+    if (res.ok) {
+      showToast(`Reserva ${data.reservation?.reservationNumber} criada com sucesso!`, true);
+      setReservLead(null);
+      setReservForm({ ...EMPTY_RESERVATION });
+      fetchLeads();
+    } else {
+      setReservError(data.error || "Erro ao criar reserva.");
+    }
+  }
+
   const inp = "w-full rounded-lg border border-white/10 bg-ink px-3 py-2 text-sm text-paper focus:outline-none focus:ring-2 focus:ring-azul placeholder:text-mist/40";
   const lbl = "block text-xs font-medium text-mist mb-1";
 
@@ -100,6 +200,13 @@ export default function LeadsSalasPage() {
     <div className="flex min-h-screen bg-ink">
       <Sidebar />
       <main className="flex-1 p-8">
+
+        {/* Toast */}
+        {toast && (
+          <div className={`fixed right-6 top-6 z-50 rounded-xl px-5 py-3 text-sm font-medium shadow-lg ${toast.ok ? "bg-emerald-600 text-white" : "bg-red-600 text-white"}`}>
+            {toast.msg}
+          </div>
+        )}
 
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
@@ -138,20 +245,18 @@ export default function LeadsSalasPage() {
                 <th className="px-4 py-3 font-medium">Plano</th>
                 <th className="px-4 py-3 font-medium">Partic.</th>
                 <th className="px-4 py-3 font-medium">Data Pref.</th>
-                <th className="px-4 py-3 font-medium">Hora</th>
                 <th className="px-4 py-3 font-medium">Coffee</th>
-                <th className="px-4 py-3 font-medium">Observações</th>
                 <th className="px-4 py-3 font-medium">Estado</th>
                 <th className="px-4 py-3 font-medium">Registo</th>
-                <th className="px-4 py-3 font-medium" />
+                <th className="px-4 py-3 font-medium">Acções</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
               {loading && (
-                <tr><td colSpan={12} className="px-4 py-8 text-center text-mist">A carregar...</td></tr>
+                <tr><td colSpan={10} className="px-4 py-8 text-center text-mist">A carregar...</td></tr>
               )}
               {!loading && leads.length === 0 && (
-                <tr><td colSpan={12} className="px-4 py-8 text-center text-mist">Nenhum pedido encontrado.</td></tr>
+                <tr><td colSpan={10} className="px-4 py-8 text-center text-mist">Nenhum pedido encontrado.</td></tr>
               )}
               {leads.map(l => (
                 <tr key={l.id} className="text-paper hover:bg-white/[0.02]">
@@ -170,41 +275,58 @@ export default function LeadsSalasPage() {
                   </td>
                   <td className="px-4 py-3 text-mist text-center">{l.participants || "—"}</td>
                   <td className="px-4 py-3 text-mist">{l.preferredDate ? format(new Date(l.preferredDate), "dd/MM/yyyy") : "—"}</td>
-                  <td className="px-4 py-3 text-mist">{l.preferredTime || "—"}</td>
                   <td className="px-4 py-3 text-center">{l.coffeeBreak ? "☕" : "—"}</td>
-                  <td className="px-4 py-3 max-w-xs">
-                    {l.observations ? (
-                      <button
-                        onClick={() => setDetail(l)}
-                        className="text-xs text-mist hover:text-paper underline underline-offset-2 text-left line-clamp-2"
-                        title={l.observations}
-                      >
-                        {l.observations.length > 60 ? l.observations.slice(0, 60) + "…" : l.observations}
-                      </button>
-                    ) : <span className="text-mist">—</span>}
-                  </td>
                   <td className="px-4 py-3">
-                    <span className={`rounded-full px-3 py-1 text-xs font-medium ${STATUS_COLORS[l.status]}`}>
-                      {STATUS_LABELS[l.status]}
-                    </span>
+                    <div className="flex flex-col gap-1">
+                      <span className={`rounded-full px-3 py-1 text-xs font-medium ${STATUS_COLORS[l.status] || "bg-white/10 text-mist"}`}>
+                        {STATUS_LABELS[l.status] || l.status}
+                      </span>
+                      {l.companyId && (
+                        <Link href={`/admin/financeiro/empresa/${l.companyId}`}
+                          className="text-xs text-emerald-400 hover:text-emerald-300 underline underline-offset-2">
+                          🏢 Ver empresa
+                        </Link>
+                      )}
+                      {l.reservationId && !l.companyId && (
+                        <span className="text-xs text-indigo-400">📅 Reserva criada</span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-mist text-xs whitespace-nowrap">{format(new Date(l.createdAt), "dd/MM/yy HH:mm")}</td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <select
-                        value={l.status}
-                        onChange={e => updateStatus(l.id, e.target.value)}
-                        className="focus-ring rounded border border-white/10 bg-ink px-2 py-1 text-xs text-paper"
-                      >
-                        {Object.entries(STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                      </select>
-                      <button
-                        onClick={() => setDeleteModal({ id: l.id, label: `${l.firstName} ${l.lastName}` })}
-                        className="rounded-lg border border-red-500/20 px-2 py-1.5 text-xs text-red-400 hover:bg-red-500/10"
-                        title="Pedir eliminação"
-                      >
-                        🗑️
-                      </button>
+                    <div className="flex flex-col gap-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <select
+                          value={l.status}
+                          onChange={e => updateStatus(l.id, e.target.value)}
+                          className="focus-ring rounded border border-white/10 bg-ink px-2 py-1 text-xs text-paper"
+                        >
+                          {Object.entries(STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                        </select>
+                        <button
+                          onClick={() => setDeleteModal({ id: l.id, label: `${l.firstName} ${l.lastName}` })}
+                          className="rounded-lg border border-red-500/20 px-2 py-1.5 text-xs text-red-400 hover:bg-red-500/10"
+                          title="Pedir eliminação"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                      {!l.reservationId && l.status !== "CONVERTIDO" && (
+                        <button
+                          onClick={() => { setReservLead(l); setReservForm({ ...EMPTY_RESERVATION }); }}
+                          className="rounded border border-indigo-500/30 bg-indigo-500/10 px-2 py-1 text-xs text-indigo-300 hover:bg-indigo-500/20 text-left"
+                        >
+                          📅 Criar Reserva
+                        </button>
+                      )}
+                      {!l.companyId && (
+                        <button
+                          onClick={() => { setConvertLead(l); setConvertForm({ ...EMPTY_CONVERT, planType: l.planName }); }}
+                          className="rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-300 hover:bg-emerald-500/20 text-left"
+                        >
+                          🏢 Converter em Cliente
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -266,30 +388,126 @@ export default function LeadsSalasPage() {
                 <input type="time" className={inp} value={form.preferredTime} onChange={e => setForm(f => ({ ...f, preferredTime: e.target.value }))} />
               </div>
               <div className="flex items-center gap-3 pt-4">
-                <input
-                  type="checkbox"
-                  id="coffeeBreak"
-                  checked={form.coffeeBreak}
-                  onChange={e => setForm(f => ({ ...f, coffeeBreak: e.target.checked }))}
-                  className="w-4 h-4 accent-azul"
-                />
+                <input type="checkbox" id="coffeeBreak" checked={form.coffeeBreak} onChange={e => setForm(f => ({ ...f, coffeeBreak: e.target.checked }))} className="w-4 h-4 accent-azul" />
                 <label htmlFor="coffeeBreak" className="text-sm text-paper">☕ Incluir Coffee Break</label>
               </div>
               <div className="sm:col-span-2">
                 <label className={lbl}>Observações</label>
-                <textarea
-                  rows={3}
-                  className={inp + " resize-none"}
-                  placeholder="Notas adicionais sobre o pedido..."
-                  value={form.observations}
-                  onChange={e => setForm(f => ({ ...f, observations: e.target.value }))}
-                />
+                <textarea rows={3} className={inp + " resize-none"} placeholder="Notas adicionais..." value={form.observations} onChange={e => setForm(f => ({ ...f, observations: e.target.value }))} />
               </div>
               {addError && <p className="sm:col-span-2 text-sm text-red-400">{addError}</p>}
               <div className="sm:col-span-2 flex gap-3 justify-end pt-2">
                 <button type="button" onClick={() => { setShowAdd(false); setAddError(""); }} className="px-5 py-2.5 rounded-xl border border-white/10 text-mist hover:text-paper text-sm">Cancelar</button>
                 <button type="submit" disabled={saving} className="px-5 py-2.5 rounded-xl bg-azul text-white font-semibold text-sm hover:bg-azul-dim disabled:opacity-60">
                   {saving ? "A guardar…" : "Guardar lead"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Converter em Cliente */}
+      {convertLead && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-ink2 p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-display text-lg font-bold text-paper">🏢 Converter em Cliente</h2>
+              <button onClick={() => { setConvertLead(null); setConvertError(""); }} className="text-mist hover:text-paper text-xl">✕</button>
+            </div>
+            <p className="text-sm text-mist mb-5">
+              Lead: <span className="text-paper font-medium">{convertLead.firstName} {convertLead.lastName}</span> · {convertLead.email}
+            </p>
+            <form onSubmit={handleConvert} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={lbl}>Nº Sala</label>
+                  <input className={inp} placeholder="Ex: 101" value={convertForm.roomNumber} onChange={e => setConvertForm(f => ({ ...f, roomNumber: e.target.value }))} />
+                </div>
+                <div>
+                  <label className={lbl}>Tipo de Plano</label>
+                  <input className={inp} placeholder="Ex: Coworking" value={convertForm.planType} onChange={e => setConvertForm(f => ({ ...f, planType: e.target.value }))} />
+                </div>
+              </div>
+              <div>
+                <label className={lbl}>Renda Mensal (AOA)</label>
+                <input type="number" min={0} className={inp} placeholder="Ex: 150000" value={convertForm.rentAmount} onChange={e => setConvertForm(f => ({ ...f, rentAmount: e.target.value }))} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={lbl}>Início de Contrato</label>
+                  <input type="date" className={inp} value={convertForm.contractStart} onChange={e => setConvertForm(f => ({ ...f, contractStart: e.target.value }))} />
+                </div>
+                <div>
+                  <label className={lbl}>Fim de Contrato</label>
+                  <input type="date" className={inp} value={convertForm.contractEnd} onChange={e => setConvertForm(f => ({ ...f, contractEnd: e.target.value }))} />
+                </div>
+              </div>
+              {convertError && <p className="text-sm text-red-400">{convertError}</p>}
+              <div className="flex gap-3 justify-end pt-2">
+                <button type="button" onClick={() => { setConvertLead(null); setConvertError(""); }} className="px-5 py-2.5 rounded-xl border border-white/10 text-mist hover:text-paper text-sm">Cancelar</button>
+                <button type="submit" disabled={convertSaving} className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-semibold text-sm hover:bg-emerald-700 disabled:opacity-60">
+                  {convertSaving ? "A converter…" : "Converter em Cliente"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Criar Reserva */}
+      {reservLead && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-ink2 p-6 shadow-2xl overflow-y-auto max-h-[90vh]">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-display text-lg font-bold text-paper">📅 Criar Reserva</h2>
+              <button onClick={() => { setReservLead(null); setReservError(""); }} className="text-mist hover:text-paper text-xl">✕</button>
+            </div>
+            <p className="text-sm text-mist mb-5">
+              Lead: <span className="text-paper font-medium">{reservLead.firstName} {reservLead.lastName}</span> · {reservLead.planName}
+            </p>
+            <form onSubmit={handleToReservation} className="space-y-4">
+              <div>
+                <label className={lbl}>Plano de Sala *</label>
+                <select required className={inp} value={reservForm.planId} onChange={e => setReservForm(f => ({ ...f, planId: e.target.value }))}>
+                  <option value="">Selecionar plano</option>
+                  {meetingPlans.map(p => <option key={p.id} value={p.id}>{p.name} ({p.pricePerHour.toLocaleString("pt-PT")} AOA/h)</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={lbl}>Início *</label>
+                  <input required type="datetime-local" className={inp} value={reservForm.startDatetime} onChange={e => setReservForm(f => ({ ...f, startDatetime: e.target.value }))} />
+                </div>
+                <div>
+                  <label className={lbl}>Fim *</label>
+                  <input required type="datetime-local" className={inp} value={reservForm.endDatetime} onChange={e => setReservForm(f => ({ ...f, endDatetime: e.target.value }))} />
+                </div>
+              </div>
+              <div>
+                <label className={lbl}>Opção de Pagamento</label>
+                <select className={inp} value={reservForm.paymentOption} onChange={e => setReservForm(f => ({ ...f, paymentOption: e.target.value }))}>
+                  <option value="PAGAR_NO_DIA">Pagar no dia</option>
+                  <option value="PAGAR_AGORA">Pagar agora</option>
+                  <option value="FACTURAR">Facturar</option>
+                  <option value="ISENTO">Isento</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={lbl}>Valor base (AOA)</label>
+                  <input type="number" min={0} className={inp} placeholder="0" value={reservForm.amount} onChange={e => setReservForm(f => ({ ...f, amount: e.target.value }))} />
+                </div>
+                <div>
+                  <label className={lbl}>Total (AOA) *</label>
+                  <input required type="number" min={0} className={inp} placeholder="0" value={reservForm.totalAmount} onChange={e => setReservForm(f => ({ ...f, totalAmount: e.target.value }))} />
+                </div>
+              </div>
+              {reservError && <p className="text-sm text-red-400">{reservError}</p>}
+              <div className="flex gap-3 justify-end pt-2">
+                <button type="button" onClick={() => { setReservLead(null); setReservError(""); }} className="px-5 py-2.5 rounded-xl border border-white/10 text-mist hover:text-paper text-sm">Cancelar</button>
+                <button type="submit" disabled={reservSaving} className="px-5 py-2.5 rounded-xl bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700 disabled:opacity-60">
+                  {reservSaving ? "A criar…" : "Criar Reserva"}
                 </button>
               </div>
             </form>
@@ -313,9 +531,7 @@ export default function LeadsSalasPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-ink2 p-6 shadow-2xl">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-display text-lg font-bold text-paper">
-                {detail.firstName} {detail.lastName}
-              </h2>
+              <h2 className="font-display text-lg font-bold text-paper">{detail.firstName} {detail.lastName}</h2>
               <button onClick={() => setDetail(null)} className="text-mist hover:text-paper text-xl">✕</button>
             </div>
             <div className="space-y-3 text-sm">

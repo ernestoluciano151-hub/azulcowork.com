@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { recordFinancialHistory } from "@/lib/finance";
+import { addTimeline } from "@/lib/timeline";
 
 export const dynamic = "force-dynamic";
 
@@ -116,6 +117,18 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         createdBy:   session.name || session.email,
       });
     }
+
+    // Add timeline entry
+    await addTimeline(tx, {
+      type:          "PAGAMENTO_RECEBIDO",
+      title:         `Pagamento recebido — ${invoiceNumber}`,
+      description:   `${reservation.reservationNumber} | ${reservation.plan.name} | ${reservation.totalAmount.toLocaleString("pt-PT")} AOA`,
+      companyId:     reservation.companyId || null,
+      amount:        reservation.totalAmount,
+      referenceId:   reservation.id,
+      referenceType: "Reservation",
+      createdBy:     session.name || session.email,
+    });
 
     return { invoiceNumber };
   });

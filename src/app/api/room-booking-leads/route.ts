@@ -47,9 +47,11 @@ export async function GET(req: NextRequest) {
   const planName = searchParams.get("planName");
   const page = Number(searchParams.get("page") || "1");
   const pageSize = Number(searchParams.get("pageSize") || "20");
+  const companyId = searchParams.get("companyId");
   const where: any = {};
   if (status && status !== "ALL") where.status = status;
   if (planName && planName !== "ALL") where.planName = planName;
+  if (companyId) where.companyId = companyId;
   const [leads, total] = await Promise.all([
     prisma.roomBookingLead.findMany({ where, orderBy: { createdAt: "desc" }, skip: (page-1)*pageSize, take: pageSize }),
     prisma.roomBookingLead.count({ where })

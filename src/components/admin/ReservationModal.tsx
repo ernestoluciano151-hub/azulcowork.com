@@ -107,6 +107,11 @@ export default function ReservationModal({ reservation, plans, onClose, onSaved 
   // Companies list
   const [companies, setCompanies] = useState<Company[]>([]);
 
+  // Room booking leads for prefill
+  type RoomLead = { id: string; firstName: string; lastName: string; email: string; whatsapp: string; company: string | null; participants: number | null; coffeeBreak: boolean; observations: string | null };
+  const [roomLeads, setRoomLeads] = useState<RoomLead[]>([]);
+  const [selectedLeadId, setSelectedLeadId] = useState("");
+
   // UI
   const [saving,         setSaving]         = useState(false);
   const [confirmCancel,  setConfirmCancel]  = useState(false);
@@ -119,6 +124,26 @@ export default function ReservationModal({ reservation, plans, onClose, onSaved 
       .then(r => r.json())
       .then(d => setCompanies(d.companies || []));
   }, []);
+
+  useEffect(() => {
+    fetch("/api/room-booking-leads?status=NOVO&pageSize=50")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.leads) setRoomLeads(d.leads); })
+      .catch(() => {});
+  }, []);
+
+  function applyLeadPrefill(leadId: string) {
+    const lead = roomLeads.find(l => l.id === leadId);
+    if (!lead) return;
+    setResponsible(`${lead.firstName} ${lead.lastName}`);
+    setEmail(lead.email);
+    setWhatsapp(lead.whatsapp);
+    if (lead.company) setCompanyName(lead.company);
+    if (lead.participants) setParticipants(String(lead.participants));
+    setCoffeeBreak(lead.coffeeBreak);
+    if (lead.observations) setObservations(lead.observations);
+    setSelectedLeadId(leadId);
+  }
 
   // Auto-fill from company
   useEffect(() => {
@@ -288,6 +313,24 @@ export default function ReservationModal({ reservation, plans, onClose, onSaved 
           {/* ── TAB RESERVA ─────────────────────────────────────────────── */}
           {tab === "reserva" && (
             <>
+              {/* Prefill from lead */}
+              {isCreate && roomLeads.length > 0 && (
+                <div className="rounded-lg border border-[#2F6FED]/20 bg-[#2F6FED]/5 px-4 py-3">
+                  <label className={lbl}>Preencher com lead de sala...</label>
+                  <select
+                    value={selectedLeadId}
+                    onChange={e => applyLeadPrefill(e.target.value)}
+                    className={inp}
+                  >
+                    <option value="">— Selecionar lead —</option>
+                    {roomLeads.map(l => (
+                      <option key={l.id} value={l.id}>
+                        {l.firstName} {l.lastName} — {l.email}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               {/* Empresa */}
               <div className="grid grid-cols-2 gap-4">
                 <div>

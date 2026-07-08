@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import GlobalSearch from "./GlobalSearch";
 
 const links = [
   { href: "/admin/dashboard",      label: "Dashboard",      icon: "📊", adminOnly: false },
@@ -73,9 +74,11 @@ export default function Sidebar() {
         ))}
       </nav>
 
+      <GlobalSearch />
+
       <button
         onClick={logout}
-        className="focus-ring rounded-lg border border-white/10 px-3 py-2.5 text-sm text-mist transition hover:bg-white/5 hover:text-paper"
+        className="focus-ring mt-3 rounded-lg border border-white/10 px-3 py-2.5 text-sm text-mist transition hover:bg-white/5 hover:text-paper"
       >
         Sair
       </button>
