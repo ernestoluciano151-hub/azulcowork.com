@@ -54,6 +54,7 @@ export async function POST(req: NextRequest) {
     coffeeBreak, observations, isCustomPricing, customRequest,
     paymentOption, amount, discount, iva, totalAmount,
     paymentMethod, operationRef, receiptUrl, financialNotes,
+    amountPaid, paidDate, paymentTiming, selectedLeadId,
   } = body;
 
   if (!eventName || !responsible || !planId || !startDatetime || !endDatetime) {
@@ -136,6 +137,8 @@ export async function POST(req: NextRequest) {
         operationRef:    opt === "PAGAR_AGORA" ? (operationRef  || null) : null,
         receiptUrl:      opt === "PAGAR_AGORA" ? (receiptUrl    || null) : null,
         financialNotes:  financialNotes || null,
+        amountPaid:      Number(amountPaid) || 0,
+        paidDate:        paidDate ? new Date(paidDate) : null,
       },
       include: { plan: true },
     });
@@ -143,7 +146,14 @@ export async function POST(req: NextRequest) {
     let paymentRec = null;
     let invoiceRec = null;
 
+    let noteNumber: string | null = null;
+
     if (opt === "PAGAR_AGORA" && finalTotal > 0) {
+      const finalAmountPaid = Number(amountPaid) || finalTotal;
+      const isPartial       = paymentTiming === "PARCIAL" && finalAmountPaid < finalTotal;
+      const invoiceStatus   = isPartial ? "PARCIAL" : "PAGO";
+      const reservPayStatus = isPartial ? "PARCIAL" : "PAGO";
+
       const recYear  = new Date().getFullYear();
       const recCount = await tx.payment.count({ where: { receiptNumber: { startsWith: `REC-${recYear}-` } } });
       const receiptNumber = `REC-${recYear}-${String(recCount + 1).padStart(6, "0")}`;
@@ -152,9 +162,9 @@ export async function POST(req: NextRequest) {
         data: {
           companyId:     companyId    || null,
           reservationId: reservation.id,
-          amount:        finalTotal,
+          amount:        finalAmountPaid,
           dueDate:       start,
-          paidDate:      new Date(),
+          paidDate:      paidDate ? new Date(paidDate) : new Date(),
           status:        "PAGO",
           paymentMethod: paymentMethod || null,
           operationRef:  operationRef  || null,
@@ -168,33 +178,60 @@ export async function POST(req: NextRequest) {
       const invYear  = new Date().getFullYear();
       const invCount = await tx.invoice.count({ where: { invoiceNumber: { startsWith: `FT-SALA-${invYear}-` } } });
       const invoiceNumber = `FT-SALA-${invYear}-${String(invCount + 1).padStart(6, "0")}`;
+      const invoiceBalance = Math.max(0, finalTotal - finalAmountPaid);
 
       invoiceRec = await tx.invoice.create({
         data: {
           invoiceNumber,
-          companyId:     companyId    || null,
-          reservationId: reservation.id,
-          serviceType:   `Sala de Reunião — ${plan.name}`,
-          amount:        finalAmount,
-          discount:      finalDisc,
-          iva:           finalIva,
-          totalAmount:   finalTotal,
-          issueDate:     new Date(),
-          dueDate:       start,
-          paymentMethod: paymentMethod || null,
-          status:        "PAGO",
-          notes:         `${reservationNumber} | ${totalHours.toFixed(1)}h | ${participants || 1} participantes`,
+          companyId:      companyId    || null,
+          reservationId:  reservation.id,
+          serviceType:    `Sala de Reunião — ${plan.name}`,
+          amount:         finalAmount,
+          discount:       finalDisc,
+          iva:            finalIva,
+          totalAmount:    finalTotal,
+          amountPaid:     finalAmountPaid,
+          balance:        invoiceBalance,
+          paidPercentage: finalTotal > 0 ? Math.min(100, (finalAmountPaid / finalTotal) * 100) : 0,
+          issueDate:      new Date(),
+          dueDate:        start,
+          paymentMethod:  paymentMethod || null,
+          status:         invoiceStatus,
+          notes:          `${reservationNumber} | ${totalHours.toFixed(1)}h | ${participants || 1} participantes`,
         },
       });
 
-      await tx.reservation.update({ where: { id: reservation.id }, data: { paymentId: paymentRec.id, invoiceId: invoiceRec.id } });
+      // LiquidationNote
+      const nlYear  = new Date().getFullYear();
+      const nlCount = await tx.liquidationNote.count({ where: { noteNumber: { startsWith: `NL-${nlYear}-` } } });
+      noteNumber = `NL-${nlYear}-${String(nlCount + 1).padStart(6, "0")}`;
+
+      await tx.liquidationNote.create({
+        data: {
+          noteNumber,
+          invoiceId:     invoiceRec.id,
+          reservationId: reservation.id,
+          companyId:     companyId || null,
+          amountBilled:  finalTotal,
+          amountPaid:    finalAmountPaid,
+          balance:       invoiceBalance,
+          paymentMethod: paymentMethod || null,
+          operationRef:  operationRef  || null,
+          createdBy:     session.name || session.email,
+        },
+      });
+
+      await tx.reservation.update({
+        where: { id: reservation.id },
+        data: { paymentId: paymentRec.id, invoiceId: invoiceRec.id, paymentStatus: reservPayStatus },
+      });
 
       if (companyId) {
         await recordFinancialHistory(tx as Parameters<typeof recordFinancialHistory>[0], {
           companyId,
           type:        "PAGAMENTO",
           description: `${invoiceNumber} — Sala ${plan.name} | ${reservationNumber}`,
-          amount:      finalTotal,
+          amount:      finalAmountPaid,
           method:      paymentMethod || undefined,
           reference:   paymentRec.id,
           createdBy:   session.name || session.email,
@@ -259,8 +296,21 @@ export async function POST(req: NextRequest) {
       createdBy:     session.name || session.email,
     });
 
-    return { reservation, payment: paymentRec, invoice: invoiceRec };
+    return { reservation, payment: paymentRec, invoice: invoiceRec, noteNumber };
   });
 
-  return NextResponse.json(result, { status: 201 });
+  // Update lead status if provided (non-fatal)
+  if (selectedLeadId) {
+    await prisma.roomBookingLead.update({
+      where: { id: selectedLeadId },
+      data: {
+        reservationId: result.reservation.id,
+        status:        "RESERVA_CRIADA",
+        convertedAt:   new Date(),
+        convertedBy:   session.name || session.email,
+      },
+    }).catch(() => {});
+  }
+
+  return NextResponse.json({ ...result, noteNumber: result.noteNumber }, { status: 201 });
 }

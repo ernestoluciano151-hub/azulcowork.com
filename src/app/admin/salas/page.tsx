@@ -17,6 +17,10 @@ export type MeetingPlan = {
   minHoursForCustom?:   number | null;
   pricePerHour:         number;
   coffeeBreakPrice:     number;
+  halfDayPrice:         number;
+  fullDayPrice:         number;
+  weekendPrice:         number;
+  promoPrice:           number;
   active:               boolean;
 };
 
@@ -46,6 +50,7 @@ export type Reservation = {
   discount:          number;
   iva:               number;
   totalAmount:       number;
+  amountPaid:        number;
   paymentStatus:     string;
   paymentMethod?:    string | null;
   operationRef?:     string | null;

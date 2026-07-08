@@ -1,0 +1,33 @@
+-- MeetingPlan new price fields
+ALTER TABLE "MeetingPlan" ADD COLUMN IF NOT EXISTS "halfDayPrice" DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE "MeetingPlan" ADD COLUMN IF NOT EXISTS "fullDayPrice" DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE "MeetingPlan" ADD COLUMN IF NOT EXISTS "weekendPrice" DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE "MeetingPlan" ADD COLUMN IF NOT EXISTS "promoPrice" DOUBLE PRECISION NOT NULL DEFAULT 0;
+
+-- Reservation partial payment fields
+ALTER TABLE "Reservation" ADD COLUMN IF NOT EXISTS "amountPaid" DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE "Reservation" ADD COLUMN IF NOT EXISTS "paidDate" TIMESTAMP(3);
+
+-- RoomSettings
+CREATE TABLE IF NOT EXISTS "RoomSettings" (
+    "id" TEXT NOT NULL,
+    "defaultPricePerHour" DOUBLE PRECISION NOT NULL DEFAULT 15000,
+    "defaultHalfDay" DOUBLE PRECISION NOT NULL DEFAULT 50000,
+    "defaultFullDay" DOUBLE PRECISION NOT NULL DEFAULT 90000,
+    "defaultWeekend" DOUBLE PRECISION NOT NULL DEFAULT 120000,
+    "defaultIva" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "maxDiscount" DOUBLE PRECISION NOT NULL DEFAULT 100,
+    "currency" TEXT NOT NULL DEFAULT 'AOA',
+    "openTime" TEXT NOT NULL DEFAULT '08:00',
+    "closeTime" TEXT NOT NULL DEFAULT '18:00',
+    "minHours" DOUBLE PRECISION NOT NULL DEFAULT 1,
+    "maxHours" DOUBLE PRECISION NOT NULL DEFAULT 12,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedBy" TEXT,
+    CONSTRAINT "RoomSettings_pkey" PRIMARY KEY ("id")
+);
+
+-- Seed one default settings row if not exists
+INSERT INTO "RoomSettings" ("id", "defaultPricePerHour", "updatedAt")
+SELECT gen_random_uuid()::text, 15000, NOW()
+WHERE NOT EXISTS (SELECT 1 FROM "RoomSettings");
