@@ -120,6 +120,7 @@ model Company {
   financialHistory  FinancialHistory[]
   reservations      Reservation[]
   timeline          Timeline[]
+  liquidationNotes  LiquidationNote[]
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
 
@@ -156,29 +157,86 @@ model Payment {
 }
 
 model Invoice {
-  id            String    @id @default(cuid())
-  invoiceNumber String    @unique
-  companyId     String?
-  company       Company?  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  reservationId String?   // link to sala reservation (optional)
-  serviceType   String
-  amount        Float
-  discount      Float     @default(0)
-  iva           Float     @default(0)  // percentage
-  totalAmount   Float     @default(0)
-  issueDate     DateTime  @default(now())
-  dueDate       DateTime
-  paymentMethod String?
-  status        String    @default("PENDENTE")
-  receiptUrl    String?
-  notes         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id              String           @id @default(cuid())
+  invoiceNumber   String           @unique
+  companyId       String?
+  company         Company?         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  reservationId   String?          // link to sala reservation (optional)
+  serviceType     String
+  amount          Float
+  discount        Float            @default(0)
+  iva             Float            @default(0)  // percentage
+  totalAmount     Float            @default(0)
+  amountPaid      Float            @default(0)
+  balance         Float            @default(0)
+  paidPercentage  Float            @default(0)
+  issueDate       DateTime         @default(now())
+  dueDate         DateTime
+  paymentMethod   String?
+  status          String           @default("PENDENTE")
+  // PENDENTE | PARCIAL | LIQUIDADA | EM_ATRASO | PAGO
+  receiptUrl      String?
+  notes           String?
+  invoicePayments InvoicePayment[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 
   @@index([companyId])
   @@index([status])
   @@index([dueDate])
   @@index([reservationId])
+}
+
+model InvoicePayment {
+  id            String   @id @default(cuid())
+  invoiceId     String
+  invoice       Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  amount        Float
+  paymentMethod String?
+  operationRef  String?
+  receiptUrl    String?
+  paidDate      DateTime @default(now())
+  createdBy     String?
+  createdAt     DateTime @default(now())
+
+  @@index([invoiceId])
+}
+
+model LiquidationNote {
+  id            String   @id @default(cuid())
+  noteNumber    String   @unique
+  invoiceId     String?
+  reservationId String?
+  companyId     String?
+  company       Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  amountBilled  Float
+  amountPaid    Float
+  balance       Float
+  paymentMethod String?
+  operationRef  String?
+  createdBy     String?
+  createdAt     DateTime @default(now())
+
+  @@index([invoiceId])
+  @@index([companyId])
+}
+
+model FinancialAudit {
+  id          String   @id @default(cuid())
+  action      String
+  entityType  String
+  entityId    String
+  companyId   String?
+  amount      Float?
+  method      String?
+  reference   String?
+  createdBy   String?
+  ip          String?
+  createdAt   DateTime @default(now())
+
+  @@index([entityId])
+  @@index([companyId])
+  @@index([createdAt])
 }
 
 model FinancialHistory {

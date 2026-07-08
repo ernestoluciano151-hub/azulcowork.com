@@ -81,23 +81,35 @@ function ReceivePaymentModal({ reservation, onClose, onSaved }: {
   const [method,  setMethod]  = useState("TPA");
   const [ref,     setRef]     = useState("");
   const [date,    setDate]    = useState(today);
+  const [amount,  setAmount]  = useState(reservation.totalAmount > 0 ? String(reservation.totalAmount) : "");
   const [saving,  setSaving]  = useState(false);
   const [error,   setError]   = useState("");
+  const [result,  setResult]  = useState<{ invoiceNumber: string; noteNumber: string; balance: number; invoiceStatus: string } | null>(null);
 
   const inp = "w-full rounded-lg border border-white/10 bg-[#0B1220] px-3 py-2.5 text-sm text-[#F5F7FA] focus:border-[#2F6FED] focus:outline-none";
   const lbl = "block text-xs font-medium text-[#94A3B8] mb-1";
 
+  const amountNum = parseFloat(amount.replace(/\s/g, "").replace(",", ".")) || 0;
+  const isPartial = reservation.totalAmount > 0 && amountNum < reservation.totalAmount;
+
   async function confirm() {
+    if (amountNum <= 0) { setError("Insira um valor válido."); return; }
     setSaving(true);
     setError("");
     const res = await fetch(`/api/reservations/${reservation.id}/receive-payment`, {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ paymentMethod: method, operationRef: ref || null, paidDate: date }),
+      body:    JSON.stringify({ paymentMethod: method, operationRef: ref || null, paidDate: date, amount: amountNum }),
     });
     setSaving(false);
-    if (res.ok) { onSaved(); onClose(); }
-    else { const d = await res.json(); setError(d.error || "Erro ao registar."); }
+    if (res.ok) {
+      const d = await res.json();
+      setResult(d);
+      setTimeout(() => { onSaved(); onClose(); }, 2000);
+    } else {
+      const d = await res.json();
+      setError(d.error || "Erro ao registar.");
+    }
   }
 
   return (
@@ -108,49 +120,84 @@ function ReceivePaymentModal({ reservation, onClose, onSaved }: {
           {reservation.reservationNumber} — {reservation.eventName}
         </p>
 
-        <div className="rounded-xl border border-[#2F6FED]/25 bg-[#2F6FED]/5 p-4 mb-4">
-          <div className="flex justify-between text-sm">
-            <span className="text-[#94A3B8]">Valor a receber</span>
-            <span className="font-bold text-[#5C8FFF] text-base">{formatKz(reservation.totalAmount)}</span>
+        {result ? (
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 mb-4 text-center">
+            <p className="text-emerald-300 font-bold text-base mb-1">✓ Pagamento Registado</p>
+            <p className="text-xs text-[#94A3B8]">Factura: <span className="text-[#F5F7FA]">{result.invoiceNumber}</span></p>
+            <p className="text-xs text-[#94A3B8]">Nota de Liquidação: <span className="text-[#F5F7FA]">{result.noteNumber}</span></p>
+            {result.balance > 0 && (
+              <p className="text-xs text-amber-300 mt-1">Saldo em dívida: {formatKz(result.balance)}</p>
+            )}
           </div>
-          <div className="flex justify-between text-xs text-[#94A3B8] mt-1">
-            <span>{reservation.plan?.name} · {reservation.totalHours.toFixed(1)}h</span>
-            <span>{format(new Date(reservation.startDatetime), "dd/MM/yyyy HH:mm")}</span>
-          </div>
-        </div>
+        ) : (
+          <>
+            <div className="rounded-xl border border-[#2F6FED]/25 bg-[#2F6FED]/5 p-4 mb-4">
+              <div className="flex justify-between text-sm">
+                <span className="text-[#94A3B8]">Total da reserva</span>
+                <span className="font-bold text-[#5C8FFF] text-base">
+                  {reservation.totalAmount > 0 ? formatKz(reservation.totalAmount) : <span className="text-amber-300">Sem preço definido</span>}
+                </span>
+              </div>
+              <div className="flex justify-between text-xs text-[#94A3B8] mt-1">
+                <span>{reservation.plan?.name} · {reservation.totalHours.toFixed(1)}h</span>
+                <span>{format(new Date(reservation.startDatetime), "dd/MM/yyyy HH:mm")}</span>
+              </div>
+            </div>
 
-        <div className="space-y-3">
-          <div>
-            <label className={lbl}>Método de Pagamento</label>
-            <select value={method} onChange={e => setMethod(e.target.value)} className={inp}>
-              {["TPA","Transferência Bancária","Numerário","Multicaixa Express","Cheque","Outro"].map(m =>
-                <option key={m} value={m}>{m}</option>
-              )}
-            </select>
-          </div>
-          <div>
-            <label className={lbl}>Data do Pagamento</label>
-            <input type="date" value={date} onChange={e => setDate(e.target.value)} className={inp} />
-          </div>
-          <div>
-            <label className={lbl}>Referência da Operação</label>
-            <input value={ref} onChange={e => setRef(e.target.value)}
-              placeholder="Ex: REF-TPA-0001" className={inp} />
-          </div>
-        </div>
+            <div className="space-y-3">
+              <div>
+                <label className={lbl}>
+                  Valor Recebido (AOA)
+                  {isPartial && <span className="ml-2 text-amber-400">— Pagamento parcial</span>}
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={amount}
+                  onChange={e => setAmount(e.target.value)}
+                  placeholder="0.00"
+                  className={inp}
+                />
+                {isPartial && amountNum > 0 && (
+                  <p className="text-xs text-amber-300 mt-1">
+                    Saldo remanescente: {formatKz(reservation.totalAmount - amountNum)}
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className={lbl}>Método de Pagamento</label>
+                <select value={method} onChange={e => setMethod(e.target.value)} className={inp}>
+                  {["TPA","Transferência Bancária","Numerário","Multicaixa Express","Cheque","Outro"].map(m =>
+                    <option key={m} value={m}>{m}</option>
+                  )}
+                </select>
+              </div>
+              <div>
+                <label className={lbl}>Data do Pagamento</label>
+                <input type="date" value={date} onChange={e => setDate(e.target.value)} className={inp} />
+              </div>
+              <div>
+                <label className={lbl}>Referência da Operação</label>
+                <input value={ref} onChange={e => setRef(e.target.value)}
+                  placeholder="Ex: REF-TPA-0001" className={inp} />
+              </div>
+            </div>
 
-        {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
+            {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
 
-        <div className="flex gap-3 mt-5 justify-end">
-          <button onClick={onClose}
-            className="rounded-lg border border-white/10 px-4 py-2 text-sm text-[#94A3B8] hover:bg-white/5">
-            Cancelar
-          </button>
-          <button onClick={confirm} disabled={saving}
-            className="rounded-xl bg-emerald-600 px-6 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
-            {saving ? "A registar..." : "✓ Confirmar Pagamento"}
-          </button>
-        </div>
+            <div className="flex gap-3 mt-5 justify-end">
+              <button onClick={onClose}
+                className="rounded-lg border border-white/10 px-4 py-2 text-sm text-[#94A3B8] hover:bg-white/5">
+                Cancelar
+              </button>
+              <button onClick={confirm} disabled={saving || amountNum <= 0}
+                className="rounded-xl bg-emerald-600 px-6 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
+                {saving ? "A registar..." : `✓ Confirmar ${isPartial ? "Parcial" : "Pagamento"}`}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
