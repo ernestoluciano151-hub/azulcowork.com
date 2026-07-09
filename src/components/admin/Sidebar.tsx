@@ -13,8 +13,10 @@ const links = [
   { href: "/admin/pagamentos",     label: "Pagamentos",     icon: "💳", adminOnly: false },
   { href: "/admin/salas",          label: "Sala de Reunião",icon: "🚪", adminOnly: false },
   { href: "/admin/calendario",     label: "Calendário",     icon: "📅", adminOnly: false },
-  { href: "/admin/delete-requests",label: "Aprovações",     icon: "🗑️", adminOnly: true, badge: true },
-  { href: "/admin/settings",       label: "Definições",     icon: "⚙️", adminOnly: true },
+  { href: "/admin/delete-requests",        label: "Aprovações",      icon: "🗑️", adminOnly: true, badge: true },
+  { href: "/admin/configuracoes/precos",   label: "Preços da Sala",  icon: "💰", adminOnly: true },
+  { href: "/admin/configuracoes/sala",     label: "Config. Sala",    icon: "⚙️", adminOnly: true },
+  { href: "/admin/settings",               label: "Definições",      icon: "🔧", adminOnly: true },
 ];
 
 export default function Sidebar() {

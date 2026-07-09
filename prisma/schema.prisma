@@ -379,6 +379,23 @@ model Timeline {
   @@index([createdAt])
 }
 
+model RoomPricing {
+  id              String   @id @default(cuid())
+  roomId          String   @default("sala-reuniao")
+  label           String                             // "1 Hora", "Meio Período", "Dia Inteiro"
+  durationMinutes Int                                // 60, 120, 240, 480
+  price           Float                              // 15000, 28000, 50000, 90000
+  currency        String   @default("AOA")
+  active          Boolean  @default(true)
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([roomId])
+  @@index([durationMinutes])
+  @@index([active])
+}
+
 model RoomSettings {
   id                  String   @id @default(cuid())
   defaultPricePerHour Float    @default(15000)

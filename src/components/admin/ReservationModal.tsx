@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { format } from "date-fns";
 import { formatKz } from "@/lib/currency";
-import { calcPrice, priceModeLabel } from "@/lib/pricing-service";
+import { calcPrice, calcPriceFromTier, matchTier, priceModeLabel, RoomPricingTier } from "@/lib/pricing-service";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 export type MeetingPlan = {
@@ -78,7 +78,9 @@ type Props = {
   onSaved:      () => void;
 };
 
-const METHODS = ["TPA","Transferência Bancária","Depósito Bancário","Numerário","Multicaixa Express","Cheque","Outro"];
+type PaymentTiming = "TOTAL" | "PARCIAL" | "POSTERIOR";
+
+const METHODS = ["TPA", "Transferência Bancária", "Depósito Bancário", "Numerário", "Multicaixa Express", "Cheque", "Outro"];
 const IVA_OPTS = [{ v: "0", l: "Isento de IVA (0%)" }, { v: "7", l: "7%" }, { v: "14", l: "14%" }];
 
 const inp = "w-full rounded-lg border border-white/10 bg-[#0B1220] px-3 py-2.5 text-sm text-[#F5F7FA] focus:border-[#2F6FED] focus:outline-none placeholder:text-[#4b5a77]";
@@ -88,14 +90,18 @@ function toDateTimeLocal(dt: string) {
   return format(new Date(dt), "yyyy-MM-dd'T'HH:mm");
 }
 
-// Payment timing: how the total will be paid
-type PaymentTiming = "TOTAL" | "PARCIAL" | "POSTERIOR";
+function minutesToHuman(m: number): string {
+  if (m < 60)       return `${m} min`;
+  if (m === 60)     return "1 hora";
+  if (m % 60 === 0) return `${m / 60} horas`;
+  return `${Math.floor(m / 60)}h ${m % 60}min`;
+}
 
 export default function ReservationModal({ reservation, plans, onClose, onSaved }: Props) {
   const isCreate = !reservation;
-  const today = new Date().toISOString().split("T")[0];
+  const today    = new Date().toISOString().split("T")[0];
 
-  // ── Reserva fields ──────────────────────────────────────────────────────────
+  // ── Reserva fields ────────────────────────────────────────────────────────────
   const [eventName,       setEventName]       = useState(reservation?.eventName       ?? "");
   const [companyName,     setCompanyName]     = useState(reservation?.companyName     ?? "");
   const [companyId,       setCompanyId]       = useState(reservation?.companyId       ?? "");
@@ -111,7 +117,7 @@ export default function ReservationModal({ reservation, plans, onClose, onSaved 
   const [isCustomPricing, setIsCustomPricing] = useState(reservation?.isCustomPricing ?? false);
   const [customRequest,   setCustomRequest]   = useState(reservation?.customRequest   ?? "");
 
-  // ── Payment fields ──────────────────────────────────────────────────────────
+  // ── Payment fields ─────────────────────────────────────────────────────────────
   const [paymentOption,   setPaymentOption]   = useState(reservation?.paymentOption ?? "PAGAR_NO_DIA");
   const [paymentTiming,   setPaymentTiming]   = useState<PaymentTiming>("TOTAL");
   const [discount,        setDiscount]        = useState(String(reservation?.discount  ?? "0"));
@@ -120,39 +126,42 @@ export default function ReservationModal({ reservation, plans, onClose, onSaved 
   const [operationRef,    setOperationRef]    = useState(reservation?.operationRef   ?? "");
   const [financialNotes,  setFinancialNotes]  = useState(reservation?.financialNotes ?? "");
   const [paidDate,        setPaidDate]        = useState(today);
-  const [amountPaidInput, setAmountPaidInput] = useState(""); // partial payment amount
+  const [amountPaidInput, setAmountPaidInput] = useState("");
 
-  // ── File upload ─────────────────────────────────────────────────────────────
+  // ── File upload ────────────────────────────────────────────────────────────────
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const receiptRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
 
-  // ── Data ────────────────────────────────────────────────────────────────────
+  // ── Data ───────────────────────────────────────────────────────────────────────
   const [companies,      setCompanies]      = useState<Company[]>([]);
   const [roomLeads,      setRoomLeads]      = useState<RoomLead[]>([]);
+  const [pricingTiers,   setPricingTiers]   = useState<RoomPricingTier[]>([]);
   const [selectedLeadId, setSelectedLeadId] = useState("");
+  const [companySearch,  setCompanySearch]  = useState("");
 
-  // ── UI state ────────────────────────────────────────────────────────────────
+  // ── UI ─────────────────────────────────────────────────────────────────────────
   const [saving,        setSaving]        = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [error,         setError]         = useState("");
   const [conflictWarn,  setConflictWarn]  = useState("");
   const [tab,           setTab]           = useState<"reserva" | "financeiro">("reserva");
   const [successInfo,   setSuccessInfo]   = useState<{ reservationNumber: string; invoiceNumber?: string; noteNumber?: string } | null>(null);
-  const [companySearch, setCompanySearch] = useState("");
 
-  // ── Fetch data ──────────────────────────────────────────────────────────────
+  // ── Fetch data on mount ────────────────────────────────────────────────────────
   useEffect(() => {
-    fetch("/api/companies?limit=200")
-      .then(r => r.json())
-      .then(d => setCompanies(d.companies || []));
-    fetch("/api/room-booking-leads?status=NOVO&pageSize=50")
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.leads) setRoomLeads(d.leads); })
-      .catch(() => {});
+    Promise.all([
+      fetch("/api/companies?limit=200").then(r => r.json()),
+      fetch("/api/room-booking-leads?status=NOVO&pageSize=50").then(r => r.ok ? r.json() : { leads: [] }).catch(() => ({ leads: [] })),
+      fetch("/api/admin/room-pricing?roomId=sala-reuniao").then(r => r.json()),
+    ]).then(([co, leads, pricing]) => {
+      setCompanies(co.companies || []);
+      setRoomLeads(leads.leads || []);
+      setPricingTiers(pricing.tiers || []);
+    });
   }, []);
 
-  // ── Auto-fill company name when company selected ────────────────────────────
+  // ── Auto-fill company ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (!companyId) return;
     const c = companies.find(x => x.id === companyId);
@@ -165,7 +174,7 @@ export default function ReservationModal({ reservation, plans, onClose, onSaved 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyId, companies]);
 
-  // ── Lead prefill ─────────────────────────────────────────────────────────────
+  // ── Lead prefill ──────────────────────────────────────────────────────────────
   function applyLeadPrefill(leadId: string) {
     const lead = roomLeads.find(l => l.id === leadId);
     if (!lead) return;
@@ -176,7 +185,6 @@ export default function ReservationModal({ reservation, plans, onClose, onSaved 
     if (lead.participants) setParticipants(String(lead.participants));
     setCoffeeBreak(lead.coffeeBreak);
     if (lead.observations) setObservations(lead.observations);
-    // Match plan by name
     if (lead.planName) {
       const matched = plans.find(p => p.name.toLowerCase() === lead.planName?.toLowerCase());
       if (matched) setPlanId(matched.id);
@@ -184,41 +192,69 @@ export default function ReservationModal({ reservation, plans, onClose, onSaved 
     setSelectedLeadId(leadId);
   }
 
-  // ── Pricing calculation ─────────────────────────────────────────────────────
+  // ── Duration + pricing calculation ────────────────────────────────────────────
   const selectedPlan = plans.find(p => p.id === planId);
 
-  let totalHours = 0;
+  let totalHours      = 0;
+  let durationMinutes = 0;
   let startDate: Date | undefined;
+
   if (startDatetime && endDatetime) {
     const s = new Date(startDatetime);
     const e = new Date(endDatetime);
     const diff = e.getTime() - s.getTime();
-    if (diff > 0) { totalHours = diff / 3600000; startDate = s; }
+    if (diff > 0) {
+      totalHours      = diff / 3600000;
+      durationMinutes = Math.round(diff / 60000);
+      startDate       = s;
+    }
   }
 
-  const pricing = selectedPlan && totalHours > 0
-    ? calcPrice({
-        plan:        selectedPlan,
+  // Try DB pricing tiers first, fall back to plan-level pricing
+  const matchedTier  = durationMinutes > 0 && pricingTiers.length > 0
+    ? matchTier(pricingTiers, durationMinutes)
+    : undefined;
+
+  const pricing = (() => {
+    if (!selectedPlan || durationMinutes === 0) return null;
+    if (matchedTier) {
+      return calcPriceFromTier(
+        matchedTier,
+        selectedPlan.coffeeBreakPrice,
+        coffeeBreak,
+        Number(discount) || 0,
+        Number(ivaPercent) || 0
+      );
+    }
+    // Fallback: plan-level prices
+    if (selectedPlan.pricePerHour > 0 || selectedPlan.halfDayPrice > 0 || selectedPlan.fullDayPrice > 0) {
+      return calcPrice({
+        plan:       selectedPlan,
         totalHours,
         coffeeBreak,
-        discount:    Number(discount) || 0,
-        ivaPercent:  Number(ivaPercent) || 0,
+        discount:   Number(discount) || 0,
+        ivaPercent: Number(ivaPercent) || 0,
         startDate,
-      })
-    : null;
+      });
+    }
+    return null;
+  })();
 
-  const totalAmount    = pricing?.totalAmount ?? 0;
-  const discountNum    = pricing?.discountApplied ?? 0;
-  const amountPaidNum  = paymentTiming === "PARCIAL" ? (parseFloat(amountPaidInput) || 0) : (paymentTiming === "TOTAL" ? totalAmount : 0);
-  const balance        = Math.max(0, totalAmount - amountPaidNum);
-  const paidPct        = totalAmount > 0 ? Math.min(100, (amountPaidNum / totalAmount) * 100) : 0;
+  const noTierConfigured = durationMinutes > 0 && !pricing && pricingTiers.length > 0;
+  const noPricingAtAll   = durationMinutes > 0 && !pricing && pricingTiers.length === 0;
+
+  const totalAmount   = pricing?.totalAmount ?? 0;
+  const discountNum   = pricing?.discountApplied ?? 0;
+  const amountPaidNum = paymentTiming === "PARCIAL" ? (parseFloat(amountPaidInput) || 0)
+                      : paymentTiming === "TOTAL"   ? totalAmount : 0;
+  const balance       = Math.max(0, totalAmount - amountPaidNum);
+  const paidPct       = totalAmount > 0 ? Math.min(100, (amountPaidNum / totalAmount) * 100) : 0;
 
   const showCustomPricing = selectedPlan?.customPricingAllowed && totalHours >= (selectedPlan?.minHoursForCustom || 16);
   const participantsWarn  = selectedPlan && Number(participants) > selectedPlan.maxPeople
-    ? `Excede a capacidade máx. (${selectedPlan.maxPeople} pessoas)`
-    : "";
+    ? `Excede a capacidade máx. (${selectedPlan.maxPeople} pessoas)` : "";
 
-  // ── Conflict check ──────────────────────────────────────────────────────────
+  // ── Conflict check ────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!startDatetime || !endDatetime) return;
     const s = new Date(startDatetime);
@@ -237,18 +273,16 @@ export default function ReservationModal({ reservation, plans, onClose, onSaved 
       .catch(() => {});
   }, [startDatetime, endDatetime, isCreate, reservation?.id]);
 
-  // ── File upload ─────────────────────────────────────────────────────────────
+  // ── Upload ────────────────────────────────────────────────────────────────────
   async function uploadFile(file: File): Promise<string | null> {
     const fd = new FormData();
-    fd.append("file", file);
-    fd.append("folder", "azul-cowork/salas");
+    fd.append("file", file); fd.append("folder", "azul-cowork/salas");
     const res = await fetch("/api/upload", { method: "POST", body: fd });
     if (!res.ok) return null;
-    const d = await res.json();
-    return d.url || null;
+    return (await res.json()).url || null;
   }
 
-  // ── Save ───────────────────────────────────────────────────────────────────
+  // ── Save ──────────────────────────────────────────────────────────────────────
   async function save() {
     setError("");
     if (!eventName || !responsible || !planId || !startDatetime || !endDatetime) {
@@ -266,12 +300,8 @@ export default function ReservationModal({ reservation, plans, onClose, onSaved 
       let receiptUrl: string | null = null;
       if (receiptFile) { setUploading(true); receiptUrl = await uploadFile(receiptFile); setUploading(false); }
 
-      // Determine paymentOption based on timing
       let finalPaymentOption = paymentOption;
-      if (paymentOption === "PAGAR_AGORA") {
-        if (paymentTiming === "POSTERIOR") finalPaymentOption = "PAGAR_NO_DIA";
-        else if (paymentTiming === "PARCIAL") finalPaymentOption = "PAGAR_AGORA"; // partial is still PAGAR_AGORA
-      }
+      if (paymentOption === "PAGAR_AGORA" && paymentTiming === "POSTERIOR") finalPaymentOption = "PAGAR_NO_DIA";
 
       const payload = {
         eventName, companyName: companyName || null, companyId: companyId || null,
@@ -280,33 +310,26 @@ export default function ReservationModal({ reservation, plans, onClose, onSaved 
         startDatetime: s.toISOString(), endDatetime: e.toISOString(),
         coffeeBreak, observations: observations || null,
         isCustomPricing, customRequest: customRequest || null,
-        paymentOption: finalPaymentOption,
-        amount:       pricing?.subtotal ?? 0,
-        discount:     discountNum,
-        iva:          Number(ivaPercent) || 0,
+        paymentOption:  finalPaymentOption,
+        amount:         pricing?.subtotal ?? 0,
+        discount:       discountNum,
+        iva:            Number(ivaPercent) || 0,
         totalAmount,
-        amountPaid:   amountPaidNum,
+        amountPaid:     amountPaidNum,
         paymentTiming,
-        paymentMethod: finalPaymentOption === "PAGAR_AGORA" ? paymentMethod : null,
-        operationRef:  finalPaymentOption === "PAGAR_AGORA" ? (operationRef || null) : null,
-        paidDate:      finalPaymentOption === "PAGAR_AGORA" ? paidDate : null,
-        receiptUrl:    finalPaymentOption === "PAGAR_AGORA" ? receiptUrl : null,
+        paymentMethod:  finalPaymentOption === "PAGAR_AGORA" ? paymentMethod : null,
+        operationRef:   finalPaymentOption === "PAGAR_AGORA" ? (operationRef || null) : null,
+        paidDate:       finalPaymentOption === "PAGAR_AGORA" ? paidDate : null,
+        receiptUrl:     finalPaymentOption === "PAGAR_AGORA" ? receiptUrl : null,
         financialNotes: financialNotes || null,
         selectedLeadId: selectedLeadId || null,
+        // Pass pricing tier info for accurate records
+        matchedTierLabel: matchedTier?.label || null,
       };
 
-      let res: Response;
-      if (isCreate) {
-        res = await fetch("/api/reservations", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-      } else {
-        res = await fetch(`/api/reservations/${reservation!.id}`, {
-          method: "PATCH", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-      }
+      const res = isCreate
+        ? await fetch("/api/reservations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
+        : await fetch(`/api/reservations/${reservation!.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
 
       const data = await res.json();
       if (res.ok) {
@@ -328,14 +351,14 @@ export default function ReservationModal({ reservation, plans, onClose, onSaved 
   }
 
   const payOptCls = (v: string) =>
-    `flex-1 rounded-lg border px-3 py-2.5 text-xs font-medium text-center cursor-pointer transition-colors ${
+    `flex-1 rounded-lg border px-2 py-2 text-xs font-medium text-center cursor-pointer transition-colors ${
       paymentOption === v
         ? "border-[#2F6FED] bg-[#2F6FED]/20 text-[#5C8FFF]"
         : "border-white/10 text-[#94A3B8] hover:border-white/20 hover:text-white"
     }`;
 
   const timingCls = (v: PaymentTiming) =>
-    `flex-1 rounded-lg border px-3 py-2 text-xs font-medium text-center cursor-pointer transition-colors ${
+    `flex-1 rounded-lg border px-2 py-2 text-xs font-medium text-center cursor-pointer transition-colors ${
       paymentTiming === v
         ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-300"
         : "border-white/10 text-[#94A3B8] hover:border-white/20"
@@ -364,19 +387,17 @@ export default function ReservationModal({ reservation, plans, onClose, onSaved 
         <div className="flex border-b border-white/10 px-6">
           {(["reserva", "financeiro"] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
-              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${tab === t ? "border-[#2F6FED] text-[#5C8FFF]" : "border-transparent text-[#94A3B8] hover:text-white"}`}>
-              {t === "reserva" ? "📅 Reserva" : "💰 Pagamento"}
+              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                tab === t ? "border-[#2F6FED] text-[#5C8FFF]" : "border-transparent text-[#94A3B8] hover:text-white"
+              }`}>
+              {t === "reserva" ? "📅 Reserva" : `💰 Pagamento${totalAmount > 0 ? ` · ${formatKz(totalAmount)}` : ""}`}
             </button>
           ))}
         </div>
 
         {/* Alerts */}
-        {error && (
-          <div className="mx-6 mt-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">{error}</div>
-        )}
-        {conflictWarn && (
-          <div className="mx-6 mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-300">{conflictWarn}</div>
-        )}
+        {error        && <div className="mx-6 mt-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">{error}</div>}
+        {conflictWarn && <div className="mx-6 mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-300">{conflictWarn}</div>}
 
         {/* Success */}
         {successInfo && (
@@ -391,7 +412,7 @@ export default function ReservationModal({ reservation, plans, onClose, onSaved 
 
         <div className="p-6 space-y-4">
 
-          {/* ── TAB RESERVA ─────────────────────────────────────────────── */}
+          {/* ── TAB RESERVA ──────────────────────────────────────────────────── */}
           {tab === "reserva" && (
             <>
               {/* Lead selector */}
@@ -415,7 +436,7 @@ export default function ReservationModal({ reservation, plans, onClose, onSaved 
                 <div>
                   <label className={lbl}>Empresa (membro coworking)</label>
                   <input value={companySearch} onChange={e => setCompanySearch(e.target.value)}
-                    placeholder="Filtrar empresa..." className={`${inp} mb-1.5`} />
+                    placeholder="Filtrar..." className={`${inp} mb-1.5`} />
                   <select value={companyId} onChange={e => { setCompanyId(e.target.value); setCompanySearch(""); }} className={inp}>
                     <option value="">— Cliente externo —</option>
                     {filteredCompanies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -461,17 +482,10 @@ export default function ReservationModal({ reservation, plans, onClose, onSaved 
                   <select value={planId} onChange={e => setPlanId(e.target.value)} className={inp}>
                     {plans.map(p => (
                       <option key={p.id} value={p.id}>
-                        {p.name} — máx. {p.maxPeople} pax{p.pricePerHour > 0 ? ` | ${formatKz(p.pricePerHour)}/h` : ""}
+                        {p.name} — máx. {p.maxPeople} pax
                       </option>
                     ))}
                   </select>
-                  {selectedPlan && (
-                    <div className="mt-1.5 flex flex-wrap gap-1.5">
-                      {selectedPlan.halfDayPrice > 0 && <span className="rounded-full bg-[#2F6FED]/10 border border-[#2F6FED]/20 px-2 py-0.5 text-xs text-[#5C8FFF]">½ dia: {formatKz(selectedPlan.halfDayPrice)}</span>}
-                      {selectedPlan.fullDayPrice > 0 && <span className="rounded-full bg-[#2F6FED]/10 border border-[#2F6FED]/20 px-2 py-0.5 text-xs text-[#5C8FFF]">Dia inteiro: {formatKz(selectedPlan.fullDayPrice)}</span>}
-                      {selectedPlan.weekendPrice > 0 && <span className="rounded-full bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 text-xs text-purple-300">F. semana: {formatKz(selectedPlan.weekendPrice)}</span>}
-                    </div>
-                  )}
                 </div>
                 <div>
                   <label className={lbl}>Participantes</label>
@@ -495,24 +509,70 @@ export default function ReservationModal({ reservation, plans, onClose, onSaved 
                 </div>
               </div>
 
-              {/* Duration + price preview */}
-              {totalHours > 0 && pricing && (
-                <div className="rounded-xl border border-[#2F6FED]/25 bg-[#2F6FED]/5 px-4 py-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-[#94A3B8]">
-                      ⏱ {totalHours.toFixed(2)}h
-                      <span className="ml-2 rounded-full bg-[#2F6FED]/20 border border-[#2F6FED]/30 px-2 py-0.5 text-xs text-[#5C8FFF]">
-                        {priceModeLabel(pricing.priceMode)}
-                      </span>
-                    </span>
-                    <span className="font-bold text-[#5C8FFF] text-base">{formatKz(pricing.totalAmount)}</span>
+              {/* ── Smart duration + price preview card ── */}
+              {durationMinutes > 0 && (
+                <div className={`rounded-xl border p-4 ${pricing ? "border-[#2F6FED]/30 bg-[#2F6FED]/5" : noTierConfigured ? "border-amber-500/30 bg-amber-500/5" : "border-white/10 bg-white/[0.02]"}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="text-[#94A3B8]">⏱</span>
+                        <span className="text-[#F5F7FA] font-medium">{minutesToHuman(durationMinutes)}</span>
+                        <span className="text-[#94A3B8]">
+                          ({startDatetime && endDatetime
+                            ? `${format(new Date(startDatetime), "HH:mm")} às ${format(new Date(endDatetime), "HH:mm")}`
+                            : ""})
+                        </span>
+                      </div>
+
+                      {pricing && matchedTier && (
+                        <>
+                          <div className="flex items-center gap-2 text-sm">
+                            <span className="text-[#94A3B8]">📋 Plano aplicado:</span>
+                            <span className="rounded-full bg-[#2F6FED]/15 border border-[#2F6FED]/30 px-2 py-0.5 text-xs text-[#5C8FFF] font-medium">
+                              {matchedTier.label}
+                            </span>
+                            {matchedTier.durationMinutes !== durationMinutes && (
+                              <span className="text-xs text-[#94A3B8]">
+                                (mais próximo: {minutesToHuman(matchedTier.durationMinutes)})
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-sm">
+                            <span className="text-[#94A3B8]">💰 Preço: </span>
+                            <span className="text-[#5C8FFF] font-bold text-base">{formatKz(matchedTier.price)}</span>
+                          </div>
+                        </>
+                      )}
+
+                      {pricing && !matchedTier && (
+                        <div className="text-sm">
+                          <span className="text-[#94A3B8]">💰 Preço: </span>
+                          <span className="text-[#5C8FFF] font-bold text-base">{formatKz(pricing.totalAmount)}</span>
+                          <span className="ml-2 text-xs rounded-full bg-[#2F6FED]/10 border border-[#2F6FED]/20 px-2 py-0.5 text-[#5C8FFF]">
+                            {priceModeLabel(pricing.priceMode, pricing.tierLabel)}
+                          </span>
+                        </div>
+                      )}
+
+                      {noTierConfigured && (
+                        <div className="text-sm text-amber-300">
+                          ⚠️ Não existe um preço definido para {minutesToHuman(durationMinutes)}.
+                        </div>
+                      )}
+                      {noPricingAtAll && (
+                        <div className="text-sm text-amber-300">
+                          ⚠️ Sem preços configurados para esta sala.
+                        </div>
+                      )}
+                    </div>
+
+                    {(noTierConfigured || noPricingAtAll) && (
+                      <a href="/admin/configuracoes/precos" target="_blank"
+                        className="shrink-0 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-300 hover:bg-amber-500/20 transition-colors">
+                        Configurar Preços →
+                      </a>
+                    )}
                   </div>
-                </div>
-              )}
-              {totalHours > 0 && !pricing && (
-                <div className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-[#94A3B8]">
-                  Duração: <span className="font-semibold text-[#F5F7FA]">{totalHours.toFixed(2)} horas</span>
-                  <span className="ml-2 text-amber-300 text-xs">— Configure o preço do plano para ver o total</span>
                 </div>
               )}
 
@@ -524,7 +584,9 @@ export default function ReservationModal({ reservation, plans, onClose, onSaved 
                     className="rounded border-white/20 w-4 h-4 cursor-pointer" />
                   <label htmlFor="cb" className="text-sm text-[#F5F7FA] cursor-pointer flex-1">
                     ☕ Coffee Break
-                    {selectedPlan.coffeeBreakPrice > 0 && <span className="ml-2 text-xs text-[#94A3B8]">+{formatKz(selectedPlan.coffeeBreakPrice)}</span>}
+                    {selectedPlan.coffeeBreakPrice > 0 && (
+                      <span className="ml-2 text-xs text-[#94A3B8]">+{formatKz(selectedPlan.coffeeBreakPrice)}</span>
+                    )}
                   </label>
                 </div>
               )}
@@ -556,28 +618,34 @@ export default function ReservationModal({ reservation, plans, onClose, onSaved 
             </>
           )}
 
-          {/* ── TAB FINANCEIRO ──────────────────────────────────────────── */}
+          {/* ── TAB FINANCEIRO ────────────────────────────────────────────────── */}
           {tab === "financeiro" && (
             <>
-              {/* Price summary — auto-calculated */}
-              <div className="rounded-xl border border-[#2F6FED]/25 bg-[#2F6FED]/5 p-4 space-y-2">
-                <p className="text-xs font-semibold text-[#5C8FFF] uppercase tracking-wider flex items-center gap-2">
-                  Resumo do Valor
-                  {pricing && <span className="rounded-full bg-[#2F6FED]/20 border border-[#2F6FED]/30 px-2 py-0.5 text-xs normal-case font-normal">{priceModeLabel(pricing.priceMode)}</span>}
-                </p>
-                {selectedPlan && pricing ? (
-                  <div className="space-y-1 text-sm">
+              {/* Price breakdown */}
+              <div className={`rounded-xl border p-4 space-y-2 ${pricing ? "border-[#2F6FED]/25 bg-[#2F6FED]/5" : "border-amber-500/25 bg-amber-500/5"}`}>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-[#5C8FFF] uppercase tracking-wider">Resumo do Valor</p>
+                  {pricing && (
+                    <span className="rounded-full bg-[#2F6FED]/15 border border-[#2F6FED]/30 px-2 py-0.5 text-xs text-[#5C8FFF]">
+                      {priceModeLabel(pricing.priceMode, pricing.tierLabel)}
+                    </span>
+                  )}
+                </div>
+
+                {pricing ? (
+                  <div className="space-y-1.5 text-sm">
                     <div className="flex justify-between text-[#94A3B8]">
                       <span>
-                        {pricing.priceMode === "hourly"
-                          ? `${totalHours.toFixed(1)}h × ${formatKz(selectedPlan.pricePerHour)}/h`
-                          : priceModeLabel(pricing.priceMode)}
+                        {pricing.priceMode === "tier"
+                          ? `${pricing.tierLabel} · ${minutesToHuman(durationMinutes)}`
+                          : `${totalHours.toFixed(1)}h × preço base`}
                       </span>
                       <span className="text-[#F5F7FA]">{formatKz(pricing.baseAmount)}</span>
                     </div>
                     {coffeeBreak && pricing.coffeeExtra > 0 && (
                       <div className="flex justify-between text-[#94A3B8]">
-                        <span>☕ Coffee Break</span><span className="text-[#F5F7FA]">+{formatKz(pricing.coffeeExtra)}</span>
+                        <span>☕ Coffee Break</span>
+                        <span className="text-[#F5F7FA]">+{formatKz(pricing.coffeeExtra)}</span>
                       </div>
                     )}
                     {pricing.discountApplied > 0 && (
@@ -587,17 +655,28 @@ export default function ReservationModal({ reservation, plans, onClose, onSaved 
                     )}
                     {Number(ivaPercent) > 0 && (
                       <div className="flex justify-between text-[#94A3B8]">
-                        <span>IVA ({ivaPercent}%)</span><span className="text-[#F5F7FA]">+{formatKz(pricing.ivaAmount)}</span>
+                        <span>IVA ({ivaPercent}%)</span>
+                        <span className="text-[#F5F7FA]">+{formatKz(pricing.ivaAmount)}</span>
                       </div>
                     )}
                     <div className="flex justify-between font-bold text-[#F5F7FA] border-t border-white/10 pt-2 mt-1">
                       <span>TOTAL</span>
-                      <span className="text-[#5C8FFF] text-base">{formatKz(pricing.totalAmount)}</span>
+                      <span className="text-[#5C8FFF] text-lg">{formatKz(pricing.totalAmount)}</span>
                     </div>
                   </div>
+                ) : durationMinutes > 0 ? (
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-amber-300">
+                      ⚠️ Não existe um preço definido para {minutesToHuman(durationMinutes)}.
+                    </p>
+                    <a href="/admin/configuracoes/precos" target="_blank"
+                      className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-300 hover:bg-amber-500/20">
+                      Configurar Preços →
+                    </a>
+                  </div>
                 ) : (
-                  <p className="text-sm text-amber-300">
-                    {!startDatetime || !endDatetime ? "Defina o horário na aba Reserva para calcular o valor." : "Configure o preço do plano nas definições."}
+                  <p className="text-sm text-[#94A3B8]">
+                    Defina o horário na aba Reserva para calcular o valor automaticamente.
                   </p>
                 )}
               </div>
@@ -638,7 +717,7 @@ export default function ReservationModal({ reservation, plans, onClose, onSaved 
                 </p>
               </div>
 
-              {/* Payment timing — only for PAGAR_AGORA */}
+              {/* Payment timing — PAGAR_AGORA only */}
               {paymentOption === "PAGAR_AGORA" && (
                 <div>
                   <label className={lbl}>Recebimento</label>
@@ -654,7 +733,7 @@ export default function ReservationModal({ reservation, plans, onClose, onSaved 
                 </div>
               )}
 
-              {/* Partial payment breakdown */}
+              {/* Partial payment detail */}
               {paymentOption === "PAGAR_AGORA" && paymentTiming === "PARCIAL" && totalAmount > 0 && (
                 <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-3">
                   <p className="text-xs font-semibold text-amber-300 uppercase tracking-wider">Pagamento Parcial</p>
@@ -666,26 +745,14 @@ export default function ReservationModal({ reservation, plans, onClose, onSaved 
                   </div>
                   {amountPaidNum > 0 && (
                     <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-[#94A3B8]">Valor Total</span>
-                        <span className="text-[#F5F7FA] font-medium">{formatKz(totalAmount)}</span>
+                      <div className="grid grid-cols-2 gap-3 text-xs bg-[#0B1220] rounded-lg p-3">
+                        <div><p className="text-[#94A3B8] mb-0.5">Valor Total</p><p className="text-[#F5F7FA] font-bold text-sm">{formatKz(totalAmount)}</p></div>
+                        <div><p className="text-[#94A3B8] mb-0.5">Valor Pago</p><p className="text-emerald-300 font-bold text-sm">{formatKz(amountPaidNum)}</p></div>
+                        <div><p className="text-[#94A3B8] mb-0.5">Saldo em Dívida</p><p className="text-amber-300 font-bold text-sm">{formatKz(balance)}</p></div>
+                        <div><p className="text-[#94A3B8] mb-0.5">% Liquidada</p><p className="text-[#5C8FFF] font-bold text-sm">{paidPct.toFixed(1)}%</p></div>
                       </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-[#94A3B8]">Valor Pago</span>
-                        <span className="text-emerald-300 font-medium">{formatKz(amountPaidNum)}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-[#94A3B8]">Saldo em Dívida</span>
-                        <span className="text-amber-300 font-bold">{formatKz(balance)}</span>
-                      </div>
-                      <div className="mt-2">
-                        <div className="flex justify-between text-xs text-[#94A3B8] mb-1">
-                          <span>Percentagem Liquidada</span>
-                          <span className="text-[#5C8FFF] font-medium">{paidPct.toFixed(1)}%</span>
-                        </div>
-                        <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-                          <div className="h-full rounded-full bg-[#2F6FED] transition-all" style={{ width: `${paidPct}%` }} />
-                        </div>
+                      <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                        <div className="h-full rounded-full bg-[#2F6FED] transition-all" style={{ width: `${paidPct}%` }} />
                       </div>
                     </div>
                   )}
@@ -697,28 +764,14 @@ export default function ReservationModal({ reservation, plans, onClose, onSaved 
                 <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4 space-y-3">
                   <p className="text-xs font-semibold text-[#5C8FFF] uppercase tracking-wider">Detalhes do Pagamento</p>
 
-                  {/* Valor total + valor pago summary */}
-                  <div className="grid grid-cols-2 gap-3 text-xs text-[#94A3B8] bg-[#0B1220] rounded-lg p-3">
-                    <div>
-                      <p className="mb-0.5">Valor Total</p>
-                      <p className="text-[#F5F7FA] font-bold text-sm">{formatKz(totalAmount)}</p>
-                    </div>
-                    <div>
-                      <p className="mb-0.5">Valor Pago</p>
-                      <p className="text-emerald-300 font-bold text-sm">{formatKz(amountPaidNum)}</p>
-                    </div>
-                    {balance > 0 && (
-                      <>
-                        <div>
-                          <p className="mb-0.5">Valor em Dívida</p>
-                          <p className="text-amber-300 font-bold text-sm">{formatKz(balance)}</p>
-                        </div>
-                        <div>
-                          <p className="mb-0.5">% Liquidada</p>
-                          <p className="text-[#5C8FFF] font-bold text-sm">{paidPct.toFixed(1)}%</p>
-                        </div>
-                      </>
-                    )}
+                  {/* Summary grid */}
+                  <div className="grid grid-cols-2 gap-3 text-xs bg-[#0B1220] rounded-lg p-3">
+                    <div><p className="text-[#94A3B8] mb-0.5">Valor Total</p><p className="text-[#F5F7FA] font-bold">{formatKz(totalAmount)}</p></div>
+                    <div><p className="text-[#94A3B8] mb-0.5">Valor Pago</p><p className="text-emerald-300 font-bold">{formatKz(amountPaidNum)}</p></div>
+                    {balance > 0 && <>
+                      <div><p className="text-[#94A3B8] mb-0.5">Valor em Dívida</p><p className="text-amber-300 font-bold">{formatKz(balance)}</p></div>
+                      <div><p className="text-[#94A3B8] mb-0.5">% Liquidada</p><p className="text-[#5C8FFF] font-bold">{paidPct.toFixed(1)}%</p></div>
+                    </>}
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
@@ -737,7 +790,7 @@ export default function ReservationModal({ reservation, plans, onClose, onSaved 
                   <div>
                     <label className={lbl}>Referência da Operação</label>
                     <input value={operationRef} onChange={e => setOperationRef(e.target.value)}
-                      placeholder="Ex: REF-TPA-20260704-0001" className={inp} />
+                      placeholder="Ex: REF-TPA-20260709-0001" className={inp} />
                   </div>
 
                   <div>
@@ -775,13 +828,19 @@ export default function ReservationModal({ reservation, plans, onClose, onSaved 
           {!isCreate && confirmCancel && (
             <div className="flex items-center gap-2">
               <span className="text-sm text-red-400">Confirmar cancelamento?</span>
-              <button onClick={doCancel} className="rounded-lg bg-red-500 px-3 py-1.5 text-sm text-white hover:bg-red-600">Sim</button>
-              <button onClick={() => setConfirmCancel(false)} className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-[#94A3B8] hover:bg-white/5">Não</button>
+              <button onClick={doCancel} className="rounded-lg bg-red-500 px-3 py-1.5 text-sm text-white">Sim</button>
+              <button onClick={() => setConfirmCancel(false)} className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-[#94A3B8]">Não</button>
             </div>
           )}
           {isCreate && <div />}
 
-          <div className="flex gap-3">
+          <div className="flex gap-3 items-center">
+            {pricing && totalAmount > 0 && (
+              <div className="text-right mr-2">
+                <p className="text-xs text-[#94A3B8]">Total a pagar</p>
+                <p className="text-base font-bold text-[#5C8FFF]">{formatKz(totalAmount)}</p>
+              </div>
+            )}
             <button onClick={onClose}
               className="rounded-lg border border-white/10 px-4 py-2 text-sm text-[#94A3B8] hover:bg-white/5">
               Fechar
