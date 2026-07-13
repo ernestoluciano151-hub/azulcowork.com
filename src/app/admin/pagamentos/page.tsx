@@ -2,12 +2,19 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import Sidebar from "@/components/admin/Sidebar";
 import { formatKz } from "@/lib/currency";
 import { format } from "date-fns";
 import DeleteRequestModal from "@/components/admin/DeleteRequestModal";
-import FinanceDashboard from "@/components/finance/FinanceDashboard";
 import NewPaymentModal from "@/components/finance/NewPaymentModal";
+
+// ⚠️ recharts usa APIs do browser (ResizeObserver, window) — deve ser importado
+// com ssr:false para evitar crash durante pre-rendering do Next.js 14.
+const FinanceDashboard = dynamic(
+  () => import("@/components/finance/FinanceDashboard"),
+  { ssr: false, loading: () => <div className="py-16 text-center text-[#94A3B8]">A carregar dashboard...</div> }
+);
 
 const STATUS_COLORS: Record<string, string> = {
   PAGO: "bg-emerald-500/15 text-emerald-300",
@@ -488,9 +495,16 @@ function FaturasTab() {
                     <a
                       href={`/api/invoices/${inv.id}/download`}
                       className="text-xs text-[#5C8FFF] hover:underline"
-                      title="Baixar recibo em PDF"
+                      title="Baixar fatura em PDF"
                     >
-                      download
+                      📄 Fatura
+                    </a>
+                    <a
+                      href={`/api/invoices/${inv.id}/receipt`}
+                      className="text-xs text-emerald-400 hover:underline"
+                      title="Baixar recibo de pagamento em PDF"
+                    >
+                      🧾 Recibo
                     </a>
                   </div>
                 </td>

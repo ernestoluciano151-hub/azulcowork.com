@@ -30,7 +30,14 @@ export async function GET(req: NextRequest) {
     take: 200,
   });
 
-  return NextResponse.json({ invoices });
+  // Fix legacy invoices where totalAmount was not set (0) but amount is set
+  const fixed = invoices.map(inv => ({
+    ...inv,
+    totalAmount: inv.totalAmount > 0 ? inv.totalAmount : inv.amount,
+    balance:     inv.balance     > 0 ? inv.balance     : Math.max(0, (inv.totalAmount || inv.amount) - (inv.amountPaid || 0)),
+  }));
+
+  return NextResponse.json({ invoices: fixed });
 }
 
 export async function POST(req: NextRequest) {
@@ -51,16 +58,26 @@ export async function POST(req: NextRequest) {
   });
   const invoiceNumber = `FT-${year}-${String(count + 1).padStart(4, "0")}`;
 
+  const amountNum    = Number(amount);
+  const discountNum  = Number(data.discount  || 0);
+  const ivaNum       = Number(data.iva       || 0);
+  const afterDiscount = amountNum - discountNum;
+  const totalAmount   = afterDiscount + (afterDiscount * ivaNum / 100);
+
   const invoice = await prisma.invoice.create({
     data: {
       invoiceNumber,
       companyId,
       serviceType,
-      amount: Number(amount),
-      issueDate: issueDate ? new Date(issueDate) : new Date(),
-      dueDate: new Date(dueDate),
+      amount:        amountNum,
+      discount:      discountNum,
+      iva:           ivaNum,
+      totalAmount,
+      balance:       totalAmount,
+      issueDate:     issueDate ? new Date(issueDate) : new Date(),
+      dueDate:       new Date(dueDate),
       paymentMethod: paymentMethod || null,
-      notes: notes || null,
+      notes:         notes || null,
     },
     include: { company: { select: { id: true, name: true } } },
   });

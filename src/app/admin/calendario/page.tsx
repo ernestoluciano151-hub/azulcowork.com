@@ -5,6 +5,7 @@ import Sidebar from "@/components/admin/Sidebar";
 import ReservationModal, { Reservation, MeetingPlan } from "@/components/admin/ReservationModal";
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, isSameMonth, isSameDay, addMonths, subMonths } from "date-fns";
 import { pt } from "date-fns/locale";
+import { formatKz } from "@/lib/currency";
 
 const PLAN_COLORS: Record<string, string> = {
   Alpha: "bg-blue-500/20 text-blue-300",
@@ -198,7 +199,7 @@ export default function CalendarioPage() {
                       className={`flex items-start justify-between rounded-xl border border-white/10 bg-white/[0.02] p-4 ${r.status === "CANCELADA" ? "opacity-50" : ""}`}
                     >
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <span className={`rounded-full px-2 py-0.5 text-xs ${getPlanColor(planName)}`}>
                             {planName}
                           </span>
@@ -208,6 +209,20 @@ export default function CalendarioPage() {
                           {r.status === "PENDENTE_APROVACAO" && (
                             <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs text-amber-300">Pendente</span>
                           )}
+                          {/* Payment status badge */}
+                          {r.paymentStatus === "PAGO" ? (
+                            <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs text-emerald-300 font-medium">✓ Pago</span>
+                          ) : r.paymentStatus === "PARCIAL" ? (
+                            <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs text-amber-300 font-medium">⚡ Parcial</span>
+                          ) : r.paymentOption === "PAGAR_NO_DIA" ? (
+                            <span className="rounded-full bg-blue-500/15 px-2 py-0.5 text-xs text-blue-300">Pagar no dia</span>
+                          ) : r.paymentOption === "FACTURAR" ? (
+                            <span className="rounded-full bg-indigo-500/15 px-2 py-0.5 text-xs text-indigo-300">Facturado</span>
+                          ) : r.paymentOption === "ISENTO" ? (
+                            <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-mist">Isento</span>
+                          ) : (
+                            <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-xs text-red-300">Pendente</span>
+                          )}
                         </div>
                         <p className="mt-2 font-medium text-paper">{r.eventName}</p>
                         <p className="text-sm text-mist">
@@ -216,6 +231,15 @@ export default function CalendarioPage() {
                         {r.companyName && <p className="text-xs text-mist">{r.companyName}</p>}
                         <p className="text-xs text-mist">{r.participants} participante(s)</p>
                         {r.coffeeBreak && <p className="text-xs text-amber-300">☕ Coffee Break</p>}
+                        {r.totalAmount > 0 && (
+                          <p className="text-xs mt-1">
+                            <span className="text-mist">Total: </span>
+                            <span className="font-semibold text-[#5C8FFF]">{formatKz(r.totalAmount)}</span>
+                            {r.amountPaid > 0 && r.amountPaid < r.totalAmount && (
+                              <span className="text-mist ml-2">(pago: {formatKz(r.amountPaid)})</span>
+                            )}
+                          </p>
+                        )}
                       </div>
                       <button
                         onClick={() => setSelectedReservation(r)}

@@ -76,6 +76,117 @@ export async function sendNewLeadEmail(lead: {
   }
 }
 
+// ─── Confirmação de reserva de sala (para o cliente) ─────────────────────────
+export async function sendReservationConfirmationEmail(data: {
+  clientName: string;
+  clientEmail: string;
+  eventName: string;
+  planName: string;
+  startDatetime: Date;
+  endDatetime: Date;
+  totalHours: number;
+  coffeeBreak: boolean;
+  totalAmount: number;
+  reservationId: string;
+  invoiceNumber?: string | null;
+}) {
+  if (!isConfigured()) return;
+
+  const fmtDate = (d: Date) => d.toLocaleString("pt-PT", {
+    dateStyle: "full", timeStyle: "short", timeZone: "Africa/Luanda",
+  });
+  const fmtKz = (v: number) =>
+    new Intl.NumberFormat("pt-AO", { minimumFractionDigits: 2 }).format(v) + " Kz";
+
+  try {
+    await createTransporter().sendMail({
+      from: `"Azul Coworking" <${process.env.SMTP_USER}>`,
+      to: data.clientEmail,
+      bcc: process.env.ADMIN_EMAIL,
+      subject: `✅ Reserva confirmada — ${data.eventName} | Azul Coworking`,
+      html: `
+        <div style="${baseStyle}">
+          <h2 style="color:#22c55e;margin-top:0;font-size:20px">✅ Reserva Confirmada!</h2>
+          <p style="color:#94a3b8">Olá ${data.clientName}, a sua reserva foi confirmada com sucesso.</p>
+          <table style="width:100%;border-collapse:collapse;margin-top:12px">
+            <tr style="${rowStyle}"><td style="${lblStyle}">Evento</td><td style="${valStyle}">${data.eventName}</td></tr>
+            <tr style="${rowStyle}"><td style="${lblStyle}">Plano</td><td style="${valStyle};color:#5C8FFF">${data.planName}</td></tr>
+            <tr style="${rowStyle}"><td style="${lblStyle}">Início</td><td style="${valStyle};color:#22c55e">${fmtDate(data.startDatetime)}</td></tr>
+            <tr style="${rowStyle}"><td style="${lblStyle}">Fim</td><td style="${valStyle}">${fmtDate(data.endDatetime)}</td></tr>
+            <tr style="${rowStyle}"><td style="${lblStyle}">Duração</td><td style="${valStyle}">${data.totalHours}h</td></tr>
+            <tr style="${rowStyle}"><td style="${lblStyle}">Coffee Break</td><td style="${valStyle}">${data.coffeeBreak ? "☕ Incluído" : "Não incluído"}</td></tr>
+            <tr style="${rowStyle}"><td style="${lblStyle}">Valor total</td><td style="${valStyle};color:#fbbf24;font-weight:700">${fmtKz(data.totalAmount)}</td></tr>
+            ${data.invoiceNumber ? `<tr style="${rowStyle}"><td style="${lblStyle}">Nº Fatura</td><td style="${valStyle}">${data.invoiceNumber}</td></tr>` : ""}
+          </table>
+          <div style="margin-top:16px;padding:14px;background:#0f2a1a;border-radius:8px;border-left:4px solid #22c55e">
+            <p style="margin:0;color:#86efac;font-size:13px">📍 <strong>Local:</strong> Azul Coworking — Bairro Azul, Edifício 18, Luanda</p>
+            <p style="margin:6px 0 0;color:#94a3b8;font-size:11px">Em caso de dúvidas, entre em contacto via WhatsApp: +244 925 000 000</p>
+          </div>
+          <p style="${footStyle}">Azul Coworking · Bairro Azul, Edifício 18, Luanda · azulcoworking.ao</p>
+        </div>
+      `,
+    });
+    console.log(`[email] ✓ Confirmação de reserva enviada — ${data.clientEmail}`);
+  } catch (err) {
+    console.error("[email] ✗ Erro ao enviar confirmação de reserva:", err);
+  }
+}
+
+// ─── Notificação admin — nova reserva criada ──────────────────────────────────
+export async function sendNewReservationAdminEmail(data: {
+  clientName: string;
+  clientEmail: string;
+  clientWhatsapp?: string | null;
+  eventName: string;
+  planName: string;
+  startDatetime: Date;
+  endDatetime: Date;
+  totalHours: number;
+  coffeeBreak: boolean;
+  totalAmount: number;
+  reservationId: string;
+  status: string;
+}) {
+  if (!isConfigured()) return;
+
+  const fmtDate = (d: Date) => d.toLocaleString("pt-PT", {
+    dateStyle: "full", timeStyle: "short", timeZone: "Africa/Luanda",
+  });
+  const fmtKz = (v: number) =>
+    new Intl.NumberFormat("pt-AO", { minimumFractionDigits: 2 }).format(v) + " Kz";
+
+  try {
+    await createTransporter().sendMail({
+      from: `"Azul Coworking CRM" <${process.env.SMTP_USER}>`,
+      to: process.env.ADMIN_EMAIL,
+      subject: `🏨 Nova reserva: ${data.eventName} — ${data.planName}`,
+      html: `
+        <div style="${baseStyle}">
+          <h2 style="color:#2F6FED;margin-top:0;font-size:20px">🏨 Nova Reserva de Sala</h2>
+          <table style="width:100%;border-collapse:collapse;margin-top:12px">
+            <tr style="${rowStyle}"><td style="${lblStyle}">Cliente</td><td style="${valStyle}">${data.clientName}</td></tr>
+            <tr style="${rowStyle}"><td style="${lblStyle}">E-mail</td><td style="${valStyle}"><a href="mailto:${data.clientEmail}" style="color:#5C8FFF">${data.clientEmail}</a></td></tr>
+            ${data.clientWhatsapp ? `<tr style="${rowStyle}"><td style="${lblStyle}">WhatsApp</td><td style="${valStyle}"><a href="https://wa.me/${data.clientWhatsapp.replace(/\D/g,"")}" style="color:#22c55e">${data.clientWhatsapp}</a></td></tr>` : ""}
+            <tr style="${rowStyle}"><td style="${lblStyle}">Evento</td><td style="${valStyle}">${data.eventName}</td></tr>
+            <tr style="${rowStyle}"><td style="${lblStyle}">Plano</td><td style="${valStyle};color:#5C8FFF">${data.planName}</td></tr>
+            <tr style="${rowStyle}"><td style="${lblStyle}">Início</td><td style="${valStyle};color:#22c55e">${fmtDate(data.startDatetime)}</td></tr>
+            <tr style="${rowStyle}"><td style="${lblStyle}">Fim</td><td style="${valStyle}">${fmtDate(data.endDatetime)}</td></tr>
+            <tr style="${rowStyle}"><td style="${lblStyle}">Duração</td><td style="${valStyle}">${data.totalHours}h</td></tr>
+            <tr style="${rowStyle}"><td style="${lblStyle}">Coffee Break</td><td style="${valStyle}">${data.coffeeBreak ? "☕ Sim" : "Não"}</td></tr>
+            <tr style="${rowStyle}"><td style="${lblStyle}">Valor</td><td style="${valStyle};color:#fbbf24;font-weight:700">${fmtKz(data.totalAmount)}</td></tr>
+            <tr style="${rowStyle}"><td style="${lblStyle}">Estado</td><td style="${valStyle}">${data.status}</td></tr>
+          </table>
+          <a href="${siteUrl()}/admin/salas/reserva/${data.reservationId}" style="${btnStyle}">Ver reserva →</a>
+          <p style="${footStyle}">Azul Coworking CRM · notificação automática</p>
+        </div>
+      `,
+    });
+    console.log(`[email] ✓ Notificação admin reserva enviada — ${data.eventName}`);
+  } catch (err) {
+    console.error("[email] ✗ Erro ao enviar notificação admin reserva:", err);
+  }
+}
+
 // ─── Novo pedido de sala de reunião ───────────────────────────────────────────
 export async function sendNewRoomLeadEmail(lead: {
   firstName: string;

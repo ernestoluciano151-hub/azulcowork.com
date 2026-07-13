@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { useEffect, useState, useCallback } from "react";
 import Sidebar from "@/components/admin/Sidebar";
 import DeleteRequestModal from "@/components/admin/DeleteRequestModal";
+import ReservationModal, { MeetingPlan } from "@/components/admin/ReservationModal";
 import { format } from "date-fns";
 import Link from "next/link";
 
@@ -34,12 +35,6 @@ const EMPTY_CONVERT = {
   roomNumber: "", planType: "", rentAmount: "", contractStart: "", contractEnd: "",
 };
 
-const EMPTY_RESERVATION = {
-  planId: "", startDatetime: "", endDatetime: "",
-  paymentOption: "PAGAR_NO_DIA", amount: "", discount: "0", iva: "0", totalAmount: "",
-};
-
-type MeetingPlan = { id: string; name: string; pricePerHour: number };
 
 export default function LeadsSalasPage() {
   const [leads, setLeads] = useState<any[]>([]);
@@ -66,9 +61,6 @@ export default function LeadsSalasPage() {
 
   // To-reservation modal
   const [reservLead, setReservLead] = useState<any | null>(null);
-  const [reservForm, setReservForm] = useState({ ...EMPTY_RESERVATION });
-  const [reservSaving, setReservSaving] = useState(false);
-  const [reservError, setReservError] = useState("");
   const [meetingPlans, setMeetingPlans] = useState<MeetingPlan[]>([]);
 
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
@@ -160,36 +152,6 @@ export default function LeadsSalasPage() {
       fetchLeads();
     } else {
       setConvertError(data.error || "Erro ao converter.");
-    }
-  }
-
-  async function handleToReservation(e: React.FormEvent) {
-    e.preventDefault();
-    if (!reservLead) return;
-    setReservSaving(true); setReservError("");
-    const res = await fetch(`/api/room-booking-leads/${reservLead.id}/to-reservation`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        planId: reservForm.planId,
-        startDatetime: reservForm.startDatetime,
-        endDatetime: reservForm.endDatetime,
-        paymentOption: reservForm.paymentOption,
-        amount: Number(reservForm.amount) || 0,
-        discount: Number(reservForm.discount) || 0,
-        iva: Number(reservForm.iva) || 0,
-        totalAmount: Number(reservForm.totalAmount) || 0,
-      }),
-    });
-    const data = await res.json().catch(() => ({}));
-    setReservSaving(false);
-    if (res.ok) {
-      showToast(`Reserva ${data.reservation?.reservationNumber} criada com sucesso!`, true);
-      setReservLead(null);
-      setReservForm({ ...EMPTY_RESERVATION });
-      fetchLeads();
-    } else {
-      setReservError(data.error || "Erro ao criar reserva.");
     }
   }
 
@@ -313,7 +275,7 @@ export default function LeadsSalasPage() {
                       </div>
                       {!l.reservationId && l.status !== "CONVERTIDO" && (
                         <button
-                          onClick={() => { setReservLead(l); setReservForm({ ...EMPTY_RESERVATION }); }}
+                          onClick={() => setReservLead(l)}
                           className="rounded border border-indigo-500/30 bg-indigo-500/10 px-2 py-1 text-xs text-indigo-300 hover:bg-indigo-500/20 text-left"
                         >
                           📅 Criar Reserva
@@ -455,64 +417,35 @@ export default function LeadsSalasPage() {
         </div>
       )}
 
-      {/* Modal: Criar Reserva */}
+      {/* Modal: Criar Reserva — smart modal com cálculo automático de preços */}
       {reservLead && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-ink2 p-6 shadow-2xl overflow-y-auto max-h-[90vh]">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-display text-lg font-bold text-paper">📅 Criar Reserva</h2>
-              <button onClick={() => { setReservLead(null); setReservError(""); }} className="text-mist hover:text-paper text-xl">✕</button>
-            </div>
-            <p className="text-sm text-mist mb-5">
-              Lead: <span className="text-paper font-medium">{reservLead.firstName} {reservLead.lastName}</span> · {reservLead.planName}
-            </p>
-            <form onSubmit={handleToReservation} className="space-y-4">
-              <div>
-                <label className={lbl}>Plano de Sala *</label>
-                <select required className={inp} value={reservForm.planId} onChange={e => setReservForm(f => ({ ...f, planId: e.target.value }))}>
-                  <option value="">Selecionar plano</option>
-                  {meetingPlans.map(p => <option key={p.id} value={p.id}>{p.name} ({p.pricePerHour.toLocaleString("pt-PT")} AOA/h)</option>)}
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={lbl}>Início *</label>
-                  <input required type="datetime-local" className={inp} value={reservForm.startDatetime} onChange={e => setReservForm(f => ({ ...f, startDatetime: e.target.value }))} />
-                </div>
-                <div>
-                  <label className={lbl}>Fim *</label>
-                  <input required type="datetime-local" className={inp} value={reservForm.endDatetime} onChange={e => setReservForm(f => ({ ...f, endDatetime: e.target.value }))} />
-                </div>
-              </div>
-              <div>
-                <label className={lbl}>Opção de Pagamento</label>
-                <select className={inp} value={reservForm.paymentOption} onChange={e => setReservForm(f => ({ ...f, paymentOption: e.target.value }))}>
-                  <option value="PAGAR_NO_DIA">Pagar no dia</option>
-                  <option value="PAGAR_AGORA">Pagar agora</option>
-                  <option value="FACTURAR">Facturar</option>
-                  <option value="ISENTO">Isento</option>
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={lbl}>Valor base (AOA)</label>
-                  <input type="number" min={0} className={inp} placeholder="0" value={reservForm.amount} onChange={e => setReservForm(f => ({ ...f, amount: e.target.value }))} />
-                </div>
-                <div>
-                  <label className={lbl}>Total (AOA) *</label>
-                  <input required type="number" min={0} className={inp} placeholder="0" value={reservForm.totalAmount} onChange={e => setReservForm(f => ({ ...f, totalAmount: e.target.value }))} />
-                </div>
-              </div>
-              {reservError && <p className="text-sm text-red-400">{reservError}</p>}
-              <div className="flex gap-3 justify-end pt-2">
-                <button type="button" onClick={() => { setReservLead(null); setReservError(""); }} className="px-5 py-2.5 rounded-xl border border-white/10 text-mist hover:text-paper text-sm">Cancelar</button>
-                <button type="submit" disabled={reservSaving} className="px-5 py-2.5 rounded-xl bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700 disabled:opacity-60">
-                  {reservSaving ? "A criar…" : "Criar Reserva"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <ReservationModal
+          plans={meetingPlans}
+          selectedLeadId={reservLead.id}
+          initialData={{
+            responsibleName: `${reservLead.firstName} ${reservLead.lastName}`,
+            responsibleEmail: reservLead.email,
+            responsibleWhatsapp: reservLead.whatsapp || "",
+            companyName: reservLead.company || "",
+            participants: reservLead.participants || 1,
+            coffeeBreak: reservLead.coffeeBreak || false,
+            observations: reservLead.observations || "",
+            planName: reservLead.planName || "",
+            preferredDate: reservLead.preferredDate
+              ? new Date(reservLead.preferredDate).toISOString().slice(0, 10)
+              : "",
+            preferredTime: reservLead.preferredTime || "",
+          }}
+          onClose={() => setReservLead(null)}
+          onSaved={(data) => {
+            showToast(
+              `✅ Reserva ${data?.reservationNumber || ""} criada com sucesso!`,
+              true
+            );
+            setReservLead(null);
+            fetchLeads();
+          }}
+        />
       )}
 
       {deleteModal && (

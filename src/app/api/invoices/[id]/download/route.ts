@@ -29,6 +29,21 @@ export async function GET(
       include: { company: true },
     });
 
+    // ── se ligada a reserva de sala, buscar dados ────────────────────────
+    let reservation: { eventName: string | null; responsible: string | null; startDatetime: Date; endDatetime: Date; totalHours: number; coffeeBreak: boolean; amount: number; totalAmount: number; discount: number; iva: number; amountPaid: number; plan: { name: string } | null } | null = null;
+    if (invoice?.reservationId) {
+      reservation = await prisma.reservation.findUnique({
+        where: { id: invoice.reservationId },
+        select: {
+          eventName: true, responsible: true,
+          startDatetime: true, endDatetime: true, totalHours: true,
+          coffeeBreak: true, amount: true, totalAmount: true,
+          discount: true, iva: true, amountPaid: true,
+          plan: { select: { name: true } },
+        },
+      });
+    }
+
     if (!invoice) {
       return NextResponse.json({ error: "Fatura não encontrada" }, { status: 404 });
     }
@@ -61,6 +76,11 @@ export async function GET(
     }
 
     // ── montar dados tipados ─────────────────────────────────────────────
+    const isSala = !!reservation;
+    const salaTotal = reservation
+      ? (reservation.totalAmount > 0 ? reservation.totalAmount : reservation.amount)
+      : 0;
+
     const inv: InvoiceData = {
       invoiceNumber:   invoice.invoiceNumber,
       receiptRef:      `AZC/REC/${refNum}`,
@@ -68,19 +88,35 @@ export async function GET(
       dueDate:         fmt(new Date(invoice.dueDate)),
       status:          invoice.status,
       paymentMethod:   invoice.paymentMethod || "Transferência Bancária",
-      serviceType:     invoice.serviceType,
-      amount:          invoice.amount,
+      serviceType:     invoice.serviceType || (isSala ? "Salas de Reunião" : ""),
+      amount:          isSala ? salaTotal : invoice.amount,
       notes:           invoice.notes,
-      totalContracted: totalContracted || undefined,
-      totalPaid:       totalPaid       || undefined,
-      balance:         balance         || undefined,
-      months:          months          || undefined,
+      // escritório fields (only when not a sala invoice)
+      totalContracted: !isSala ? (totalContracted || undefined) : undefined,
+      totalPaid:       !isSala ? (totalPaid       || undefined) : undefined,
+      balance:         !isSala ? (balance         || undefined) : undefined,
+      months:          !isSala ? (months          || undefined) : undefined,
+      // sala fields
+      ...(isSala && reservation ? {
+        isSalaReuniao:   true,
+        salaEventName:   reservation.eventName   || "",
+        salaResponsavel: reservation.responsible || (co?.responsible ?? ""),
+        salaPlanName:    reservation.plan?.name  || "",
+        salaDataInicio:  fmt(new Date(reservation.startDatetime)),
+        salaDataFim:     fmt(new Date(reservation.endDatetime)),
+        salaDuracao:     `${reservation.totalHours}h`,
+        salaCoffeeBreak: reservation.coffeeBreak,
+        totalAmount:     salaTotal,
+        discount:        reservation.discount  || 0,
+        iva:             reservation.iva       || 0,
+        amountPaid:      reservation.amountPaid || 0,
+      } : {}),
       company: {
-        name:        co?.name        ?? "Cliente",
+        name:        co?.name        ?? (reservation ? (invoice.company?.name ?? "Cliente") : "Cliente"),
         nif:         co?.nif         ?? null,
         email:       co?.email       ?? "",
         whatsapp:    co?.whatsapp    ?? "",
-        responsible: co?.responsible ?? "",
+        responsible: co?.responsible ?? (reservation?.responsible ?? ""),
         roomNumber:  co?.roomNumber  ?? "",
         planType:    co?.planType    ?? "",
       },
@@ -94,7 +130,10 @@ export async function GET(
     );
 
     // ── nome do ficheiro ─────────────────────────────────────────────────
-    const safeName = (co?.name ?? "sala").replace(/[^a-zA-Z0-9]/g, "_");
+    const safeName = (isSala
+      ? (reservation?.eventName ?? co?.name ?? "sala")
+      : (co?.name ?? "cliente")
+    ).replace(/[^a-zA-Z0-9]/g, "_");
     const filename  = `Recibo_${refNum}_${safeName}.pdf`;
 
     return new NextResponse(new Uint8Array(pdfBuffer), {

@@ -24,12 +24,25 @@ export type InvoiceData = {
   paymentMethod: string;
   serviceType: string;
   amount: number;
+  totalAmount?: number;
+  discount?: number;
+  iva?: number;
+  amountPaid?: number;
   notes?: string | null;
-  // contrato
+  // contrato (para escritórios)
   totalContracted?: number;
   totalPaid?: number;
   balance?: number;
   months?: number;
+  // sala de reunião (específico)
+  isSalaReuniao?: boolean;
+  salaEventName?:  string;
+  salaResponsavel?: string;
+  salaPlanName?:   string;
+  salaDataInicio?: string;
+  salaDataFim?:    string;
+  salaDuracao?:    string;
+  salaCoffeeBreak?: boolean;
   company: {
     name: string;
     nif?: string | null;
@@ -200,34 +213,84 @@ export function InvoiceDocument({ inv }: { inv: InvoiceData }) {
         <Text style={S.sectionTitle}>Detalhe do Pagamento</Text>
         <View style={S.divider} />
 
-        <View style={S.descBox}>
-          <Text style={S.descText}>
-            Recibo de pagamento referente a {inv.serviceType} no Azul Coworking,
-            com início em {inv.issueDate} e vencimento em {inv.dueDate}.
-          </Text>
-        </View>
+        {inv.isSalaReuniao ? (
+          /* ── TEMPLATE SALA DE REUNIÃO ─── */
+          <>
+            <View style={S.descBox}>
+              <Text style={S.descText}>
+                Recibo de pagamento referente à utilização da Sala de Reunião no Azul Coworking.
+              </Text>
+            </View>
+            <View style={S.fieldRow}>
+              <Text style={S.fieldLabel}>Evento / Motivo:</Text>
+              <Text style={S.fieldValue}>{inv.salaEventName || "—"}</Text>
+            </View>
+            <View style={S.fieldRow}>
+              <Text style={S.fieldLabel}>Plano de Sala:</Text>
+              <Text style={S.fieldValue}>{inv.salaPlanName || inv.serviceType}</Text>
+            </View>
+            {inv.salaDataInicio && (
+              <View style={S.fieldRow}>
+                <Text style={S.fieldLabel}>Data e Hora de Início:</Text>
+                <Text style={S.fieldValue}>{inv.salaDataInicio}</Text>
+              </View>
+            )}
+            {inv.salaDataFim && (
+              <View style={S.fieldRow}>
+                <Text style={S.fieldLabel}>Data e Hora de Fim:</Text>
+                <Text style={S.fieldValue}>{inv.salaDataFim}</Text>
+              </View>
+            )}
+            {inv.salaDuracao && (
+              <View style={S.fieldRow}>
+                <Text style={S.fieldLabel}>Duração:</Text>
+                <Text style={S.fieldValue}>{inv.salaDuracao}</Text>
+              </View>
+            )}
+            {inv.salaCoffeeBreak && (
+              <View style={S.fieldRow}>
+                <Text style={S.fieldLabel}>Coffee Break:</Text>
+                <Text style={S.fieldValue}>Incluído</Text>
+              </View>
+            )}
+            <View style={S.fieldRow}>
+              <Text style={S.fieldLabel}>Responsável:</Text>
+              <Text style={S.fieldValue}>{inv.salaResponsavel || inv.company.responsible}</Text>
+            </View>
+          </>
+        ) : (
+          /* ── TEMPLATE ESCRITÓRIO / SERVIÇO GERAL ─── */
+          <>
+            <View style={S.descBox}>
+              <Text style={S.descText}>
+                Recibo de pagamento referente a {inv.serviceType} no Azul Coworking,
+                com início em {inv.issueDate} e vencimento em {inv.dueDate}.
+              </Text>
+            </View>
+            <View style={S.fieldRow}>
+              <Text style={S.fieldLabel}>Serviço / Plano:</Text>
+              <Text style={S.fieldValue}>{inv.serviceType}</Text>
+            </View>
+            <View style={S.fieldRow}>
+              <Text style={S.fieldLabel}>Plano contratado:</Text>
+              <Text style={S.fieldValue}>{inv.company.planType}</Text>
+            </View>
+            <View style={S.fieldRow}>
+              <Text style={S.fieldLabel}>Sala / Escritório:</Text>
+              <Text style={S.fieldValue}>{inv.company.roomNumber}</Text>
+            </View>
+            <View style={S.fieldRow}>
+              <Text style={S.fieldLabel}>Período:</Text>
+              <Text style={S.fieldValue}>{inv.issueDate}  –  {inv.dueDate}</Text>
+            </View>
+            <View style={S.fieldRow}>
+              <Text style={S.fieldLabel}>Responsável:</Text>
+              <Text style={S.fieldValue}>{inv.company.responsible}</Text>
+            </View>
+          </>
+        )}
 
-        {/* campos */}
-        <View style={S.fieldRow}>
-          <Text style={S.fieldLabel}>Serviço / Plano:</Text>
-          <Text style={S.fieldValue}>{inv.serviceType}</Text>
-        </View>
-        <View style={S.fieldRow}>
-          <Text style={S.fieldLabel}>Plano contratado:</Text>
-          <Text style={S.fieldValue}>{inv.company.planType}</Text>
-        </View>
-        <View style={S.fieldRow}>
-          <Text style={S.fieldLabel}>Sala / Escritório:</Text>
-          <Text style={S.fieldValue}>{inv.company.roomNumber}</Text>
-        </View>
-        <View style={S.fieldRow}>
-          <Text style={S.fieldLabel}>Período:</Text>
-          <Text style={S.fieldValue}>{inv.issueDate}  –  {inv.dueDate}</Text>
-        </View>
-        <View style={S.fieldRow}>
-          <Text style={S.fieldLabel}>Responsável:</Text>
-          <Text style={S.fieldValue}>{inv.company.responsible}</Text>
-        </View>
+        {/* campos comuns */}
         <View style={S.fieldRow}>
           <Text style={S.fieldLabel}>Beneficiário:</Text>
           <Text style={S.fieldValue}>VERSÃO DE NEGÓCIOS - COM. GERAL E PREST. SERV., LDA</Text>
@@ -236,9 +299,27 @@ export function InvoiceDocument({ inv }: { inv: InvoiceData }) {
           <Text style={S.fieldLabel}>Conta / Ref. pagamento:</Text>
           <Text style={S.fieldValue}>212870210001 AKZ  |  Banco BCS</Text>
         </View>
+        {(inv.discount ?? 0) > 0 && (
+          <View style={S.fieldRow}>
+            <Text style={S.fieldLabel}>Valor bruto:</Text>
+            <Text style={S.fieldValue}>{formatKz(inv.amount)}</Text>
+          </View>
+        )}
+        {(inv.discount ?? 0) > 0 && (
+          <View style={S.fieldRow}>
+            <Text style={S.fieldLabel}>Desconto:</Text>
+            <Text style={[S.fieldValue, { color: C.amber }]}>− {formatKz(inv.discount!)}</Text>
+          </View>
+        )}
+        {(inv.iva ?? 0) > 0 && (
+          <View style={S.fieldRow}>
+            <Text style={S.fieldLabel}>IVA ({inv.iva}%):</Text>
+            <Text style={S.fieldValue}>{formatKz(((inv.amount - (inv.discount || 0)) * (inv.iva || 0)) / 100)}</Text>
+          </View>
+        )}
         <View style={S.fieldRow}>
           <Text style={S.fieldLabel}>Montante:</Text>
-          <Text style={S.fieldValue}>{formatKz(inv.amount)}</Text>
+          <Text style={S.fieldValue}>{formatKz(inv.totalAmount || inv.amount)}</Text>
         </View>
         <View style={S.fieldRow}>
           <Text style={S.fieldLabel}>Moeda:</Text>

@@ -30,11 +30,17 @@ export async function POST(req: NextRequest) {
   const plan = await prisma.meetingPlan.create({
     data: {
       name,
-      maxPeople: Number(maxPeople),
-      description: description || null,
+      maxPeople:            Number(maxPeople),
+      description:          description          || null,
       coffeeBreakAvailable: coffeeBreakAvailable ?? true,
       customPricingAllowed: customPricingAllowed ?? false,
-      minHoursForCustom: minHoursForCustom ? Number(minHoursForCustom) : 16,
+      minHoursForCustom:    minHoursForCustom    ? Number(minHoursForCustom) : 16,
+      pricePerHour:         body.pricePerHour     ? Number(body.pricePerHour)     : 0,
+      coffeeBreakPrice:     body.coffeeBreakPrice ? Number(body.coffeeBreakPrice) : 0,
+      halfDayPrice:         body.halfDayPrice     ? Number(body.halfDayPrice)     : 0,
+      fullDayPrice:         body.fullDayPrice     ? Number(body.fullDayPrice)     : 0,
+      weekendPrice:         body.weekendPrice     ? Number(body.weekendPrice)     : 0,
+      promoPrice:           body.promoPrice       ? Number(body.promoPrice)       : 0,
     }
   });
 

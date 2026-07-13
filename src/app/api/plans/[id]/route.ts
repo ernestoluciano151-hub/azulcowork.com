@@ -11,13 +11,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const body = await req.json();
   const data: any = {};
 
-  if (body.name !== undefined) data.name = body.name;
-  if (body.maxPeople !== undefined) data.maxPeople = Number(body.maxPeople);
-  if (body.description !== undefined) data.description = body.description;
-  if (body.coffeeBreakAvailable !== undefined) data.coffeeBreakAvailable = body.coffeeBreakAvailable;
-  if (body.customPricingAllowed !== undefined) data.customPricingAllowed = body.customPricingAllowed;
-  if (body.minHoursForCustom !== undefined) data.minHoursForCustom = Number(body.minHoursForCustom);
-  if (body.active !== undefined) data.active = body.active;
+  const numberFields = ["maxPeople","pricePerHour","coffeeBreakPrice","halfDayPrice","fullDayPrice","weekendPrice","promoPrice","minHoursForCustom"];
+  const boolFields   = ["coffeeBreakAvailable","customPricingAllowed","active"];
+  const strFields    = ["name","description"];
+
+  for (const f of strFields)   if (body[f] !== undefined) data[f] = body[f];
+  for (const f of numberFields) if (body[f] !== undefined) data[f] = Number(body[f]);
+  for (const f of boolFields)   if (body[f] !== undefined) data[f] = Boolean(body[f]);
 
   const plan = await prisma.meetingPlan.update({ where: { id: params.id }, data });
   return NextResponse.json({ plan });

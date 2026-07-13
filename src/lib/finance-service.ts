@@ -182,6 +182,8 @@ export async function confirmPayment(
         operationRef:  input.operationRef  || null,
         receiptUrl:    input.receiptUrl    || null,
         invoiceId:     invoice.id,
+        amountPaid:    newAmountPaid,
+        paidDate:      balance <= 0 ? paid : null,
       },
     });
 

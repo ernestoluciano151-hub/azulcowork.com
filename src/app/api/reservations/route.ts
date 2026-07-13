@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { recordFinancialHistory } from "@/lib/finance";
 import { addTimeline } from "@/lib/timeline";
+import { notifyReservationCreated } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -298,6 +299,22 @@ export async function POST(req: NextRequest) {
 
     return { reservation, payment: paymentRec, invoice: invoiceRec, noteNumber };
   });
+
+  // ── Notificações automáticas (não bloqueiam a resposta) ─────────────────────
+  notifyReservationCreated({
+    clientName:    responsible,
+    clientEmail:   email       || "",
+    clientWhatsapp: whatsapp   || null,
+    eventName,
+    planName:      plan?.name  || "",
+    startDatetime: start,
+    endDatetime:   end,
+    totalHours,
+    coffeeBreak:   coffeeBreak ?? false,
+    totalAmount:   finalTotal,
+    reservationId: result.reservation.id,
+    status:        reservationStatus,
+  }).catch(err => console.error("[notifications] reserva criada:", err));
 
   // Update lead status if provided (non-fatal)
   if (selectedLeadId) {

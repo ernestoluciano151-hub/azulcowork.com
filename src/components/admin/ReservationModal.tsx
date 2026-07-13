@@ -72,10 +72,23 @@ type RoomLead = {
 };
 
 type Props = {
-  reservation?: Reservation | null;
-  plans:        MeetingPlan[];
-  onClose:      () => void;
-  onSaved:      () => void;
+  reservation?:    Reservation | null;
+  plans:           MeetingPlan[];
+  onClose:         () => void;
+  onSaved:         (data?: { reservationNumber?: string }) => void;
+  selectedLeadId?: string;
+  initialData?: {
+    responsibleName?:      string;
+    responsibleEmail?:     string;
+    responsibleWhatsapp?:  string;
+    companyName?:          string;
+    participants?:         number;
+    coffeeBreak?:          boolean;
+    observations?:         string;
+    planName?:             string;
+    preferredDate?:        string;
+    preferredTime?:        string;
+  };
 };
 
 type PaymentTiming = "TOTAL" | "PARCIAL" | "POSTERIOR";
@@ -97,23 +110,33 @@ function minutesToHuman(m: number): string {
   return `${Math.floor(m / 60)}h ${m % 60}min`;
 }
 
-export default function ReservationModal({ reservation, plans, onClose, onSaved }: Props) {
+export default function ReservationModal({ reservation, plans, onClose, onSaved, selectedLeadId: initLeadId, initialData }: Props) {
   const isCreate = !reservation;
   const today    = new Date().toISOString().split("T")[0];
 
+  // Derive a matching planId from lead's planName if possible
+  const planIdFromLead = initialData?.planName
+    ? (plans.find(p => p.name.toLowerCase() === initialData.planName!.toLowerCase())?.id ?? plans[0]?.id ?? "")
+    : (plans[0]?.id ?? "");
+
+  // Build initial startDatetime from preferredDate + preferredTime
+  const initStart = initialData?.preferredDate
+    ? `${initialData.preferredDate}T${initialData.preferredTime || "09:00"}`
+    : "";
+
   // ── Reserva fields ────────────────────────────────────────────────────────────
   const [eventName,       setEventName]       = useState(reservation?.eventName       ?? "");
-  const [companyName,     setCompanyName]     = useState(reservation?.companyName     ?? "");
+  const [companyName,     setCompanyName]     = useState(reservation?.companyName     ?? initialData?.companyName     ?? "");
   const [companyId,       setCompanyId]       = useState(reservation?.companyId       ?? "");
-  const [responsible,     setResponsible]     = useState(reservation?.responsible     ?? "");
-  const [email,           setEmail]           = useState(reservation?.email           ?? "");
-  const [whatsapp,        setWhatsapp]        = useState(reservation?.whatsapp        ?? "");
-  const [planId,          setPlanId]          = useState(reservation?.planId          ?? (plans[0]?.id || ""));
-  const [participants,    setParticipants]    = useState(String(reservation?.participants ?? "1"));
-  const [startDatetime,   setStartDatetime]   = useState(reservation?.startDatetime ? toDateTimeLocal(reservation.startDatetime) : "");
+  const [responsible,     setResponsible]     = useState(reservation?.responsible     ?? initialData?.responsibleName     ?? "");
+  const [email,           setEmail]           = useState(reservation?.email           ?? initialData?.responsibleEmail    ?? "");
+  const [whatsapp,        setWhatsapp]        = useState(reservation?.whatsapp        ?? initialData?.responsibleWhatsapp ?? "");
+  const [planId,          setPlanId]          = useState(reservation?.planId          ?? planIdFromLead);
+  const [participants,    setParticipants]    = useState(String(reservation?.participants ?? initialData?.participants ?? "1"));
+  const [startDatetime,   setStartDatetime]   = useState(reservation?.startDatetime ? toDateTimeLocal(reservation.startDatetime) : initStart);
   const [endDatetime,     setEndDatetime]     = useState(reservation?.endDatetime   ? toDateTimeLocal(reservation.endDatetime)   : "");
-  const [coffeeBreak,     setCoffeeBreak]     = useState(reservation?.coffeeBreak   ?? false);
-  const [observations,    setObservations]    = useState(reservation?.observations  ?? "");
+  const [coffeeBreak,     setCoffeeBreak]     = useState(reservation?.coffeeBreak   ?? initialData?.coffeeBreak   ?? false);
+  const [observations,    setObservations]    = useState(reservation?.observations  ?? initialData?.observations  ?? "");
   const [isCustomPricing, setIsCustomPricing] = useState(reservation?.isCustomPricing ?? false);
   const [customRequest,   setCustomRequest]   = useState(reservation?.customRequest   ?? "");
 
@@ -137,7 +160,7 @@ export default function ReservationModal({ reservation, plans, onClose, onSaved 
   const [companies,      setCompanies]      = useState<Company[]>([]);
   const [roomLeads,      setRoomLeads]      = useState<RoomLead[]>([]);
   const [pricingTiers,   setPricingTiers]   = useState<RoomPricingTier[]>([]);
-  const [selectedLeadId, setSelectedLeadId] = useState("");
+  const [selectedLeadId, setSelectedLeadId] = useState(initLeadId ?? "");
   const [companySearch,  setCompanySearch]  = useState("");
 
   // ── UI ─────────────────────────────────────────────────────────────────────────
@@ -338,7 +361,7 @@ export default function ReservationModal({ reservation, plans, onClose, onSaved 
           invoiceNumber:     data.invoice?.invoiceNumber,
           noteNumber:        data.noteNumber,
         });
-        setTimeout(() => { onSaved(); onClose(); }, 2500);
+        setTimeout(() => { onSaved({ reservationNumber: data.reservation?.reservationNumber || data.reservationNumber }); onClose(); }, 2500);
       } else {
         setError(data.error || "Erro ao guardar.");
       }
