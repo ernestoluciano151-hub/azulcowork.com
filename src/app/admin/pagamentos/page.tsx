@@ -39,8 +39,8 @@ const PAYMENT_METHODS = [
 
 type Payment = {
   id: string;
-  companyId: string;
-  company: { id: string; name: string };
+  companyId: string | null;
+  company: { id: string; name: string } | null;
   dueDate: string;
   paidDate: string | null;
   amount: number;
@@ -56,8 +56,8 @@ type Payment = {
 type Invoice = {
   id: string;
   invoiceNumber: string;
-  companyId: string;
-  company: { id: string; name: string };
+  companyId: string | null;
+  company: { id: string; name: string } | null;
   serviceType: string;
   amount: number;
   issueDate: string;
@@ -266,7 +266,7 @@ function PagamentosTab() {
             {payments.map((p) => (
               <tr key={p.id} className="text-[#F5F7FA] hover:bg-white/[0.02]">
                 <td className="px-4 py-3 font-mono text-xs text-[#5C8FFF]">{p.receiptNumber || "—"}</td>
-                <td className="px-4 py-3 font-medium">{p.company.name}</td>
+                <td className="px-4 py-3 font-medium">{p.company?.name ?? <span className="text-[#94A3B8] italic text-xs">Sem empresa</span>}</td>
                 <td className="px-4 py-3 font-semibold">{formatKz(p.amount)}</td>
                 <td className="px-4 py-3">
                   <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_COLORS[p.status] || "bg-white/10 text-[#94A3B8]"}`}>
@@ -300,7 +300,7 @@ function PagamentosTab() {
                       </button>
                     )}
                     <button
-                      onClick={() => setDeleteModal({ id: p.id, label: `Pagamento ${p.company.name} — ${format(new Date(p.dueDate), "MM/yyyy")}` })}
+                      onClick={() => setDeleteModal({ id: p.id, label: `Pagamento ${p.company?.name ?? "—"} — ${format(new Date(p.dueDate), "MM/yyyy")}` })}
                       className="rounded-lg border border-red-500/20 px-2 py-1 text-xs text-red-400 hover:bg-red-500/10"
                     >
                       🗑️
@@ -470,7 +470,7 @@ function FaturasTab() {
             {invoices.map((inv) => (
               <tr key={inv.id} className="text-[#F5F7FA] hover:bg-white/[0.02]">
                 <td className="px-4 py-3 font-mono text-xs text-[#5C8FFF]">{inv.invoiceNumber}</td>
-                <td className="px-4 py-3 font-medium">{inv.company.name}</td>
+                <td className="px-4 py-3 font-medium">{inv.company?.name ?? <span className="text-[#94A3B8] italic text-xs">Sala / Sem empresa</span>}</td>
                 <td className="px-4 py-3 text-[#94A3B8]">{inv.serviceType}</td>
                 <td className="px-4 py-3">{formatKz(inv.amount)}</td>
                 <td className="px-4 py-3 text-[#94A3B8]">{format(new Date(inv.issueDate), "dd/MM/yyyy")}</td>

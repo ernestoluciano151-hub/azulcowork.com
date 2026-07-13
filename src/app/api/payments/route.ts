@@ -21,7 +21,10 @@ export async function GET(req: NextRequest) {
     const [y, m] = month.split("-").map(Number);
     where.dueDate = { gte: new Date(y, m - 1, 1), lt: new Date(y, m, 1) };
   }
-  if (q)         where.company = { name: { contains: q, mode: "insensitive" } };
+  if (q)         where.OR = [
+    { company: { name: { contains: q, mode: "insensitive" } } },
+    { notes:   { contains: q, mode: "insensitive" } },
+  ];
   if (companyId) where.companyId = companyId;
 
   const payments = await prisma.payment.findMany({
