@@ -88,8 +88,12 @@ export async function GET(req: NextRequest) {
   const appointmentType = searchParams.get("appointmentType");
   const from = searchParams.get("from");
   const to = searchParams.get("to");
-  const sort = searchParams.get("sort") || "scheduledDate";
-  const order = (searchParams.get("order") || "asc") as "asc" | "desc";
+  const ALLOWED_SORT_FIELDS = ["scheduledDate", "createdAt", "firstName", "lastName", "email", "status"] as const;
+  const sortParam = searchParams.get("sort") || "scheduledDate";
+  const sort = ALLOWED_SORT_FIELDS.includes(sortParam as typeof ALLOWED_SORT_FIELDS[number])
+    ? sortParam
+    : "scheduledDate";
+  const order = searchParams.get("order") === "desc" ? "desc" : "asc";
   const page = Number(searchParams.get("page") || "1");
   const pageSize = Number(searchParams.get("pageSize") || "10");
 

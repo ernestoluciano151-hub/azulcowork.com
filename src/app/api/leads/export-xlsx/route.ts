@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 
 const STATUS_LABELS: Record<string, string> = {
   NOVO: "Novo",
@@ -32,30 +32,44 @@ export async function GET(req: NextRequest) {
 
   const leads = await prisma.lead.findMany({ where, orderBy: { createdAt: "desc" } });
 
-  const rows = leads.map((l) => ({
-    "Nome": `${l.firstName} ${l.lastName}`,
-    "E-mail": l.email,
-    "WhatsApp": l.whatsapp,
-    "Empresa": l.company || "",
-    "Data Agendada": l.scheduledDate.toLocaleString("pt-PT", { timeZone: "Africa/Luanda" }),
-    "Hora": l.appointmentTime || "",
-    "Tipo de Agendamento": l.appointmentType || "",
-    "Data de Registo": l.createdAt.toLocaleString("pt-PT", { timeZone: "Africa/Luanda" }),
-    "Estado": STATUS_LABELS[l.status] || l.status,
-    "Fonte": l.source || "landing-page"
-  }));
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("Leads");
 
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.json_to_sheet(rows);
-
-  ws["!cols"] = [
-    { wch: 25 }, { wch: 30 }, { wch: 20 }, { wch: 20 },
-    { wch: 22 }, { wch: 10 }, { wch: 22 }, { wch: 22 }, { wch: 18 }, { wch: 15 }
+  ws.columns = [
+    { header: "Nome",                key: "nome",      width: 28 },
+    { header: "E-mail",              key: "email",     width: 32 },
+    { header: "WhatsApp",            key: "whatsapp",  width: 20 },
+    { header: "Empresa",             key: "empresa",   width: 22 },
+    { header: "Data Agendada",       key: "data",      width: 24 },
+    { header: "Hora",                key: "hora",      width: 10 },
+    { header: "Tipo de Agendamento", key: "tipo",      width: 24 },
+    { header: "Data de Registo",     key: "registo",   width: 24 },
+    { header: "Estado",              key: "estado",    width: 18 },
+    { header: "Fonte",               key: "fonte",     width: 16 },
   ];
 
-  XLSX.utils.book_append_sheet(wb, ws, "Leads");
+  ws.getRow(1).eachCell((cell) => {
+    cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF2F6FED" } };
+    cell.alignment = { vertical: "middle", horizontal: "center" };
+  });
 
-  const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+  for (const l of leads) {
+    ws.addRow({
+      nome:     `${l.firstName} ${l.lastName}`,
+      email:    l.email,
+      whatsapp: l.whatsapp,
+      empresa:  l.company || "",
+      data:     l.scheduledDate.toLocaleString("pt-PT", { timeZone: "Africa/Luanda" }),
+      hora:     l.appointmentTime || "",
+      tipo:     l.appointmentType || "",
+      registo:  l.createdAt.toLocaleString("pt-PT", { timeZone: "Africa/Luanda" }),
+      estado:   STATUS_LABELS[l.status] || l.status,
+      fonte:    l.source || "landing-page",
+    });
+  }
+
+  const buffer = await wb.xlsx.writeBuffer();
 
   return new NextResponse(buffer, {
     headers: {

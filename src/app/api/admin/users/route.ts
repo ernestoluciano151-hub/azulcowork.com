@@ -27,6 +27,7 @@ export async function POST(req: NextRequest) {
 
   const { email, name, password, role } = await req.json();
   if (!email || !password) return NextResponse.json({ error: "Email e senha são obrigatórios." }, { status: 400 });
+  if (String(password).length < 8) return NextResponse.json({ error: "A senha deve ter pelo menos 8 caracteres." }, { status: 400 });
 
   const existing = await prisma.adminUser.findUnique({ where: { email: email.toLowerCase() } });
   if (existing) return NextResponse.json({ error: "Email já registado." }, { status: 400 });
