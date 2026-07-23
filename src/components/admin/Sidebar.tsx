@@ -4,11 +4,13 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import GlobalSearch from "./GlobalSearch";
+import NotificationBell from "./NotificationBell";
 
 const links = [
   { href: "/admin/dashboard",      label: "Dashboard",      icon: "📊", adminOnly: false },
-  { href: "/admin/leads",          label: "Leads",          icon: "👥", adminOnly: false },
-  { href: "/admin/leads-salas",    label: "Leads Salas",    icon: "🏨", adminOnly: false },
+  { href: "/admin/leads",                label: "Leads",           icon: "👥", adminOnly: false },
+  { href: "/admin/leads/convertidos",    label: "Convertidos",     icon: "✅", adminOnly: false },
+  { href: "/admin/leads-salas",          label: "Leads Salas",     icon: "🏨", adminOnly: false },
   { href: "/admin/empresas",       label: "Empresas",       icon: "🏢", adminOnly: false },
   { href: "/admin/pagamentos",     label: "Pagamentos",     icon: "💳", adminOnly: false },
   { href: "/admin/salas",             label: "Sala de Reunião",  icon: "🚪", adminOnly: false },
@@ -79,12 +81,15 @@ export default function Sidebar() {
 
       <GlobalSearch />
 
-      <button
-        onClick={logout}
-        className="focus-ring mt-3 rounded-lg border border-white/10 px-3 py-2.5 text-sm text-mist transition hover:bg-white/5 hover:text-paper"
-      >
-        Sair
-      </button>
+      <div className="mt-3 flex items-center justify-between">
+        <button
+          onClick={logout}
+          className="focus-ring flex-1 rounded-lg border border-white/10 px-3 py-2.5 text-sm text-mist transition hover:bg-white/5 hover:text-paper"
+        >
+          Sair
+        </button>
+        <NotificationBell />
+      </div>
     </aside>
   );
 }

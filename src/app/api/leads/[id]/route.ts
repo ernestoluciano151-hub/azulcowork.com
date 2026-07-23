@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { publish } from "@/lib/event-bus";
+import "@/lib/bootstrap";
 
 // PATCH /api/leads/:id -> editar estado, dados ou adicionar nota
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
@@ -12,6 +14,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     firstName, lastName, email, whatsapp, scheduledDate, status, newNote,
     appointmentTime, appointmentType, company
   } = body;
+
+  // Buscar estado anterior para detectar conversão
+  const previous = await prisma.lead.findUnique({ where: { id: params.id } });
 
   const data: any = {};
   if (firstName !== undefined) data.firstName = firstName;
@@ -34,6 +39,22 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     include: { notes: { orderBy: { createdAt: "desc" } } }
   });
 
+  // Emitir evento de atualização
+  await publish("lead.updated", {
+    leadId: lead.id,
+    changes: data,
+    updatedBy: session.email,
+  });
+
+  // Emitir evento de conversão se status mudou para CONVERTIDO
+  if (status === "CONVERTIDO" && previous?.status !== "CONVERTIDO") {
+    await publish("lead.converted", {
+      leadId: lead.id,
+      convertedBy: session.email,
+      convertedAt: new Date(),
+    });
+  }
+
   return NextResponse.json({ lead });
 }
 
@@ -43,5 +64,11 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   if (!session) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
 
   await prisma.lead.delete({ where: { id: params.id } });
+
+  await publish("lead.deleted", {
+    leadId: params.id,
+    deletedBy: session.email,
+  });
+
   return NextResponse.json({ ok: true });
 }

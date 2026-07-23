@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { notifyReservationConfirmed } from "@/lib/notifications";
+import { publish } from "@/lib/event-bus";
+import "@/lib/bootstrap";
 
 export const dynamic = "force-dynamic";
 
@@ -126,7 +128,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     }
   }
 
-  // ── Notificação quando status muda para CONFIRMADA ──────────────────────────
+  // ── Notificação e evento quando status muda para CONFIRMADA ─────────────────
   if (body.status === "CONFIRMADA" && reservation.email) {
     const existingInvoice = await prisma.invoice.findFirst({
       where: { reservationId: params.id },
@@ -145,6 +147,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       reservationId: reservation.id,
       invoiceNumber: existingInvoice?.invoiceNumber ?? null,
     }).catch(err => console.error("[notifications] confirmação:", err));
+
+    publish("reservation.confirmed", {
+      reservationId:    reservation.id,
+      reservationNumber: reservation.reservationNumber ?? undefined,
+      eventName:        reservation.eventName,
+      companyId:        reservation.companyId ?? undefined,
+      responsible:      reservation.responsible,
+      startDatetime:    reservation.startDatetime,
+    }).catch(() => {});
   }
 
   return NextResponse.json({ reservation });
@@ -154,10 +165,21 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
 
+  const reservation = await prisma.reservation.findUnique({
+    where: { id: params.id },
+    select: { eventName: true, reservationNumber: true },
+  });
+
   await prisma.reservation.update({
     where: { id: params.id },
     data:  { status: "CANCELADA" },
   });
+
+  publish("reservation.cancelled", {
+    reservationId:    params.id,
+    reservationNumber: reservation?.reservationNumber ?? undefined,
+    eventName:        reservation?.eventName ?? "Evento",
+  }).catch(() => {});
 
   return NextResponse.json({ ok: true });
 }

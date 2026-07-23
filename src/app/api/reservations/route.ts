@@ -4,6 +4,8 @@ import { getSession } from "@/lib/auth";
 import { recordFinancialHistory } from "@/lib/finance";
 import { addTimeline } from "@/lib/timeline";
 import { notifyReservationCreated } from "@/lib/notifications";
+import { publish } from "@/lib/event-bus";
+import "@/lib/bootstrap";
 
 export const dynamic = "force-dynamic";
 
@@ -328,6 +330,20 @@ export async function POST(req: NextRequest) {
       },
     }).catch(() => {});
   }
+
+  // Publicar evento de reserva criada → Event Bus notifica todos os módulos
+  publish("reservation.created", {
+    reservationId:   result.reservation.id,
+    reservationNumber: result.reservation.reservationNumber ?? undefined,
+    eventName,
+    companyId:       companyId || undefined,
+    companyName:     companyName || undefined,
+    responsible,
+    startDatetime:   start,
+    endDatetime:     end,
+    totalAmount:     finalTotal,
+    createdBy:       session.name || session.email,
+  }).catch(() => {});
 
   return NextResponse.json({ ...result, noteNumber: result.noteNumber }, { status: 201 });
 }

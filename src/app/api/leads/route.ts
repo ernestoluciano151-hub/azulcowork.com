@@ -4,6 +4,8 @@ import { isRateLimited, looksLikeBot } from "@/lib/rateLimit";
 import { isValidEmail, isValidWhatsapp, sanitizeText } from "@/lib/validators";
 import { getSession } from "@/lib/auth";
 import { sendNewLeadEmail } from "@/lib/email";
+import { publish } from "@/lib/event-bus";
+import "@/lib/bootstrap";
 
 // POST /api/leads -> usado pelo formulário público da landing page
 export async function POST(req: NextRequest) {
@@ -69,6 +71,15 @@ export async function POST(req: NextRequest) {
         source: lead.source ?? null,
       }).catch(() => {});
     }
+
+    // Publicar evento de lead criado
+    publish("lead.created", {
+      leadId: lead.id,
+      firstName: lead.firstName,
+      lastName: lead.lastName,
+      email: lead.email,
+      source: lead.source ?? "landing-page",
+    }).catch(() => {});
 
     return NextResponse.json({ ok: true, id: lead.id }, { status: 201 });
   } catch (err) {

@@ -109,11 +109,12 @@ export async function GET(req: NextRequest) {
     for (let m = 0; m < 12; m++) {
       const from = new Date(now.getFullYear(), m, 1);
       const to = new Date(now.getFullYear(), m + 1, 1);
-      const [rec, desp] = await Promise.all([
+      const [rec, sala, desp] = await Promise.all([
         prisma.payment.aggregate({ where: { status: "PAGO", paidDate: { gte: from, lt: to } }, _sum: { amount: true } }),
+        prisma.reservation.aggregate({ where: { paymentStatus: "PAGO", startDatetime: { gte: from, lt: to } }, _sum: { totalAmount: true } }),
         prisma.expense.aggregate({ where: { expenseDate: { gte: from, lt: to } }, _sum: { amount: true } }),
       ]);
-      const receita = rec._sum.amount || 0;
+      const receita = (rec._sum.amount || 0) + (sala._sum.totalAmount || 0);
       const despesa = desp._sum.amount || 0;
       ws.addRow([
         from.toLocaleDateString("pt-PT", { month: "long", year: "numeric" }),

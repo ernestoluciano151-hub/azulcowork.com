@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { formatKz } from "@/lib/currency";
+import AdminLayout from "@/components/admin/AdminLayout";
 
 type Settings = {
   id: string;
@@ -54,13 +55,16 @@ export default function SalaSettingsPage() {
   }
 
   if (loading) return (
-    <div className="flex items-center justify-center h-64">
-      <div className="h-8 w-8 border-2 border-[#2F6FED] border-t-transparent rounded-full animate-spin" />
-    </div>
+    <AdminLayout>
+      <div className="flex items-center justify-center h-64">
+        <div className="h-8 w-8 border-2 border-[#2F6FED] border-t-transparent rounded-full animate-spin" />
+      </div>
+    </AdminLayout>
   );
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8 space-y-8">
+    <AdminLayout>
+    <div className="max-w-3xl mx-auto space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-[#F5F7FA]">Configurações — Sala de Reunião</h1>
         <p className="text-sm text-[#94A3B8] mt-1">Ajuste preços, IVA e regras de reserva sem editar código.</p>
@@ -165,5 +169,6 @@ export default function SalaSettingsPage() {
         </button>
       </div>
     </div>
+    </AdminLayout>
   );
 }

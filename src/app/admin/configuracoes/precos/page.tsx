@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Sidebar from "@/components/admin/Sidebar";
+import AdminLayout from "@/components/admin/AdminLayout";
 import { formatKz } from "@/lib/currency";
 
 type Tier = {
@@ -124,19 +124,16 @@ export default function PrecosPage() {
   const previewMinutes = [60, 120, 180, 240, 300, 360, 420, 480];
 
   if (loading) return (
-    <div className="flex h-screen bg-[#0B1220]">
-      <Sidebar />
-      <div className="flex flex-1 items-center justify-center">
+    <AdminLayout>
+      <div className="flex flex-1 items-center justify-center h-64">
         <div className="h-8 w-8 border-2 border-[#2F6FED] border-t-transparent rounded-full animate-spin" />
       </div>
-    </div>
+    </AdminLayout>
   );
 
   return (
-    <div className="flex h-screen bg-[#0B1220]">
-      <Sidebar />
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-4xl mx-auto px-6 py-8 space-y-8">
+    <AdminLayout>
+      <div className="max-w-4xl mx-auto space-y-8">
 
           {/* Header */}
           <div className="flex items-start justify-between">
@@ -334,8 +331,7 @@ export default function PrecosPage() {
             <p>• As alterações entram em vigor imediatamente após guardar.</p>
           </div>
 
-        </div>
       </div>
-    </div>
+    </AdminLayout>
   );
 }

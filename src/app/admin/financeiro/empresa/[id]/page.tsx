@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Sidebar from "@/components/admin/Sidebar";
+import EmployeesPanel from "@/components/admin/EmployeesPanel";
 import { formatKz } from "@/lib/currency";
 import { format } from "date-fns";
 import { pt } from "date-fns/locale";
@@ -326,6 +327,9 @@ export default function CompanyFinancePage() {
             </div>
           </div>
         )}
+
+        {/* Colaboradores */}
+        <EmployeesPanel companyId={data.company.id} />
 
         {/* Timeline CRM */}
         {(timeline.length > 0 || roomLeads.length > 0) && (

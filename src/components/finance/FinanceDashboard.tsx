@@ -18,6 +18,7 @@ type SummaryData = {
   previsao: number;
   empresasEmAtraso: number;
   caixaAtual: number;
+  totalDespesasAnual: number;
   totalContratado: number;
   totalEmDivida: number;
   receitaMensal: { month: string; receita: number; despesa: number }[];
@@ -220,6 +221,60 @@ export default function FinanceDashboard() {
           </ResponsiveContainer>
         </div>
       </div>
+
+      {/* DRE — Demonstração de Resultados */}
+      <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
+        <h3 className="mb-4 font-semibold text-[#F5F7FA]">
+          DRE — Demonstração de Resultados ({new Date().getFullYear()})
+        </h3>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-emerald-400">Receita Total (Ano)</p>
+            <p className="mt-2 text-2xl font-bold text-emerald-300">{formatKz(data.receitaAnual)}</p>
+            <p className="mt-1 text-xs text-[#94A3B8]">Coworking + Sala de Reunião</p>
+          </div>
+          <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-red-400">Despesas Totais (Ano)</p>
+            <p className="mt-2 text-2xl font-bold text-red-300">{formatKz(data.totalDespesasAnual)}</p>
+            <p className="mt-1 text-xs text-[#94A3B8]">Todas as categorias</p>
+          </div>
+          <div className={`rounded-lg border p-4 ${data.caixaAtual >= 0 ? "border-emerald-500/20 bg-emerald-500/5" : "border-red-500/20 bg-red-500/5"}`}>
+            <p className={`text-xs font-semibold uppercase tracking-wider ${data.caixaAtual >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+              Resultado Líquido
+            </p>
+            <p className={`mt-2 text-2xl font-bold ${data.caixaAtual >= 0 ? "text-emerald-300" : "text-red-300"}`}>
+              {formatKz(data.caixaAtual)}
+            </p>
+            <p className="mt-1 text-xs text-[#94A3B8]">Receita − Despesas</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Despesas por Categoria */}
+      {data.despesasPorCategoria.length > 0 && (
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
+          <h3 className="mb-4 font-semibold text-[#F5F7FA]">Despesas por Categoria (acumulado)</h3>
+          <div className="space-y-2">
+            {data.despesasPorCategoria.map((cat) => {
+              const pct = data.totalDespesasAnual > 0 ? (cat.total / data.totalDespesasAnual) * 100 : 0;
+              return (
+                <div key={cat.category}>
+                  <div className="mb-1 flex items-center justify-between text-sm">
+                    <span className="text-[#F5F7FA]">{cat.category}</span>
+                    <span className="text-[#94A3B8]">{formatKz(cat.total)} <span className="text-xs">({pct.toFixed(0)}%)</span></span>
+                  </div>
+                  <div className="h-1.5 w-full rounded-full bg-white/10">
+                    <div
+                      className="h-1.5 rounded-full bg-red-500"
+                      style={{ width: `${Math.min(100, pct)}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Alertas */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

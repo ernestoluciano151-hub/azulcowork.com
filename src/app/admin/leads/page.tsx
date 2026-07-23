@@ -92,6 +92,12 @@ export default function LeadsPage() {
           <div>
             <h1 className="font-display text-2xl font-bold text-paper">Leads</h1>
             <p className="mt-1 text-sm text-mist">{total} lead(s) encontrados.</p>
+            <a
+              href="/admin/leads/convertidos"
+              className="mt-1 inline-block text-xs text-azul hover:underline"
+            >
+              Ver Leads Convertidos →
+            </a>
           </div>
           <div className="flex gap-2">
             <button

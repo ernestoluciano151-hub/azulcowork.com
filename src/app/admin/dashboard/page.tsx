@@ -35,7 +35,20 @@ export default async function DashboardPage() {
   const weekStart = startOfWeekFn(now);
   const in60 = new Date(now); in60.setDate(in60.getDate() + 60);
 
-  const [total, today, week, upcoming, totalCompanies, expiringContracts, overduePayments, todayReservations, weekReservations, pendingDeletes, totalPaidAgg, totalDebtAgg] = await Promise.all([
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const [
+    total, today, week, upcoming,
+    totalCompanies, expiringContracts,
+    overduePayments, todayReservations, weekReservations,
+    pendingDeletes,
+    // Pagamentos coworking
+    totalPaidAgg, totalDebtAgg,
+    // Receita sala (Reservations pagas)
+    salaReceitaAgg, salaPendenteAgg,
+    // Leads convertidos e perdidos
+    convertedLeads, lostLeads,
+  ] = await Promise.all([
     prisma.lead.count(),
     prisma.lead.count({ where: { createdAt: { gte: todayStart } } }),
     prisma.lead.count({ where: { createdAt: { gte: weekStart } } }),
@@ -64,9 +77,23 @@ export default async function DashboardPage() {
       }
     }),
     prisma.deleteRequest.count({ where: { status: "PENDING" } }),
+    // Receita coworking (pagamentos)
     prisma.payment.aggregate({ where: { status: "PAGO" }, _sum: { amount: true } }),
     prisma.payment.aggregate({ where: { status: "ATRASADO" }, _sum: { amount: true } }),
+    // Receita sala (reservas pagas)
+    prisma.reservation.aggregate({ where: { paymentStatus: "PAGO" }, _sum: { totalAmount: true } }),
+    prisma.reservation.aggregate({ where: { paymentStatus: "PENDENTE" }, _sum: { totalAmount: true } }),
+    // KPIs leads
+    prisma.lead.count({ where: { status: "CONVERTIDO" } }),
+    prisma.lead.count({ where: { status: "PERDIDO" } }),
   ]);
+
+  // Receita total unificada (coworking + sala)
+  const totalRecebidoCoworking = totalPaidAgg._sum.amount || 0;
+  const totalRecebidoSala = salaReceitaAgg._sum.totalAmount || 0;
+  const totalRecebidoGlobal = totalRecebidoCoworking + totalRecebidoSala;
+  const totalAtrasado = totalDebtAgg._sum.amount || 0;
+  const totalPendenteSala = salaPendenteAgg._sum.totalAmount || 0;
 
   return (
     <div className="flex min-h-screen bg-ink">
@@ -90,11 +117,12 @@ export default async function DashboardPage() {
         </div>
 
         {/* Leads stats */}
-        <h2 className="mt-6 text-xs font-semibold uppercase tracking-wider text-mist">Leads</h2>
-        <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <h2 className="mt-6 text-xs font-semibold uppercase tracking-wider text-mist">Leads CRM</h2>
+        <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatsCard label="Total de leads" value={total} />
           <StatsCard label="Leads hoje" value={today} />
           <StatsCard label="Leads esta semana" value={week} />
+          <StatsCard label="Convertidos" value={convertedLeads} />
         </div>
 
         {/* Company & Sala stats */}
@@ -106,16 +134,27 @@ export default async function DashboardPage() {
           <StatsCard label="Eventos esta semana" value={weekReservations} />
         </div>
 
-        {/* Pagamentos stats */}
-        <h2 className="mt-6 text-xs font-semibold uppercase tracking-wider text-mist">Pagamentos</h2>
-        <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {/* Financeiro unificado */}
+        <h2 className="mt-6 text-xs font-semibold uppercase tracking-wider text-mist">Financeiro Global (Coworking + Sala)</h2>
+        <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-5">
-            <p className="text-xs font-semibold uppercase tracking-wider text-emerald-400">Total em caixa (recebido)</p>
-            <p className="mt-2 text-2xl font-bold text-emerald-300">{formatKz(totalPaidAgg._sum.amount || 0)}</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-emerald-400">Total Recebido</p>
+            <p className="mt-2 text-2xl font-bold text-emerald-300">{formatKz(totalRecebidoGlobal)}</p>
+            <p className="text-xs text-emerald-400/60 mt-1">
+              CRM: {formatKz(totalRecebidoCoworking)} · Sala: {formatKz(totalRecebidoSala)}
+            </p>
           </div>
           <div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-5">
-            <p className="text-xs font-semibold uppercase tracking-wider text-red-400">Em atraso (AOA)</p>
-            <p className="mt-2 text-2xl font-bold text-red-300">{formatKz(totalDebtAgg._sum.amount || 0)}</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-red-400">Em Atraso</p>
+            <p className="mt-2 text-2xl font-bold text-red-300">{formatKz(totalAtrasado)}</p>
+          </div>
+          <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-5">
+            <p className="text-xs font-semibold uppercase tracking-wider text-amber-400">Sala — Pendente</p>
+            <p className="mt-2 text-2xl font-bold text-amber-300">{formatKz(totalPendenteSala)}</p>
+          </div>
+          <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-5">
+            <p className="text-xs font-semibold uppercase tracking-wider text-blue-400">Leads Perdidos</p>
+            <p className="mt-2 text-2xl font-bold text-blue-300">{lostLeads}</p>
           </div>
         </div>
 
