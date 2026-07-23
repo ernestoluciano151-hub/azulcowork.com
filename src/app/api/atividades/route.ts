@@ -4,7 +4,6 @@ import { getSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-// Benefícios mensais por empresa
 const SALA_LIMIT_MINUTES = 120; // 2 horas
 const PRINT_LIMIT        = 30;  // 30 impressões
 
@@ -13,26 +12,28 @@ export async function GET(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
-  const monthParam = searchParams.get("month"); // YYYY-MM, default = mês actual
-  const now = new Date();
+  const monthParam = searchParams.get("month");
+  const now   = new Date();
   const year  = monthParam ? parseInt(monthParam.split("-")[0]) : now.getFullYear();
   const month = monthParam ? parseInt(monthParam.split("-")[1]) : now.getMonth() + 1;
 
   const monthStart = new Date(year, month - 1, 1);
   const monthEnd   = new Date(year, month, 0, 23, 59, 59, 999);
 
-  // Empresas activas
+  // Todas as empresas com contrato activo (campo correcto: contractStatus)
   const companies = await prisma.company.findMany({
-    where: { status: "ATIVO" },
-    select: { id: true, name: true, plan: true },
+    where: { contractStatus: "ATIVO" },
+    select: { id: true, name: true, planType: true },
     orderBy: { name: "asc" },
   });
 
-  // Horas de sala usadas por empresa (reservas confirmadas/concluídas no mês)
+  const ids = companies.map(c => c.id);
+
+  // Horas de sala usadas (reservas confirmadas/concluídas no mês)
   const reservations = await prisma.reservation.findMany({
     where: {
-      companyId: { in: companies.map(c => c.id) },
-      status: { in: ["CONFIRMED", "COMPLETED"] },
+      companyId: { in: ids },
+      status:    { in: ["CONFIRMED", "COMPLETED"] },
       startTime: { gte: monthStart, lte: monthEnd },
     },
     select: { companyId: true, startTime: true, endTime: true },
@@ -41,15 +42,15 @@ export async function GET(req: NextRequest) {
   // Impressões registadas via Timeline (type = IMPRESSAO)
   const prints = await prisma.timeline.findMany({
     where: {
-      companyId: { in: companies.map(c => c.id) },
-      type: "IMPRESSAO",
+      companyId: { in: ids },
+      type:      "IMPRESSAO",
       createdAt: { gte: monthStart, lte: monthEnd },
     },
     select: { companyId: true, amount: true },
   });
 
-  // Agregar por empresa
-  const salaMap: Record<string, number>  = {};
+  // Agregar
+  const salaMap:  Record<string, number> = {};
   const printMap: Record<string, number> = {};
 
   for (const r of reservations) {
@@ -63,13 +64,13 @@ export async function GET(req: NextRequest) {
   }
 
   const data = companies.map(c => ({
-    id:            c.id,
-    name:          c.name,
-    plan:          c.plan,
-    salaMinutes:   Math.round(salaMap[c.id] || 0),
-    salaLimit:     SALA_LIMIT_MINUTES,
-    prints:        Math.round(printMap[c.id] || 0),
-    printLimit:    PRINT_LIMIT,
+    id:          c.id,
+    name:        c.name,
+    plan:        c.planType,
+    salaMinutes: Math.round(salaMap[c.id] || 0),
+    salaLimit:   SALA_LIMIT_MINUTES,
+    prints:      Math.round(printMap[c.id] || 0),
+    printLimit:  PRINT_LIMIT,
   }));
 
   return NextResponse.json({ data, month: `${year}-${String(month).padStart(2, "0")}` });
