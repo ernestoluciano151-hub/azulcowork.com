@@ -34,6 +34,12 @@ END $$;
 CREATE INDEX IF NOT EXISTS "RoomBookingLead_companyId_idx" ON "RoomBookingLead"("companyId");
 
 -- 3. Timeline: FK → Lead
+-- First, NULL out any orphaned leadId values (leadId pointing to deleted Leads)
+UPDATE "Timeline"
+SET "leadId" = NULL
+WHERE "leadId" IS NOT NULL
+  AND "leadId" NOT IN (SELECT "id" FROM "Lead");
+
 DO $$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint WHERE conname = 'Timeline_leadId_fkey'
