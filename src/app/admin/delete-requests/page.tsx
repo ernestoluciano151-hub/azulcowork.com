@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import Sidebar from "@/components/admin/Sidebar";
+import AdminLayout from "@/components/admin/AdminLayout";
 import { format } from "date-fns";
 
 type DeleteRequest = {
@@ -58,9 +58,7 @@ export default function DeleteRequestsPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-ink">
-      <Sidebar />
-      <main className="flex-1 p-8">
+    <AdminLayout>
         <div className="mb-6">
           <h1 className="font-display text-2xl font-bold text-paper">Pedidos de Aprovação</h1>
           <p className="mt-1 text-sm text-mist">{requests.length} pedido(s) pendente(s) de eliminação.</p>
@@ -137,7 +135,6 @@ export default function DeleteRequestsPage() {
             ))}
           </div>
         )}
-      </main>
-    </div>
+    </AdminLayout>
   );
 }

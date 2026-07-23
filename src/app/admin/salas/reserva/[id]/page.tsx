@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import Sidebar from "@/components/admin/Sidebar";
+import AdminLayout from "@/components/admin/AdminLayout";
 import { formatKz } from "@/lib/currency";
 import { format } from "date-fns";
 import { pt } from "date-fns/locale";
@@ -104,24 +104,22 @@ export default function ReservationDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex h-screen bg-[#0B1220]">
-        <Sidebar />
-        <div className="flex flex-1 items-center justify-center">
+      <AdminLayout>
+        <div className="flex flex-1 items-center justify-center h-full">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#2F6FED] border-t-transparent" />
         </div>
-      </div>
+      </AdminLayout>
     );
   }
 
   if (error || !res) {
     return (
-      <div className="flex h-screen bg-[#0B1220]">
-        <Sidebar />
-        <div className="flex flex-1 items-center justify-center flex-col gap-4">
+      <AdminLayout>
+        <div className="flex flex-1 items-center justify-center flex-col gap-4 h-full">
           <p className="text-red-400">{error || "Reserva não encontrada."}</p>
           <button onClick={() => router.back()} className="text-[#5C8FFF] hover:underline text-sm">← Voltar</button>
         </div>
-      </div>
+      </AdminLayout>
     );
   }
 
@@ -129,16 +127,12 @@ export default function ReservationDetailPage() {
   const pct        = res.totalAmount > 0 ? Math.min(100, (res.amountPaid / res.totalAmount) * 100) : 0;
 
   return (
-    <div className="flex min-h-screen bg-[#0B1220]">
-      <Sidebar />
-
+    <AdminLayout className="px-6 py-8">
       {toast && (
         <div className={`fixed right-6 top-6 z-50 rounded-xl px-5 py-3 text-sm font-medium shadow-lg ${toast.ok ? "bg-emerald-600" : "bg-red-600"} text-white`}>
           {toast.msg}
         </div>
       )}
-
-      <main className="flex-1 overflow-y-auto px-6 py-8">
         <div className="max-w-5xl mx-auto space-y-6">
 
           {/* ── Header ── */}
@@ -373,8 +367,7 @@ export default function ReservationDetailPage() {
             </div>
           </div>
         </div>
-      </main>
-    </div>
+    </AdminLayout>
   );
 }
 

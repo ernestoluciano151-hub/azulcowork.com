@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import Sidebar from "@/components/admin/Sidebar";
+import AdminLayout from "@/components/admin/AdminLayout";
 import { formatKz } from "@/lib/currency";
 import { format } from "date-fns";
 import DeleteRequestModal from "@/components/admin/DeleteRequestModal";
@@ -98,9 +98,7 @@ export default function PagamentosPage() {
   }, [router]);
 
   return (
-    <div className="flex min-h-screen bg-[#0B1220]">
-      <Sidebar />
-      <main className="flex-1 overflow-auto p-6">
+    <AdminLayout>
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="font-display text-2xl font-bold text-[#F5F7FA]">
@@ -132,8 +130,7 @@ export default function PagamentosPage() {
         {activeTab === "Faturas" && <FaturasTab />}
         {activeTab === "Despesas" && <DespesasTab />}
         {activeTab === "Relatórios" && <RelatoriosTab />}
-      </main>
-    </div>
+    </AdminLayout>
   );
 }
 

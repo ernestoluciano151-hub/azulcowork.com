@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import Sidebar from "@/components/admin/Sidebar";
+import AdminLayout from "@/components/admin/AdminLayout";
 import { formatKz } from "@/lib/currency";
 
 type Plan = { id: string; name: string };
@@ -99,9 +99,7 @@ export default function SalaReportsPage() {
   const maxC = Math.max(...(data?.topClients.map(c => c.revenue) ?? [0]), 1);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#0B1220] text-[#F5F7FA]">
-      <Sidebar />
-      <main className="flex-1 overflow-y-auto p-6">
+    <AdminLayout>
         {/* Cabeçalho */}
         <div className="mb-6 flex items-center justify-between">
           <div>
@@ -296,7 +294,6 @@ export default function SalaReportsPage() {
             )}
           </div>
         )}
-      </main>
-    </div>
+    </AdminLayout>
   );
 }

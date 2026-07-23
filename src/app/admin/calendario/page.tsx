@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import Sidebar from "@/components/admin/Sidebar";
+import AdminLayout from "@/components/admin/AdminLayout";
 import ReservationModal, { Reservation, MeetingPlan } from "@/components/admin/ReservationModal";
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, isSameMonth, isSameDay, addMonths, subMonths } from "date-fns";
 import { pt } from "date-fns/locale";
@@ -84,9 +84,7 @@ export default function CalendarioPage() {
   const dayReservations = selectedDay ? getReservationsForDay(selectedDay) : [];
 
   return (
-    <div className="flex min-h-screen bg-ink">
-      <Sidebar />
-      <main className="flex-1 p-8">
+    <AdminLayout>
         <div className="flex items-center justify-between">
           <div>
             <h1 className="font-display text-2xl font-bold text-paper">Calendário</h1>
@@ -254,7 +252,6 @@ export default function CalendarioPage() {
             )}
           </div>
         )}
-      </main>
 
       {selectedReservation && (
         <ReservationModal
@@ -271,6 +268,6 @@ export default function CalendarioPage() {
           onSaved={fetchData}
         />
       )}
-    </div>
+    </AdminLayout>
   );
 }

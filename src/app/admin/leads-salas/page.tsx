@@ -1,7 +1,7 @@
 "use client";
 export const dynamic = "force-dynamic";
 import { useEffect, useState, useCallback } from "react";
-import Sidebar from "@/components/admin/Sidebar";
+import AdminLayout from "@/components/admin/AdminLayout";
 import DeleteRequestModal from "@/components/admin/DeleteRequestModal";
 import ReservationModal, { MeetingPlan } from "@/components/admin/ReservationModal";
 import { format } from "date-fns";
@@ -159,9 +159,7 @@ export default function LeadsSalasPage() {
   const lbl = "block text-xs font-medium text-mist mb-1";
 
   return (
-    <div className="flex min-h-screen bg-ink">
-      <Sidebar />
-      <main className="flex-1 p-8">
+    <AdminLayout>
 
         {/* Toast */}
         {toast && (
@@ -296,7 +294,6 @@ export default function LeadsSalasPage() {
             </tbody>
           </table>
         </div>
-      </main>
 
       {/* Modal: Adicionar lead manualmente */}
       {showAdd && (
@@ -483,6 +480,6 @@ export default function LeadsSalasPage() {
           </div>
         </div>
       )}
-    </div>
+    </AdminLayout>
   );
 }

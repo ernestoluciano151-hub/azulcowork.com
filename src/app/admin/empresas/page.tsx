@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import Sidebar from "@/components/admin/Sidebar";
+import AdminLayout from "@/components/admin/AdminLayout";
 import CompanyModal, { Company } from "@/components/admin/CompanyModal";
 import DeleteRequestModal from "@/components/admin/DeleteRequestModal";
 import { format } from "date-fns";
@@ -51,9 +51,7 @@ export default function EmpresasPage() {
   }, [fetchCompanies]);
 
   return (
-    <div className="flex min-h-screen bg-ink">
-      <Sidebar />
-      <main className="flex-1 p-8">
+    <AdminLayout>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="font-display text-2xl font-bold text-paper">Empresas</h1>
@@ -187,7 +185,6 @@ export default function EmpresasPage() {
             </tbody>
           </table>
         </div>
-      </main>
 
       {selectedCompany && (
         <CompanyModal
@@ -212,6 +209,6 @@ export default function EmpresasPage() {
           onSuccess={() => { setDeleteModal(null); fetchCompanies(); }}
         />
       )}
-    </div>
+    </AdminLayout>
   );
 }

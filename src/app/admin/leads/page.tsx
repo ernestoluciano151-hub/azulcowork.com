@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import Sidebar from "@/components/admin/Sidebar";
+import AdminLayout from "@/components/admin/AdminLayout";
 import LeadModal, { Lead } from "@/components/admin/LeadModal";
 import DeleteRequestModal from "@/components/admin/DeleteRequestModal";
 import { format } from "date-fns";
@@ -85,9 +85,7 @@ export default function LeadsPage() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
-    <div className="flex min-h-screen bg-ink">
-      <Sidebar />
-      <main className="flex-1 p-8">
+    <AdminLayout>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="font-display text-2xl font-bold text-paper">Leads</h1>
@@ -261,7 +259,6 @@ export default function LeadsPage() {
             </button>
           </div>
         </div>
-      </main>
 
       {editingLead && (
         <LeadModal
@@ -288,6 +285,6 @@ export default function LeadsPage() {
           onSuccess={() => { setDeleteModal(null); fetchLeads(); }}
         />
       )}
-    </div>
+    </AdminLayout>
   );
 }

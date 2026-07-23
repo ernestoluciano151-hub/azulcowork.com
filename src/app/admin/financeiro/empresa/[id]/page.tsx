@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Sidebar from "@/components/admin/Sidebar";
+import AdminLayout from "@/components/admin/AdminLayout";
 import EmployeesPanel from "@/components/admin/EmployeesPanel";
 import { formatKz } from "@/lib/currency";
 import { format } from "date-fns";
@@ -147,30 +147,22 @@ export default function CompanyFinancePage() {
   }
 
   if (loading) return (
-    <div className="flex min-h-screen bg-ink">
-      <Sidebar />
-      <main className="flex-1 p-8 flex items-center justify-center">
+    <AdminLayout>
         <p className="text-[#94A3B8]">A carregar...</p>
-      </main>
-    </div>
+  </AdminLayout>
   );
 
   if (!data) return (
-    <div className="flex min-h-screen bg-ink">
-      <Sidebar />
-      <main className="flex-1 p-8 flex items-center justify-center">
+    <AdminLayout>
         <p className="text-red-400">Empresa não encontrada.</p>
-      </main>
-    </div>
+  </AdminLayout>
   );
 
   const { company, months, totalContracted, totalPaid, balance, financialStatus } = data;
   const pct = totalContracted > 0 ? Math.min(100, (totalPaid / totalContracted) * 100) : 0;
 
   return (
-    <div className="flex min-h-screen bg-ink">
-      <Sidebar />
-      <main className="flex-1 p-8 space-y-6 overflow-y-auto">
+    <AdminLayout>
 
         {/* Toast */}
         {toast && (
@@ -494,7 +486,6 @@ export default function CompanyFinancePage() {
             </div>
           </div>
         )}
-      </main>
-    </div>
+    </AdminLayout>
   );
 }

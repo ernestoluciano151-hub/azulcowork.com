@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Sidebar from "@/components/admin/Sidebar";
+import AdminLayout from "@/components/admin/AdminLayout";
 
 type User = {
   id: string;
@@ -136,16 +136,12 @@ export default function SettingsPage() {
   }
 
   if (!me) return (
-    <div className="flex min-h-screen bg-ink">
-      <Sidebar />
-      <main className="flex-1 p-8"><p className="text-mist text-sm">A verificar permissões...</p></main>
-    </div>
+    <AdminLayout><p className="text-mist text-sm">A verificar permissões...</p>
+  </AdminLayout>
   );
 
   return (
-    <div className="flex min-h-screen bg-ink">
-      <Sidebar />
-      <main className="flex-1 p-8">
+    <AdminLayout>
         <h1 className="font-display text-2xl font-bold text-paper">Definições</h1>
         <p className="mt-1 text-sm text-mist">Gerir a conta e os utilizadores do sistema.</p>
 
@@ -299,7 +295,6 @@ export default function SettingsPage() {
             </div>
           </div>
         )}
-      </main>
 
       {/* Add User Modal */}
       {showAddUser && (
@@ -364,6 +359,6 @@ export default function SettingsPage() {
           </div>
         </div>
       )}
-    </div>
+    </AdminLayout>
   );
 }

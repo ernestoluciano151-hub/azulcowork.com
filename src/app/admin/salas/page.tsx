@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import Sidebar from "@/components/admin/Sidebar";
+import AdminLayout from "@/components/admin/AdminLayout";
 import ReservationModal from "@/components/admin/ReservationModal";
 import { format } from "date-fns";
 import { pt } from "date-fns/locale";
@@ -291,9 +291,7 @@ export default function SalasPage() {
   const pendingPayment  = reservations.filter(r => r.paymentStatus === "PENDENTE" && r.status !== "CANCELADA");
 
   return (
-    <div className="flex min-h-screen bg-[#0B1220]">
-      <Sidebar />
-      <main className="flex-1 p-8 overflow-x-hidden">
+    <AdminLayout>
 
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
@@ -597,7 +595,6 @@ export default function SalasPage() {
           })}
         </div>
 
-      </main>
 
       {editingRes && (
         <ReservationModal reservation={editingRes} plans={plans}
@@ -611,6 +608,6 @@ export default function SalasPage() {
         <ReceivePaymentModal reservation={receivingPayment}
           onClose={() => setReceivingPayment(null)} onSaved={fetchAll} />
       )}
-    </div>
+    </AdminLayout>
   );
 }
