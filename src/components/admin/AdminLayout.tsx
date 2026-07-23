@@ -1,6 +1,7 @@
 "use client";
 
 import Sidebar from "./Sidebar";
+import TopBar from "./TopBar";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -10,15 +11,18 @@ interface AdminLayoutProps {
 
 /**
  * AdminLayout — wrapper reutilizável para todas as páginas admin.
- * Garante sidebar, fundo e responsividade consistentes em todo o sistema.
+ * Layout fixo: sidebar à esquerda, topbar no topo, conteúdo scroll independente.
  */
 export default function AdminLayout({ children, className = "" }: AdminLayoutProps) {
   return (
-    <div className="flex min-h-screen bg-ink">
+    <div className="flex h-screen overflow-hidden bg-ink">
       <Sidebar />
-      <main className={`flex-1 overflow-auto p-8 ${className}`}>
-        {children}
-      </main>
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <TopBar />
+        <main className={`flex-1 overflow-y-auto p-8 ${className}`}>
+          {children}
+        </main>
+      </div>
     </div>
   );
 }

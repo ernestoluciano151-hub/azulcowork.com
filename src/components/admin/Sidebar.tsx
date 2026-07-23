@@ -4,22 +4,22 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import GlobalSearch from "./GlobalSearch";
-import NotificationBell from "./NotificationBell";
 
 const links = [
-  { href: "/admin/dashboard",      label: "Dashboard",      icon: "📊", adminOnly: false },
+  { href: "/admin/dashboard",            label: "Dashboard",       icon: "📊", adminOnly: false },
   { href: "/admin/leads",                label: "Leads",           icon: "👥", adminOnly: false },
   { href: "/admin/leads/convertidos",    label: "Convertidos",     icon: "✅", adminOnly: false },
   { href: "/admin/leads-salas",          label: "Leads Salas",     icon: "🏨", adminOnly: false },
-  { href: "/admin/empresas",       label: "Empresas",       icon: "🏢", adminOnly: false },
-  { href: "/admin/pagamentos",     label: "Pagamentos",     icon: "💳", adminOnly: false },
-  { href: "/admin/salas",             label: "Sala de Reunião",  icon: "🚪", adminOnly: false },
-  { href: "/admin/salas/relatorios", label: "Rel. Salas",       icon: "📊", adminOnly: false },
-  { href: "/admin/calendario",       label: "Calendário",       icon: "📅", adminOnly: false },
-  { href: "/admin/delete-requests",        label: "Aprovações",      icon: "🗑️", adminOnly: true, badge: true },
-  { href: "/admin/configuracoes/precos",   label: "Preços da Sala",  icon: "💰", adminOnly: true },
-  { href: "/admin/configuracoes/sala",     label: "Config. Sala",    icon: "⚙️", adminOnly: true },
-  { href: "/admin/settings",               label: "Definições",      icon: "🔧", adminOnly: true },
+  { href: "/admin/empresas",             label: "Empresas",        icon: "🏢", adminOnly: false },
+  { href: "/admin/atividades",           label: "Atividades",      icon: "📋", adminOnly: false },
+  { href: "/admin/pagamentos",           label: "Pagamentos",      icon: "💳", adminOnly: false },
+  { href: "/admin/salas",                label: "Sala de Reunião", icon: "🚪", adminOnly: false },
+  { href: "/admin/salas/relatorios",     label: "Rel. Salas",      icon: "📊", adminOnly: false },
+  { href: "/admin/calendario",           label: "Calendário",      icon: "📅", adminOnly: false },
+  { href: "/admin/delete-requests",      label: "Aprovações",      icon: "🗑️", adminOnly: true, badge: true },
+  { href: "/admin/configuracoes/precos", label: "Preços da Sala",  icon: "💰", adminOnly: true },
+  { href: "/admin/configuracoes/sala",   label: "Config. Sala",    icon: "⚙️", adminOnly: true },
+  { href: "/admin/settings",             label: "Definições",      icon: "🔧", adminOnly: true },
 ];
 
 export default function Sidebar() {
@@ -56,7 +56,7 @@ export default function Sidebar() {
         CRM <span className="text-azul-glow">·</span> Leads
       </div>
 
-      <nav className="mt-8 flex-1 space-y-1">
+      <nav className="mt-8 flex-1 space-y-1 overflow-y-auto">
         {visibleLinks.map((link) => (
           <Link
             key={link.href}
@@ -81,15 +81,12 @@ export default function Sidebar() {
 
       <GlobalSearch />
 
-      <div className="mt-3 flex items-center justify-between">
-        <button
-          onClick={logout}
-          className="focus-ring flex-1 rounded-lg border border-white/10 px-3 py-2.5 text-sm text-mist transition hover:bg-white/5 hover:text-paper"
-        >
-          Sair
-        </button>
-        <NotificationBell />
-      </div>
+      <button
+        onClick={logout}
+        className="focus-ring mt-3 w-full rounded-lg border border-white/10 px-3 py-2.5 text-sm text-mist transition hover:bg-white/5 hover:text-paper"
+      >
+        Sair
+      </button>
     </aside>
   );
 }
