@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
-import Sidebar from "@/components/admin/Sidebar";
+import AdminLayout from "@/components/admin/AdminLayout";
 import StatsCard from "@/components/admin/StatsCard";
 import LeadsChart from "@/components/admin/LeadsChart";
 import Link from "next/link";
@@ -96,10 +96,8 @@ export default async function DashboardPage() {
   const totalPendenteSala = salaPendenteAgg._sum.totalAmount || 0;
 
   return (
-    <div className="flex min-h-screen bg-ink">
-      <Sidebar />
-      <main className="flex-1 p-8">
-        <div className="flex flex-wrap items-start justify-between gap-4">
+    <AdminLayout>
+      <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="font-display text-2xl font-bold text-paper">Dashboard</h1>
             <p className="mt-1 text-sm text-mist">Visão geral do CRM.</p>
@@ -227,7 +225,6 @@ export default async function DashboardPage() {
             </ul>
           )}
         </div>
-      </main>
-    </div>
+    </AdminLayout>
   );
 }

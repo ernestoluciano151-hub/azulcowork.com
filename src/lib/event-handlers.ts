@@ -18,6 +18,20 @@ export function registerEventHandlers() {
   initialized = true;
 
   // ──────────────────────────────────────────────────────────
+  // LEAD CRIADO → notificação
+  // ──────────────────────────────────────────────────────────
+  subscribe("lead.created", async ({ leadId, firstName, lastName, source }) => {
+    await createNotification({
+      type: "INFO",
+      title: "Novo Lead",
+      message: `${firstName} ${lastName} pediu uma visita (${source === "landing-page" ? "site" : source}).`,
+      entityId: leadId,
+      entityType: "Lead",
+      priority: "NORMAL",
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────
   // LEAD CONVERTIDO → criar entrada no histórico + notificação
   // ──────────────────────────────────────────────────────────
   subscribe("lead.converted", async ({ leadId, companyId, convertedBy }) => {

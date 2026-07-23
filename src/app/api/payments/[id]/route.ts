@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { recordFinancialHistory } from "@/lib/finance";
+import { publish } from "@/lib/event-bus";
+import "@/lib/bootstrap";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +42,31 @@ export async function PATCH(
       reference:   payment.id,
       createdBy:   session.name || session.email,
     });
+  }
+
+  // Auto-notificações via Event Bus
+  if (data.status === "PAGO" && before?.status !== "PAGO") {
+    publish("payment.received", {
+      paymentId:  payment.id,
+      companyId:  payment.companyId ?? undefined,
+      amount:     payment.amount,
+      method:     payment.paymentMethod ?? undefined,
+      paidDate:   payment.paidDate ?? new Date(),
+      receivedBy: session.name || session.email,
+    }).catch(() => {});
+  }
+
+  if (data.status === "ATRASADO" && before?.status !== "ATRASADO") {
+    const daysOverdue = Math.max(0, Math.floor(
+      (Date.now() - new Date(payment.dueDate).getTime()) / 86400000
+    ));
+    publish("payment.overdue", {
+      paymentId:   payment.id,
+      companyId:   payment.companyId ?? undefined,
+      amount:      payment.amount,
+      dueDate:     payment.dueDate,
+      daysOverdue,
+    }).catch(() => {});
   }
 
   return NextResponse.json(payment);
