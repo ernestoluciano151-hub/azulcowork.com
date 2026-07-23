@@ -4,8 +4,8 @@ import { getSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-const SALA_LIMIT_MINUTES = 120; // 2 horas/mês incluídas no plano
-const PRINT_LIMIT        = 30;  // 30 impressões/mês incluídas no plano
+const SALA_LIMIT_MINUTES = 120;
+const PRINT_LIMIT        = 30;
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -20,7 +20,6 @@ export async function GET(req: NextRequest) {
   const monthStart = new Date(year, month - 1, 1);
   const monthEnd   = new Date(year, month, 0, 23, 59, 59, 999);
 
-  // Todas as empresas (exceto encerradas)
   const companies = await prisma.company.findMany({
     where: { contractStatus: { not: "ENCERRADO" } },
     select: { id: true, name: true, planType: true, contractStatus: true },
@@ -33,7 +32,7 @@ export async function GET(req: NextRequest) {
 
   const ids = companies.map(c => c.id);
 
-  // Horas de sala usadas — campos correctos: startDatetime/endDatetime, status PT
+  // Reservas confirmadas no mês (horas de sala automáticas)
   const reservations = await prisma.reservation.findMany({
     where: {
       companyId:     { in: ids },
@@ -43,8 +42,18 @@ export async function GET(req: NextRequest) {
     select: { companyId: true, startDatetime: true, endDatetime: true },
   });
 
-  // Impressões registadas via Timeline (type = IMPRESSAO)
-  const prints = await prisma.timeline.findMany({
+  // Sessões de sala manuais (Timeline type = SESSAO_SALA, amount = minutos)
+  const salaEntries = await prisma.timeline.findMany({
+    where: {
+      companyId: { in: ids },
+      type:      "SESSAO_SALA",
+      createdAt: { gte: monthStart, lte: monthEnd },
+    },
+    select: { companyId: true, amount: true },
+  });
+
+  // Impressões manuais (Timeline type = IMPRESSAO, amount = nº impressões)
+  const printEntries = await prisma.timeline.findMany({
     where: {
       companyId: { in: ids },
       type:      "IMPRESSAO",
@@ -53,7 +62,6 @@ export async function GET(req: NextRequest) {
     select: { companyId: true, amount: true },
   });
 
-  // Agregar por empresa
   const salaMap:  Record<string, number> = {};
   const printMap: Record<string, number> = {};
 
@@ -62,7 +70,11 @@ export async function GET(req: NextRequest) {
     const mins = (new Date(r.endDatetime).getTime() - new Date(r.startDatetime).getTime()) / 60000;
     salaMap[r.companyId] = (salaMap[r.companyId] || 0) + mins;
   }
-  for (const p of prints) {
+  for (const e of salaEntries) {
+    if (!e.companyId) continue;
+    salaMap[e.companyId] = (salaMap[e.companyId] || 0) + (e.amount || 0);
+  }
+  for (const p of printEntries) {
     if (!p.companyId) continue;
     printMap[p.companyId] = (printMap[p.companyId] || 0) + (p.amount || 0);
   }
@@ -81,23 +93,32 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ data, month: `${year}-${String(month).padStart(2, "0")}` });
 }
 
-// POST — registar impressões manualmente
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
-  const { companyId, count, notes } = await req.json();
-  if (!companyId || !count || count < 1) {
-    return NextResponse.json({ error: "companyId e count obrigatórios" }, { status: 400 });
+  const { companyId, type, amount, notes } = await req.json();
+  if (!companyId || !type || !amount || amount < 1) {
+    return NextResponse.json({ error: "companyId, type e amount obrigatórios" }, { status: 400 });
   }
+
+  const isSala   = type === "SESSAO_SALA";
+  const isPrint  = type === "IMPRESSAO";
+  if (!isSala && !isPrint) {
+    return NextResponse.json({ error: "type inválido" }, { status: 400 });
+  }
+
+  const title = isSala
+    ? `Sessão sala: ${amount >= 60 ? `${Math.floor(amount/60)}h${amount%60>0?` ${amount%60}min`:""}` : `${amount}min`}`
+    : `${amount} impressão(ões) registada(s)`;
 
   const entry = await prisma.timeline.create({
     data: {
       companyId,
-      type:        "IMPRESSAO",
-      title:       `${count} impressão(ões) registada(s)`,
+      type,
+      title,
       description: notes || null,
-      amount:      count,
+      amount,
       createdBy:   session.name || session.email,
     },
   });
