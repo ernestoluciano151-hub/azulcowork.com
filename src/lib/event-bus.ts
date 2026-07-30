@@ -272,6 +272,172 @@ export type AppEventMap = {
     before?: unknown;
     after?: unknown;
   };
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CRM — Volume 01 (eventos com prefixo crm.)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  "crm.company.created": {
+    companyId: string; name: string; pipelineStage: string;
+    assignedToId?: string; actorId?: string; actorName?: string; timestamp: string;
+  };
+  "crm.company.updated": {
+    companyId: string; name: string; changes: Record<string, unknown>;
+    actorId?: string; timestamp: string;
+  };
+  "crm.company.statusChanged": {
+    companyId: string; name: string; previousStatus: string; newStatus: string;
+    actorId?: string; timestamp: string;
+  };
+  "crm.company.ownerChanged": {
+    companyId: string; name: string; previousOwnerId?: string; newOwnerId: string;
+    actorId?: string; timestamp: string;
+  };
+  "crm.company.merged": {
+    baseCompanyId: string; mergedCompanyId: string; mergedCompanyName: string;
+    actorId?: string; timestamp: string;
+  };
+  "crm.company.deleted": {
+    companyId: string; name: string; actorId?: string; timestamp: string;
+  };
+  "crm.company.stageChanged": {
+    companyId: string; name: string; previousStage: string; newStage: string;
+    actorId?: string; timestamp: string;
+  };
+  "crm.deal.created": {
+    dealId: string; companyId: string; companyName: string; title: string;
+    stage: string; value?: number; currency: string; actorId?: string; timestamp: string;
+  };
+  "crm.deal.stageChanged": {
+    dealId: string; companyId: string; title: string; previousStage: string;
+    newStage: string; actorId?: string; timestamp: string;
+  };
+  "crm.deal.won": {
+    dealId: string; companyId: string; companyName: string; title: string;
+    value?: number; currency: string; closedBy?: string; cycleTimeDays?: number; timestamp: string;
+  };
+  "crm.deal.lost": {
+    dealId: string; companyId: string; companyName: string; title: string;
+    lostReason: string; value?: number; actorId?: string; timestamp: string;
+  };
+  "crm.activity.created": {
+    activityId: string; companyId: string; type: string; direction: string;
+    title: string; actorId?: string; timestamp: string;
+  };
+  "crm.task.created": {
+    taskId: string; companyId: string; title: string; priority: string;
+    dueDate?: string; assignedToId?: string; actorId?: string; timestamp: string;
+  };
+  "crm.task.completed": {
+    taskId: string; companyId: string; title: string; actorId?: string; timestamp: string;
+  };
+  "crm.task.overdue": {
+    taskId: string; companyId: string; title: string; dueDate: string;
+    assignedToId?: string; hoursOverdue: number; timestamp: string;
+  };
+  "crm.contact.created": {
+    contactId: string; companyId: string; firstName: string; lastName: string;
+    actorId?: string; timestamp: string;
+  };
+  "crm.contact.updated": {
+    contactId: string; companyId: string; changes: Record<string, unknown>;
+    actorId?: string; timestamp: string;
+  };
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ERP — Volume 02 (eventos com prefixo erp.)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // ── Contratos ──────────────────────────────────────────────────────────────
+  "erp.contract.created": {
+    contractId: string; companyId: string; companyName: string;
+    planType: string; monthlyValue: number; actorId: string; timestamp: string;
+  };
+  "erp.contract.activated": {
+    contractId: string; companyId: string; companyName: string;
+    schedulesGenerated: number; startDate: string; endDate?: string;
+    actorId: string; timestamp: string;
+  };
+  "erp.contract.suspended": {
+    contractId: string; companyId: string; reason?: string;
+    actorId: string; timestamp: string;
+  };
+  "erp.contract.reactivated": {
+    contractId: string; companyId: string; actorId: string; timestamp: string;
+  };
+  "erp.contract.terminated": {
+    contractId: string; companyId: string; companyName: string;
+    reason?: string; scheduledCancelled: number;
+    actorId: string; timestamp: string;
+  };
+  "erp.contract.expired": {
+    contractId: string; companyId: string; endDate: string; timestamp: string;
+  };
+
+  // ── Faturas ────────────────────────────────────────────────────────────────
+  "erp.invoice.created": {
+    invoiceId: string; companyId?: string; type: string;
+    total: number; actorId: string; timestamp: string;
+  };
+  "erp.invoice.issued": {
+    invoiceId: string; invoiceNumber: string; companyId?: string;
+    type: string; total: number; dueDate: string;
+    actorId: string; timestamp: string;
+  };
+  "erp.invoice.sent": {
+    invoiceId: string; invoiceNumber: string; sentTo: string;
+    companyId?: string; timestamp: string;
+  };
+  "erp.invoice.paid": {
+    invoiceId: string; invoiceNumber: string; companyId?: string;
+    amount: number; paidAt: string; timestamp: string;
+  };
+  "erp.invoice.overdue": {
+    invoiceId: string; invoiceNumber: string; companyId?: string;
+    amount: number; dueDate: string; daysOverdue: number; timestamp: string;
+  };
+  "erp.invoice.voided": {
+    invoiceId: string; invoiceNumber: string; companyId?: string;
+    reason: string; actorId: string; timestamp: string;
+  };
+
+  // ── Pagamentos ─────────────────────────────────────────────────────────────
+  "erp.payment.confirmed": {
+    paymentId: string; invoiceId?: string; companyId?: string;
+    amount: number; method: string; receiptNumber: string;
+    actorId: string; timestamp: string;
+  };
+  "erp.payment.refunded": {
+    paymentId: string; invoiceId?: string; companyId?: string;
+    amount: number; actorId: string; timestamp: string;
+  };
+
+  // ── Despesas ───────────────────────────────────────────────────────────────
+  "erp.expense.created": {
+    expenseId: string; category: string; amount: number;
+    actorId: string; timestamp: string;
+  };
+  "erp.expense.approved": {
+    expenseId: string; amount: number; actorId: string; timestamp: string;
+  };
+  "erp.expense.paid": {
+    expenseId: string; amount: number; actorId: string; timestamp: string;
+  };
+  "erp.expense.rejected": {
+    expenseId: string; reason: string; actorId: string; timestamp: string;
+  };
+  "erp.expense.cancelled": {
+    expenseId: string; actorId: string; timestamp: string;
+  };
+
+  // ── Alertas ────────────────────────────────────────────────────────────────
+  "erp.alert.created": {
+    alertId: string; type: string; severity: string;
+    companyId?: string; message: string; timestamp: string;
+  };
+  "erp.alert.resolved": {
+    alertId: string; type: string; actorId: string; timestamp: string;
+  };
 };
 
 export type AppEventName = keyof AppEventMap;

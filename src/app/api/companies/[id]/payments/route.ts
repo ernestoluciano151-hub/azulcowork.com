@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { AdminRole } from "@prisma/client";
+import { requireRole } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+  const { error } = await requireRole(AdminRole.ADMIN, AdminRole.COMERCIAL, AdminRole.FINANCEIRO);
+  if (error) return error;
 
   const payments = await prisma.payment.findMany({
     where: { companyId: params.id },
@@ -17,8 +18,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 }
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+  const { error } = await requireRole(AdminRole.ADMIN, AdminRole.FINANCEIRO);
+  if (error) return error;
 
   const body = await req.json();
   const { dueDate, paidDate, amount, status, notes } = body;

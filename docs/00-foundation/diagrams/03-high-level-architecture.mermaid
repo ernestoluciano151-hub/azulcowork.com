@@ -1,0 +1,104 @@
+---
+title: VD Platform — Arquitectura de Alto Nível
+---
+graph TB
+  subgraph CLIENT["Clientes"]
+    Browser["Browser\n(Admin Panel)"]
+    PublicWeb["Browser\n(Landing Page)"]
+    FuturePortal["Browser\n(Portal Cliente)\n(Fase 2)"]
+  end
+
+  subgraph NEXTJS["Next.js 15 — App Router"]
+    subgraph PRESENTATION["Camada de Apresentação"]
+      AdminPages["Server Components\n/admin/**\n(RSC — Prisma directo)"]
+      PublicPages["Server Components\n/ e /salas\n(SSR — SEO)"]
+      ClientComponents["Client Components\n'use client'\n(state, forms, modais)"]
+    end
+
+    subgraph API["Camada de API (Route Handlers)"]
+      AuthAPI["/api/auth/**\n(login, logout)"]
+      LeadsAPI["/api/leads/**"]
+      CompaniesAPI["/api/companies/**"]
+      ReservationsAPI["/api/reservations/**"]
+      FinanceAPI["/api/invoices/**\n/api/payments/**"]
+      RoomsAPI["/api/rooms/**"]
+      OtherAPI["/api/notifications/**\n/api/search/**\n/api/upload/**"]
+    end
+
+    Middleware["middleware.ts\n(JWT verify + RBAC)"]
+
+    subgraph SERVICES["Camada de Serviços (Application Layer)"]
+      FinanceService["FinanceService\n(confirmPayment)"]
+      PricingService["PricingService\n(calculateTotal)"]
+      TimelineService["TimelineService\n(addTimeline)"]
+      NotifService["NotificationService"]
+    end
+
+    EventBus["Event Bus\n(publish / subscribe)\nDomain Events"]
+
+    subgraph INFRA["Camada de Infraestrutura"]
+      PrismaClient["Prisma Client\n(prisma.ts)"]
+      EmailClient["Nodemailer\n(email.ts)"]
+      CloudinarySDK["Cloudinary SDK\n(upload)"]
+      PDFLib["PDF Libraries\n(@react-pdf + pdfkit)"]
+    end
+  end
+
+  subgraph EXTERNAL["Serviços Externos"]
+    PostgreSQL[("PostgreSQL\n(Supabase)")]
+    CloudinaryCDN["Cloudinary CDN"]
+    SMTPServer["SMTP Server"]
+  end
+
+  %% Client → Next.js
+  Browser --> Middleware
+  PublicWeb --> PublicPages
+  FuturePortal --> Middleware
+
+  %% Middleware → Pages / API
+  Middleware --> AdminPages
+  Middleware --> AuthAPI
+  Middleware --> LeadsAPI
+  Middleware --> CompaniesAPI
+  Middleware --> ReservationsAPI
+  Middleware --> FinanceAPI
+  Middleware --> RoomsAPI
+  Middleware --> OtherAPI
+
+  %% Pages → Services / Prisma
+  AdminPages --> PrismaClient
+  ClientComponents --> LeadsAPI
+
+  %% API → Services
+  ReservationsAPI --> FinanceService
+  ReservationsAPI --> PricingService
+  LeadsAPI --> EventBus
+  CompaniesAPI --> EventBus
+  FinanceAPI --> EventBus
+
+  %% Services → Prisma + Events
+  FinanceService --> PrismaClient
+  FinanceService --> TimelineService
+  PricingService --> PrismaClient
+  TimelineService --> PrismaClient
+  NotifService --> PrismaClient
+
+  %% Event Bus → Handlers
+  EventBus --> NotifService
+  EventBus --> EmailClient
+  EventBus --> TimelineService
+
+  %% Infra → External
+  PrismaClient --> PostgreSQL
+  EmailClient --> SMTPServer
+  CloudinarySDK --> CloudinaryCDN
+
+  classDef layer fill:#1e293b,stroke:#3b82f6,color:#e2e8f0
+  classDef service fill:#1d4ed8,stroke:#93c5fd,color:#e2e8f0
+  classDef external fill:#374151,stroke:#6b7280,color:#d1d5db
+  classDef eventbus fill:#7c3aed,stroke:#c4b5fd,color:#e2e8f0
+
+  class PRESENTATION,API,SERVICES,INFRA layer
+  class FinanceService,PricingService,TimelineService,NotifService service
+  class PostgreSQL,CloudinaryCDN,SMTPServer external
+  class EventBus eventbus

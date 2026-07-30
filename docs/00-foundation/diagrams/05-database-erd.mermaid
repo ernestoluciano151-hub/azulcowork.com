@@ -1,0 +1,361 @@
+---
+title: VD Platform — Diagrama Entidade-Relação (Schema Actual)
+---
+erDiagram
+  Lead {
+    string id PK
+    string firstName
+    string lastName
+    string email
+    string whatsapp
+    datetime scheduledDate
+    string status
+    string source
+    string ip
+    string appointmentTime
+    string appointmentType
+    string company
+    string spaceType
+    string planName
+    datetime convertedAt
+    string convertedBy
+    string leadCompanyId FK
+    datetime createdAt
+    datetime updatedAt
+  }
+
+  Note {
+    string id PK
+    string content
+    string leadId FK
+    datetime createdAt
+  }
+
+  Company {
+    string id PK
+    string name
+    string nif
+    string responsible
+    string email
+    string whatsapp
+    string roomNumber
+    int numEmployees
+    string planType
+    datetime contractStart
+    datetime contractEnd
+    float rentAmount
+    string paymentFrequency
+    string contractStatus
+    string paymentStatus
+    string contractFileUrl
+    string notes
+    string leadSourceId
+    datetime createdAt
+    datetime updatedAt
+  }
+
+  Employee {
+    string id PK
+    string companyId FK
+    string name
+    string role
+    string department
+    string phone
+    string email
+    datetime startDate
+    string status
+    string notes
+    string photoUrl
+    datetime createdAt
+    datetime updatedAt
+  }
+
+  Payment {
+    string id PK
+    string companyId FK
+    string reservationId FK
+    datetime dueDate
+    datetime paidDate
+    float amount
+    string status
+    string notes
+    string invoiceId
+    string paymentMethod
+    string receiptUrl
+    string doc2Url
+    string category
+    string receiptNumber
+    string operationRef
+    float previousBalance
+    datetime createdAt
+  }
+
+  Invoice {
+    string id PK
+    string invoiceNumber UK
+    string companyId FK
+    string reservationId FK
+    string serviceType
+    float amount
+    float discount
+    float iva
+    float totalAmount
+    float amountPaid
+    float balance
+    float paidPercentage
+    datetime issueDate
+    datetime dueDate
+    string paymentMethod
+    string status
+    string receiptUrl
+    string notes
+    datetime createdAt
+    datetime updatedAt
+  }
+
+  InvoicePayment {
+    string id PK
+    string invoiceId FK
+    float amount
+    string paymentMethod
+    string operationRef
+    string receiptUrl
+    datetime paidDate
+    string createdBy
+    datetime createdAt
+  }
+
+  LiquidationNote {
+    string id PK
+    string noteNumber UK
+    string invoiceId
+    string reservationId
+    string companyId FK
+    float amountBilled
+    float amountPaid
+    float balance
+    string paymentMethod
+    string operationRef
+    string createdBy
+    datetime createdAt
+  }
+
+  FinancialHistory {
+    string id PK
+    string companyId FK
+    string type
+    string description
+    float amount
+    float runningBalance
+    string method
+    string reference
+    string createdBy
+    datetime createdAt
+  }
+
+  FinancialAudit {
+    string id PK
+    string action
+    string entityType
+    string entityId
+    string companyId
+    float amount
+    string method
+    string reference
+    string createdBy
+    string ip
+    datetime createdAt
+  }
+
+  MeetingPlan {
+    string id PK
+    string name
+    int maxPeople
+    string description
+    boolean coffeeBreakAvailable
+    boolean customPricingAllowed
+    int minHoursForCustom
+    float pricePerHour
+    float coffeeBreakPrice
+    float halfDayPrice
+    float fullDayPrice
+    float weekendPrice
+    float promoPrice
+    boolean active
+    datetime createdAt
+  }
+
+  Reservation {
+    string id PK
+    string reservationNumber
+    string eventName
+    string companyName
+    string companyId FK
+    string responsible
+    string email
+    string whatsapp
+    string planId FK
+    int participants
+    datetime startDatetime
+    datetime endDatetime
+    float totalHours
+    boolean coffeeBreak
+    string observations
+    string status
+    boolean isCustomPricing
+    string paymentOption
+    float amount
+    float discount
+    float iva
+    float totalAmount
+    string paymentStatus
+    string paymentMethod
+    string operationRef
+    string receiptUrl
+    float amountPaid
+    datetime paidDate
+    string paymentId
+    string invoiceId
+    string roomBookingLeadId
+    datetime createdAt
+    datetime updatedAt
+  }
+
+  RoomBookingLead {
+    string id PK
+    string firstName
+    string lastName
+    string company
+    string email
+    string whatsapp
+    string planName
+    int participants
+    datetime preferredDate
+    string preferredTime
+    string observations
+    boolean coffeeBreak
+    string status
+    string source
+    string ip
+    string companyId FK
+    string reservationId
+    datetime convertedAt
+    string convertedBy
+    datetime createdAt
+    datetime updatedAt
+  }
+
+  AdminUser {
+    string id PK
+    string email UK
+    string passwordHash
+    string name
+    string role
+    string totpSecret
+    boolean totpEnabled
+    boolean active
+    datetime createdAt
+  }
+
+  Notification {
+    string id PK
+    string type
+    string title
+    string message
+    string entityType
+    string entityId
+    string companyId
+    boolean read
+    datetime readAt
+    string priority
+    datetime createdAt
+  }
+
+  Timeline {
+    string id PK
+    string companyId FK
+    string leadId FK
+    string type
+    string title
+    string description
+    float amount
+    string referenceId
+    string referenceType
+    string createdBy
+    datetime createdAt
+  }
+
+  DeleteRequest {
+    string id PK
+    string requestedBy
+    string entityType
+    string entityId
+    string entityLabel
+    string reason
+    string status
+    string reviewedBy
+    string reviewNote
+    datetime createdAt
+    datetime updatedAt
+  }
+
+  RoomPricing {
+    string id PK
+    string roomId
+    string label
+    int durationMinutes
+    float price
+    string currency
+    boolean active
+    int sortOrder
+    datetime createdAt
+    datetime updatedAt
+  }
+
+  RoomSettings {
+    string id PK
+    float defaultPricePerHour
+    float defaultHalfDay
+    float defaultFullDay
+    float defaultWeekend
+    float defaultIva
+    float maxDiscount
+    string currency
+    string openTime
+    string closeTime
+    float minHours
+    float maxHours
+    datetime updatedAt
+    string updatedBy
+  }
+
+  Expense {
+    string id PK
+    string category
+    string description
+    float amount
+    datetime expenseDate
+    string supplier
+    string status
+    string receiptUrl
+    string notes
+    datetime createdAt
+    datetime updatedAt
+  }
+
+  %% Relações
+  Lead ||--o{ Note : "has"
+  Lead ||--o{ Timeline : "has"
+  Lead }o--|| Company : "convertedTo"
+
+  Company ||--o{ Payment : "has"
+  Company ||--o{ Invoice : "has"
+  Company ||--o{ Employee : "has"
+  Company ||--o{ FinancialHistory : "has"
+  Company ||--o{ LiquidationNote : "has"
+  Company ||--o{ Timeline : "has"
+  Company ||--o{ Reservation : "has"
+  Company ||--o{ RoomBookingLead : "has"
+
+  Invoice ||--o{ InvoicePayment : "has"
+  MeetingPlan ||--o{ Reservation : "has"

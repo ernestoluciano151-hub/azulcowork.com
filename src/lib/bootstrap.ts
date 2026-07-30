@@ -7,6 +7,7 @@
  */
 
 import { registerEventHandlers } from "./event-handlers";
+import { registerCrmEventHandlers } from "./crm-event-handlers";
 
 let bootstrapped = false;
 
@@ -14,6 +15,7 @@ export function bootstrap() {
   if (bootstrapped) return;
   bootstrapped = true;
   registerEventHandlers();
+  registerCrmEventHandlers();
 }
 
 // Auto-bootstrap em desenvolvimento

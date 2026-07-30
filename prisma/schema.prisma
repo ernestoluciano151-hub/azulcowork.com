@@ -79,16 +79,118 @@ model Note {
   createdAt DateTime @default(now())
 }
 
+enum AdminRole {
+  ADMIN
+  COMERCIAL
+  FINANCEIRO
+  VIEWER
+}
+
 model AdminUser {
-  id           String   @id @default(cuid())
-  email        String   @unique
+  id           String         @id @default(cuid())
+  email        String         @unique
   passwordHash String
   name         String?
-  role         String   @default("ADMIN")
+  role         AdminRole      @default(VIEWER)
   totpSecret   String?
-  totpEnabled  Boolean  @default(false)
-  active       Boolean  @default(true)
-  createdAt    DateTime @default(now())
+  totpEnabled  Boolean        @default(false)
+  active       Boolean        @default(true)
+  lastLoginAt  DateTime?                         // VOL05-2: actualizado em cada login bem-sucedido
+  lastLoginIp  String?                           // VOL05-2: IP do último login
+  createdAt    DateTime       @default(now())
+  crmAssignedCompanies  Company[]      @relation("CrmAssignee")
+  sessions     AdminSession[]                    // VOL05-2: sessões activas rastreadas
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// VOL05 — Audit Log
+// Registo imutável de todas as operações críticas do sistema.
+// Política de retenção: 365 dias activo → arquivo (ver ADR-035).
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum AuditAction {
+  // Auth
+  LOGIN_SUCCESS
+  LOGIN_FAILED
+  LOGOUT
+  TOTP_ENABLED
+  TOTP_DISABLED
+  TOTP_VERIFY_FAILED
+  SESSION_REVOKED
+  // Utilizadores admin
+  ADMIN_USER_CREATED
+  ADMIN_USER_UPDATED
+  ADMIN_USER_DELETED
+  ADMIN_USER_DEACTIVATED
+  ADMIN_USER_REACTIVATED
+  ADMIN_PASSWORD_CHANGED
+  // Financeiro
+  PAYMENT_CREATED
+  PAYMENT_CONFIRMED
+  PAYMENT_UPDATED
+  PAYMENT_CANCELLED
+  INVOICE_CREATED
+  INVOICE_SENT
+  INVOICE_CANCELLED
+  // Reservas
+  RESERVATION_CREATED
+  RESERVATION_UPDATED
+  RESERVATION_STATUS_CHANGED
+  RESERVATION_CANCELLED
+  // Configurações
+  ROOM_SETTINGS_UPDATED
+  PLAN_CREATED
+  PLAN_UPDATED
+  PLAN_DELETED
+  PRICING_UPDATED
+  // Gestão Documental (VOL08)
+  DOCUMENT_GENERATED
+  DOCUMENT_DOWNLOADED
+  DOCUMENT_SHARED_PORTAL
+}
+
+/// Sessões administrativas activas — VOL05-2.
+/// tokenHash = SHA-256(JWT). Permite revogar sessões individuais sem invalidar JWT_SECRET.
+model AdminSession {
+  id           String    @id @default(cuid())
+  adminUserId  String
+  tokenHash    String    @unique            // SHA-256 do JWT — nunca guardar JWT em bruto
+  ipAddress    String?
+  userAgent    String?
+  lastActiveAt DateTime  @default(now())
+  expiresAt    DateTime
+  isRevoked    Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+
+  adminUser    AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@index([adminUserId, isRevoked])
+  @@index([tokenHash])
+  @@index([expiresAt])
+}
+
+/// Registo de auditoria imutável. Nunca actualizar nem eliminar registos.
+/// Campos before/after são sempre sanitizados (sem passwordHash, totpSecret, tokenHash).
+model AuditLog {
+  id         String      @id @default(cuid())
+  actorId    String      // AdminUser.id | "SYSTEM" | "UNKNOWN"
+  actorRole  String      // AdminRole | "SYSTEM" | "UNKNOWN"
+  actorEmail String      // denormalizado — preservado mesmo se user for eliminado
+  action     AuditAction
+  entity     String      // "Payment" | "Reservation" | "AdminUser" | ...
+  entityId   String      // id da entidade afectada
+  entityRef  String?     // referência legível: "RES-2026-000001", email, etc.
+  before     Json?       // estado anterior sanitizado (sem campos sensíveis)
+  after      Json?       // estado posterior sanitizado
+  ipAddress  String?
+  userAgent  String?
+  metadata   Json?       // contexto livre: reason, channel, etc.
+  createdAt  DateTime    @default(now())
+
+  @@index([actorId, createdAt])
+  @@index([entity, entityId])
+  @@index([action, createdAt])
+  @@index([createdAt])
 }
 
 model DeleteRequest {
@@ -133,12 +235,52 @@ model Company {
   employees         Employee[]
   leadSources       Lead[]             @relation("LeadSource")
   roomBookingLeads  RoomBookingLead[]  @relation("RoomLeadCompany")
+  // ── CRM fields (Volume 01) ───────────────────────────────────────────────
+  crmStatus         CompanyStatus?
+  pipelineStage     PipelineStage?
+  assignedToId      String?
+  assignedTo        AdminUser?         @relation("CrmAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  website           String?
+  sector            String?
+  country           String?            @default("Angola")
+  mergedIntoId      String?
+  crmDeletedAt      DateTime?
+  // CRM relations
+  crmContacts       CrmContact[]
+  crmDeals          CrmDeal[]
+  crmActivities     CrmActivity[]
+  crmTasks          CrmTask[]
+  crmNotes          CrmNote[]
+  companyTags       CompanyTag[]
+  crmTimeline       TimelineEntry[]
+  crmAuditLogs      CrmAuditLog[]
+  // ── ERP fields (Volume 02) ───────────────────────────────────────────────
+  billingEmail      String?            // email preferencial para faturas ERP
+  // ERP relations
+  erpContracts      ErpContract[]
+  erpRentSchedules  ErpRentSchedule[]
+  erpInvoices       ErpInvoice[]
+  erpPayments       ErpPayment[]
+  financialLedger   FinancialLedger[]
+  erpExpenses       ErpExpense[]
+  financialAlerts   FinancialAlert[]
+  // ── Portal relations (Volume 03) ─────────────────────────────────────────
+  portalUsers           PortalUser[]
+  portalDocuments       PortalDocument[]
+  portalNotifications   PortalNotification[]
+  portalSupportTickets  PortalSupportTicket[]
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
 
   @@index([contractStatus])
   @@index([contractEnd])
+  // CRM indexes (Volume 01)
+  @@index([crmStatus])
+  @@index([pipelineStage])
+  @@index([assignedToId])
+  @@index([crmDeletedAt])
 }
+
 
 
 model Payment {
@@ -446,6 +588,19 @@ model Employee {
   @@index([status])
 }
 
+// ── Contador atómico de numeração de documentos ──────────────────────────────
+// Elimina race condition de `count + 1` em documentos financeiros (DT-014).
+// Uso: nextDocumentNumber(tx, "FT-SALA") → "FT-SALA-2026-000001"
+model DocumentCounter {
+  id      String @id @default(cuid())
+  type    String // FT-SALA | FT-CWORK | REC | NL | RES
+  year    Int
+  lastSeq Int    @default(0)
+
+  @@unique([type, year])
+  @@index([type, year])
+}
+
 model Notification {
   id          String    @id @default(cuid())
   type        String    // INFO | WARNING | ERROR | SUCCESS
@@ -463,4 +618,1322 @@ model Notification {
   @@index([createdAt])
   @@index([companyId])
   @@index([priority])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VOLUME 07 — COMUNICAÇÃO AVANÇADA
+// Docs: docs/10-comunicacao/README.md
+// ═══════════════════════════════════════════════════════════════════════════════
+
+enum CommType {
+  EMAIL
+  WHATSAPP
+  WHATSAPP_DEEPLINK
+}
+
+enum CommStatus {
+  PENDING
+  SENT
+  FAILED
+  RETRYING
+}
+
+model CommunicationLog {
+  id            String     @id @default(cuid())
+  type          CommType
+  channel       String     // transactional | alert | reminder | receipt
+  templateSlug  String?
+  to            String
+  subject       String?
+  body          String     @db.Text
+  status        CommStatus @default(PENDING)
+  attempts      Int        @default(0)
+  lastAttemptAt DateTime?
+  sentAt        DateTime?
+  errorMsg      String?
+  entityType    String?    // LEAD | COMPANY | RESERVATION | PAYMENT | INVOICE
+  entityId      String?
+  triggeredBy   String     @default("SYSTEM")
+  adminId       String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@index([status])
+  @@index([type])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@index([to])
+}
+
+model EmailTemplate {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String
+  subject   String
+  htmlBody  String   @db.Text
+  variables String[]
+  category  String   // transactional | financial | alert
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VOLUME 01 — CRM
+// Todos os modelos abaixo fazem parte do CRM (Sprint CRM-1, Agosto 2026).
+// Não modificar sem consultar docs/04-crm/data-model.md e docs/adr/README.md.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── Enums CRM ────────────────────────────────────────────────────────────────
+
+enum CompanyStatus {
+  PROSPECT
+  QUALIFIED
+  NEGOTIATION
+  ACTIVE
+  INACTIVE
+  CHURNED
+  MERGED
+}
+
+enum PipelineStage {
+  NEW_LEAD
+  CONTACTED
+  QUALIFIED
+  PROPOSAL_SENT
+  NEGOTIATION
+  WON
+  LOST
+}
+
+enum DealStage {
+  DISCOVERY
+  QUALIFICATION
+  PROPOSAL
+  NEGOTIATION
+  WON
+  LOST
+}
+
+enum ContactRole {
+  DECISION_MAKER
+  INFLUENCER
+  CHAMPION
+  END_USER
+  BILLING
+  TECHNICAL
+  OTHER
+}
+
+enum ActivityType {
+  CALL
+  EMAIL
+  MEETING
+  VISIT
+  DEMO
+  WHATSAPP
+  OTHER
+}
+
+enum ActivityDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+enum TimelineEventType {
+  // Company lifecycle
+  COMPANY_CREATED
+  COMPANY_UPDATED
+  COMPANY_STATUS_CHANGED
+  COMPANY_OWNER_CHANGED
+  COMPANY_MERGED
+  // Lead / Pipeline
+  LEAD_CAPTURED
+  STAGE_CHANGED
+  // Deal
+  DEAL_CREATED
+  DEAL_UPDATED
+  DEAL_WON
+  DEAL_LOST
+  DEAL_STAGE_CHANGED
+  // Activity
+  CALL_MADE
+  CALL_RECEIVED
+  EMAIL_SENT
+  EMAIL_RECEIVED
+  MEETING_HELD
+  VISIT_DONE
+  DEMO_DONE
+  WHATSAPP_SENT
+  WHATSAPP_RECEIVED
+  // Task
+  TASK_CREATED
+  TASK_COMPLETED
+  TASK_OVERDUE
+  // Note
+  NOTE_ADDED
+  // Contact
+  CONTACT_ADDED
+  CONTACT_UPDATED
+  // Finance (eventos externos)
+  INVOICE_ISSUED
+  INVOICE_PAID
+  INVOICE_OVERDUE
+  PAYMENT_RECEIVED
+  // Cowork (eventos externos)
+  CONTRACT_CREATED
+  CONTRACT_RENEWED
+  CONTRACT_CANCELLED
+  MEMBER_CHECKIN
+  MEMBER_CHECKOUT
+  // Reservas (eventos externos)
+  BOOKING_CREATED
+  BOOKING_CONFIRMED
+  BOOKING_CANCELLED
+  BOOKING_COMPLETED
+  // ERP — Contratos (Volume 02)
+  CONTRACT_ACTIVATED
+  CONTRACT_SUSPENDED
+  CONTRACT_REACTIVATED
+  CONTRACT_TERMINATED
+  CONTRACT_EXPIRED
+  CONTRACT_DEPOSIT_PAID
+  CONTRACT_DEPOSIT_RETURNED
+  CONTRACT_VALUE_ADJUSTED
+  // ERP — Faturação (Volume 02)
+  ERP_INVOICE_ISSUED
+  ERP_INVOICE_SENT
+  ERP_INVOICE_PAID
+  ERP_INVOICE_OVERDUE
+  ERP_INVOICE_VOIDED
+  // ERP — Pagamentos (Volume 02)
+  ERP_PAYMENT_CONFIRMED
+  ERP_PAYMENT_REJECTED
+  ERP_PAYMENT_REFUNDED
+  ERP_RECEIPT_GENERATED
+  // ERP — Despesas (Volume 02)
+  EXPENSE_APPROVED
+  EXPENSE_PAID
+  // ERP — Alertas (Volume 02)
+  FINANCIAL_ALERT_CREATED
+  FINANCIAL_ALERT_RESOLVED
+  // Portal — Volume 03
+  PORTAL_USER_INVITED
+  PORTAL_USER_ACTIVATED
+  PORTAL_USER_DEACTIVATED
+  PORTAL_DOCUMENT_UPLOADED
+  PORTAL_DOCUMENT_DOWNLOADED
+  PORTAL_DOCUMENT_VIEWED
+  PORTAL_NOTIFICATION_SENT
+  PORTAL_TICKET_CREATED
+  PORTAL_TICKET_REPLIED
+  PORTAL_TICKET_RESOLVED
+  PORTAL_TICKET_CLOSED
+}
+
+// ── Modelos CRM ──────────────────────────────────────────────────────────────
+
+/// Contacto associado a uma empresa (pessoa física).
+/// Regra: isPrimary = true só pode existir um por empresa.
+model CrmContact {
+  id          String      @id @default(cuid())
+  companyId   String
+  company     Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  firstName   String
+  lastName    String
+  email       String?
+  phone       String?
+  role        ContactRole @default(OTHER)
+  isPrimary   Boolean     @default(false)
+  linkedInUrl String?
+  notes       String?
+  deletedAt   DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([companyId])
+  @@index([email])
+  @@index([companyId, isPrimary])
+}
+
+/// Oportunidade comercial (Deal).
+/// Regra BR-PIPE-005: máximo 1 deal em NEGOTIATION por empresa.
+/// Regra BR-PIPE-006: discountPct > 10 exige approvedBy (ADMIN).
+/// Regra BR-PIPE-007: stage = LOST exige lostReason.
+model CrmDeal {
+  id            String    @id @default(cuid())
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  title         String
+  stage         DealStage @default(DISCOVERY)
+  value         Float?
+  currency      String    @default("AOA")
+  probability   Int?      // 0–100
+  expectedClose DateTime?
+  lostReason    String?
+  assignedToId  String?
+  approvedBy    String?   // AdminUser.id — desconto > 10%
+  discountPct   Float     @default(0)
+  closedAt      DateTime?
+  deletedAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([companyId])
+  @@index([stage])
+  @@index([assignedToId])
+  @@index([expectedClose])
+  @@index([companyId, stage])
+}
+
+/// Registo de interacção comercial (chamada, email, reunião, etc.).
+model CrmActivity {
+  id          String            @id @default(cuid())
+  companyId   String
+  company     Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  type        ActivityType
+  direction   ActivityDirection @default(OUTBOUND)
+  title       String
+  description String?
+  durationMin Int?
+  contactId   String?           // CrmContact.id (optional)
+  dealId      String?           // CrmDeal.id (optional)
+  createdById String?           // AdminUser.id
+  occurredAt  DateTime          @default(now())
+  createdAt   DateTime          @default(now())
+
+  @@index([companyId])
+  @@index([type])
+  @@index([occurredAt])
+  @@index([dealId])
+}
+
+/// Tarefa de follow-up.
+/// Regra BR-CRM-010: tasks vencidas > 24h publicam crm.task.overdue no Event Bus.
+model CrmTask {
+  id           String       @id @default(cuid())
+  companyId    String
+  company      Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  title        String
+  description  String?
+  priority     TaskPriority @default(MEDIUM)
+  status       TaskStatus   @default(PENDING)
+  dueDate      DateTime?
+  completedAt  DateTime?
+  assignedToId String?      // AdminUser.id
+  dealId       String?      // CrmDeal.id (optional)
+  contactId    String?      // CrmContact.id (optional)
+  createdById  String?      // AdminUser.id
+  deletedAt    DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([companyId])
+  @@index([status])
+  @@index([assignedToId])
+  @@index([dueDate])
+  @@index([companyId, status])
+}
+
+/// Nota interna sobre uma empresa (distingue-se de Note que pertence a Lead).
+model CrmNote {
+  id        String    @id @default(cuid())
+  companyId String
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  content   String
+  authorId  String?   // AdminUser.id
+  dealId    String?   // CrmDeal.id (optional)
+  contactId String?   // CrmContact.id (optional)
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([companyId])
+  @@index([authorId])
+}
+
+/// Tag global (categorização de empresas).
+model Tag {
+  id          String       @id @default(cuid())
+  name        String       @unique
+  color       String?
+  createdAt   DateTime     @default(now())
+  companyTags CompanyTag[]
+}
+
+/// Associação muitos-para-muitos Company ↔ Tag.
+model CompanyTag {
+  companyId  String
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  tagId      String
+  tag        Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  assignedAt DateTime @default(now())
+  assignedBy String?  // AdminUser.id
+
+  @@id([companyId, tagId])
+  @@index([tagId])
+}
+
+/// Historial cronológico de uma empresa — append-only.
+/// Regra: NUNCA executar UPDATE ou DELETE nesta tabela.
+/// Escrita exclusivamente pelos handlers do Event Bus.
+model TimelineEntry {
+  id               String            @id @default(cuid())
+  companyId        String
+  company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  eventType        TimelineEventType
+  title            String
+  description      String?
+  metadata         Json              @default("{}")
+  actorId          String?           // AdminUser.id ou "system"
+  actorName        String?
+  isSystem         Boolean           @default(false)
+  linkedEntityType String?           // "CrmDeal" | "CrmTask" | "Invoice" | etc.
+  linkedEntityId   String?
+  occurredAt       DateTime          @default(now())
+  createdAt        DateTime          @default(now())
+
+  @@index([companyId, occurredAt(sort: Desc)])
+  @@index([eventType])
+  @@index([occurredAt])
+}
+
+/// Log de auditoria do CRM — append-only.
+/// Regra: NUNCA executar UPDATE ou DELETE nesta tabela.
+model CrmAuditLog {
+  id         String   @id @default(cuid())
+  companyId  String?
+  company    Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  action     String   // CREATE | UPDATE | DELETE | MERGE | STAGE_CHANGE | etc.
+  entityType String   // Company | CrmDeal | CrmContact | etc.
+  entityId   String
+  actorId    String?  // AdminUser.id
+  before     Json?
+  after      Json?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  @@index([companyId])
+  @@index([entityId])
+  @@index([createdAt])
+  @@index([actorId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VOLUME 02 — ERP FINANCEIRO INTEGRADO
+// Todos os modelos abaixo fazem parte do ERP (Sprint ERP-1+, Agosto 2026).
+// Não modificar sem consultar docs/05-erp/data-model.md e docs/adr/README.md.
+// Modelos prefixados com Erp para distinguir dos modelos legados (Invoice, Payment, Expense).
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── Enums ERP ────────────────────────────────────────────────────────────────
+
+enum ContractStatus {
+  DRAFT
+  ACTIVE
+  SUSPENDED
+  TERMINATED
+  EXPIRED
+  CANCELLED
+}
+
+enum ContractPlanType {
+  FLEX
+  HOT_DESK
+  DEDICATED
+  PRIVATE_OFFICE
+  VIRTUAL
+  CUSTOM
+}
+
+enum DepositStatus {
+  PENDING
+  PAID
+  RETURNED
+  FORFEITED
+}
+
+enum RentScheduleStatus {
+  PENDING
+  INVOICED
+  PAID
+  OVERDUE
+  WAIVED
+  CANCELLED
+}
+
+enum ErpInvoiceType {
+  COWORKING
+  ROOM
+  SERVICE
+  MIXED
+  EXPENSE_REIMBURSEMENT
+}
+
+enum ErpInvoiceStatus {
+  DRAFT
+  ISSUED
+  SENT
+  PAID
+  OVERDUE
+  PARTIALLY_PAID
+  CANCELLED
+  VOID
+}
+
+enum ErpPaymentMethod {
+  BANK_TRANSFER
+  CASH
+  CHECK
+  MULTICAIXA
+  TPA
+  CREDITO
+}
+
+enum ErpPaymentStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+  REFUNDED
+}
+
+enum LedgerType {
+  DEBIT
+  CREDIT
+}
+
+enum ErpExpenseStatus {
+  PENDING
+  APPROVED
+  PAID
+  REJECTED
+  CANCELLED
+}
+
+enum ExpenseRecurrence {
+  NONE
+  MONTHLY
+  QUARTERLY
+  ANNUAL
+}
+
+enum CashMovementType {
+  INFLOW
+  OUTFLOW
+  TRANSFER
+  PROJECTED
+}
+
+enum CashMovementSource {
+  PAYMENT
+  EXPENSE
+  CONTRACT
+  BOOKING
+  MANUAL
+  ADJUSTMENT
+}
+
+enum AlertType {
+  PAYMENT_OVERDUE
+  CONTRACT_EXPIRING
+  CONTRACT_EXPIRED
+  BUDGET_EXCEEDED
+  NEGATIVE_BALANCE
+  DEPOSIT_DUE
+  RECONCILIATION_MISMATCH
+  CUSTOM
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum AlertStatus {
+  ACTIVE
+  ACKNOWLEDGED
+  RESOLVED
+  SNOOZED
+}
+
+// ── Modelos ERP ──────────────────────────────────────────────────────────────
+
+/// Contrato de aluguer de posto de coworking.
+/// ADR-022: entidade central do módulo de receita recorrente.
+/// Activação gera ErpRentSchedule[] automaticamente.
+model ErpContract {
+  id                 String           @id @default(cuid())
+  companyId          String
+  company            Company          @relation(fields: [companyId], references: [id])
+  planType           ContractPlanType
+  startDate          DateTime
+  endDate            DateTime?
+  monthlyValue       Float            // AOA
+  depositAmount      Float            @default(0)
+  depositStatus      DepositStatus    @default(PENDING)
+  depositPaidAt      DateTime?
+  depositReturnedAt  DateTime?
+  status             ContractStatus   @default(DRAFT)
+  autoRenew          Boolean          @default(false)
+  renewalNoticeDays  Int              @default(30)
+  adjustmentRules    Json?            // { type: "IPC", rate: 0.05, frequency: "ANNUAL" }
+  notes              String?
+  attachments        String[]         // Cloudinary URLs de PDFs assinados
+  signedAt           DateTime?
+  terminatedAt       DateTime?
+  terminationReason  String?
+  createdBy          String           // AdminUser.id
+  updatedBy          String?
+  deletedAt          DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  rentSchedules      ErpRentSchedule[]
+  erpInvoices        ErpInvoice[]
+
+  @@index([companyId])
+  @@index([status])
+  @@index([endDate])
+}
+
+/// Parcela mensal gerada automaticamente pela activação de um ErpContract.
+/// Regra BR-CONT-001: dueDate = dia 1 do mês.
+/// Regra BR-CONT-002: status OVERDUE definido pelo cron diário.
+model ErpRentSchedule {
+  id           String             @id @default(cuid())
+  contractId   String
+  contract     ErpContract        @relation(fields: [contractId], references: [id])
+  companyId    String
+  company      Company            @relation(fields: [companyId], references: [id])
+  dueDate      DateTime
+  amount       Float              // AOA — igual a Contract.monthlyValue na geração
+  status       RentScheduleStatus @default(PENDING)
+  invoiceId    String?            @unique
+  invoice      ErpInvoice?        @relation(fields: [invoiceId], references: [id])
+  waivedAt     DateTime?
+  waivedBy     String?
+  waivedReason String?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  @@index([contractId])
+  @@index([companyId])
+  @@index([dueDate])
+  @@index([status])
+}
+
+/// Fatura ERP unificada (coworking + salas + serviços).
+/// Nomenclatura: FT-CWORK-YYYY-NNNNNN | FT-SALA-YYYY-NNNNNN | FT-SERV-YYYY-NNNNNN
+/// ADR-023: separada do modelo legado Invoice (coworking clássico).
+model ErpInvoice {
+  id            String           @id @default(cuid())
+  number        String           @unique // FT-CWORK-2026-000001
+  type          ErpInvoiceType
+  companyId     String?
+  company       Company?         @relation(fields: [companyId], references: [id])
+  bookingId     String?          // Reservation.id (sala de reunião)
+  contractId    String?
+  contract      ErpContract?     @relation(fields: [contractId], references: [id])
+  status        ErpInvoiceStatus @default(DRAFT)
+  issueDate     DateTime         @default(now())
+  dueDate       DateTime
+  subtotal      Float            // AOA sem IVA
+  taxRate       Float            @default(0.14) // 14% — Lei 17/19 Angola
+  taxAmount     Float            // AOA
+  total         Float            // AOA = subtotal + taxAmount
+  pdfUrl        String?          // Cloudinary
+  sentAt        DateTime?
+  sentTo        String?          // email destinatário
+  paidAt        DateTime?
+  notes         String?
+  voidedAt      DateTime?
+  voidedBy      String?
+  voidReason    String?
+  createdBy     String           // AdminUser.id
+  updatedBy     String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  items           ErpInvoiceItem[]
+  erpPayments     ErpPayment[]
+  rentSchedule    ErpRentSchedule?
+  ledgerEntries   FinancialLedger[]
+
+  @@index([companyId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([type])
+  @@index([number])
+}
+
+/// Item de linha de uma fatura ERP.
+/// accountCode: código do plano de contas PGC Angola (ex.: "7111").
+model ErpInvoiceItem {
+  id           String      @id @default(cuid())
+  invoiceId    String
+  invoice      ErpInvoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description  String
+  quantity     Float       @default(1)
+  unitPrice    Float       // AOA
+  total        Float       // AOA = quantity * unitPrice
+  accountCode  String      // PGC Angola (ex.: "7111", "7121")
+  costCenterId String?
+  costCenter   CostCenter? @relation(fields: [costCenterId], references: [id])
+  createdAt    DateTime    @default(now())
+
+  @@index([invoiceId])
+}
+
+/// Pagamento ERP — confirmado por ADMIN após validação de comprovativo.
+/// ADR-023: separado do modelo legado Payment.
+/// Confirmação gera FinancialLedger + CashMovement + Recibo.
+model ErpPayment {
+  id            String          @id @default(cuid())
+  invoiceId     String?
+  invoice       ErpInvoice?     @relation(fields: [invoiceId], references: [id])
+  companyId     String?
+  company       Company?        @relation(fields: [companyId], references: [id])
+  amount        Float           // AOA
+  method        ErpPaymentMethod
+  reference     String?         // referência bancária / n.º operação Multicaixa / POS
+  paidAt        DateTime
+  confirmedAt   DateTime?
+  confirmedBy   String?         // AdminUser.id
+  status        ErpPaymentStatus @default(PENDING)
+  receiptUrl    String?         // Cloudinary PDF
+  receiptNumber String?         // REC-2026-000001
+  notes         String?
+  createdBy     String          // AdminUser.id
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  ledgerEntries FinancialLedger[]
+
+  @@index([invoiceId])
+  @@index([companyId])
+  @@index([status])
+  @@index([paidAt])
+}
+
+/// Razão Geral Financeiro — IMUTÁVEL (append-only).
+/// ADR-021: NUNCA executar UPDATE ou DELETE nesta tabela.
+/// Correcções via estorno: novo lançamento com sinal contrário + campo reverses.
+/// Implementa partida dupla: toda operação cria par DEBIT + CREDIT.
+model FinancialLedger {
+  id           String      @id @default(cuid())
+  entryDate    DateTime
+  description  String
+  type         LedgerType
+  amount       Float       // AOA — sempre positivo
+  accountCode  String      // PGC Angola (ex.: "1201", "2111", "7111")
+  costCenterId String?
+  costCenter   CostCenter? @relation(fields: [costCenterId], references: [id])
+  companyId    String?
+  company      Company?    @relation(fields: [companyId], references: [id])
+  invoiceId    String?
+  invoice      ErpInvoice? @relation(fields: [invoiceId], references: [id])
+  paymentId    String?
+  payment      ErpPayment? @relation(fields: [paymentId], references: [id])
+  expenseId    String?
+  expense      ErpExpense? @relation(fields: [expenseId], references: [id])
+  reference    String      @unique // identificador único do lançamento
+  reverses     String?     // FinancialLedger.id do lançamento revertido
+  createdBy    String      // AdminUser.id ou "SYSTEM"
+  createdAt    DateTime    @default(now())
+  // SEM updatedAt — imutável por design (ADR-021)
+
+  @@index([accountCode])
+  @@index([entryDate])
+  @@index([companyId])
+  @@index([costCenterId])
+  @@index([type])
+}
+
+/// Categoria de despesa operacional.
+/// accountCode: conta da classe 6 do PGC Angola (ex.: "6111").
+model ExpenseCategory {
+  id          String      @id @default(cuid())
+  name        String      @unique
+  accountCode String      // PGC Angola classe 6
+  description String?
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+
+  expenses    ErpExpense[]
+}
+
+/// Despesa operacional do Azul Coworking.
+/// ADR: separado do modelo legado Expense (simplificado).
+/// Aprovação obrigatória para amount > Kz 50.000 (BR-FIN-008).
+model ErpExpense {
+  id             String            @id @default(cuid())
+  categoryId     String
+  category       ExpenseCategory   @relation(fields: [categoryId], references: [id])
+  costCenterId   String?
+  costCenter     CostCenter?       @relation(fields: [costCenterId], references: [id])
+  supplierName   String?
+  supplierNif    String?           // activa IVA dedutível (conta 2312)
+  description    String
+  amount         Float             // AOA
+  dueDate        DateTime
+  paidAt         DateTime?
+  status         ErpExpenseStatus  @default(PENDING)
+  recurrence     ExpenseRecurrence @default(NONE)
+  receiptUrl     String?           // Cloudinary — doc de suporte
+  approvedBy     String?           // AdminUser.id
+  approvedAt     DateTime?
+  rejectedBy     String?
+  rejectedReason String?
+  notes          String?
+  deletedAt      DateTime?
+  createdBy      String
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  ledgerEntries  FinancialLedger[]
+  company        Company?          @relation(fields: [companyId], references: [id])
+  companyId      String?
+
+  @@index([categoryId])
+  @@index([costCenterId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+/// Centro de custo analítico — estrutura plana (ADR-024).
+/// Atribuído a InvoiceItems, Expenses e FinancialLedger entries.
+model CostCenter {
+  id          String    @id @default(cuid())
+  code        String    @unique // OPERACIONAL | RH | MARKETING | TI | ADMIN | FINANCEIRO | COWORKING | SALAS | SERVICOS
+  name        String
+  description String?
+  isActive    Boolean   @default(true)
+  budget      Float?    // orçamento mensal AOA (null = sem orçamento definido)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  invoiceItems  ErpInvoiceItem[]
+  expenses      ErpExpense[]
+  ledgerEntries FinancialLedger[]
+  cashMovements CashMovement[]
+}
+
+/// Movimento de caixa — real ou projectado (ADR-025).
+/// Populado por handlers do Event Bus após erp.payment.confirmed e erp.expense.paid.
+/// isProjected=true: gerado por cron com base em RentSchedules e Expenses recorrentes.
+model CashMovement {
+  id           String             @id @default(cuid())
+  date         DateTime
+  type         CashMovementType
+  amount       Float              // AOA — sempre positivo
+  description  String
+  source       CashMovementSource
+  sourceId     String?            // ErpPayment.id | ErpExpense.id | etc.
+  isProjected  Boolean            @default(false)
+  bankAccount  String?            // ex.: "BCS-MAIN" | "BCS-POUPANCA"
+  balance      Float              // saldo acumulado após este movimento
+  costCenterId String?
+  costCenter   CostCenter?        @relation(fields: [costCenterId], references: [id])
+  createdBy    String             // AdminUser.id ou "SYSTEM"
+  createdAt    DateTime           @default(now())
+
+  @@index([date])
+  @@index([type])
+  @@index([isProjected])
+  @@index([source])
+}
+
+/// Alerta financeiro automático ou manual.
+/// Criado pelo cron diário ou por handlers de eventos.
+/// Ciclo: ACTIVE → ACKNOWLEDGED → RESOLVED | SNOOZED → ACTIVE
+model FinancialAlert {
+  id              String        @id @default(cuid())
+  type            AlertType
+  severity        AlertSeverity @default(WARNING)
+  status          AlertStatus   @default(ACTIVE)
+  title           String
+  message         String
+  companyId       String?
+  company         Company?      @relation(fields: [companyId], references: [id])
+  invoiceId       String?       // ErpInvoice.id
+  contractId      String?       // ErpContract.id
+  expenseId       String?       // ErpExpense.id
+  dueDate         DateTime?
+  amount          Float?
+  acknowledgedAt  DateTime?
+  acknowledgedBy  String?       // AdminUser.id
+  resolvedAt      DateTime?
+  resolvedBy      String?
+  snoozedUntil    DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([status])
+  @@index([type])
+  @@index([severity])
+  @@index([companyId])
+}
+
+/// Snapshot mensal de relatório financeiro.
+/// Gerado pelo cron no final de cada mês. Imutável após geração.
+/// Permite comparação histórica mesmo após rectificações nos dados base.
+model FinancialReportSnapshot {
+  id          String   @id @default(cuid())
+  period      String   // "2026-07" (YYYY-MM)
+  type        String   // "MONTHLY" | "QUARTERLY" | "ANNUAL"
+  data        Json     // snapshot completo: { mrr, arr, revenue, expenses, profit, ... }
+  generatedAt DateTime @default(now())
+  generatedBy String   // "SYSTEM" | AdminUser.id
+
+  @@unique([period, type])
+  @@index([period])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VOLUME 03 — PORTAL DO CLIENTE + COMUNICAÇÃO OMNICANAL
+// Todos os modelos abaixo fazem parte do Portal (Sprint VOL03-1+, Ago 2026).
+// Não modificar sem consultar docs/06-portal/data-model.md e docs/adr/README.md.
+// ADRs relacionados: 026, 027, 028, 029, 030.
+// Isolamento multi-tenant obrigatório: todas as queries DEVEM incluir companyId.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── Enums Portal ─────────────────────────────────────────────────────────────
+
+/// Role de utilizador no portal do cliente.
+/// PORTAL_OWNER: 1 por empresa, criado pelo admin.
+/// PORTAL_ADMIN: max 3 por empresa.
+/// PORTAL_MEMBER: ilimitado — pode criar reservas e tickets.
+/// PORTAL_VIEWER: só leitura — não pode criar tickets nem reservas.
+enum PortalRole {
+  PORTAL_OWNER
+  PORTAL_ADMIN
+  PORTAL_MEMBER
+  PORTAL_VIEWER
+}
+
+/// Estado do ciclo de vida de uma notificação.
+/// Máquina de estados: PENDING → SENT → DELIVERED → READ | FAILED.
+enum NotificationStatus {
+  PENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+/// Canal de comunicação omnicanal.
+enum OmnichannelType {
+  EMAIL
+  WHATSAPP
+  IN_APP
+  PUSH_WEB
+}
+
+/// Estado do ciclo de vida de um ticket de suporte.
+enum SupportTicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING
+  RESOLVED
+  CLOSED
+}
+
+/// Prioridade de ticket de suporte (SLA em horas úteis WAT).
+/// LOW: 72h | NORMAL: 48h | HIGH: 24h | URGENT: 4h.
+enum SupportTicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+/// Tipo de alerta/notificação do portal.
+enum PortalAlertType {
+  // Alertas automáticos (cron)
+  RENT_DUE
+  CONTRACT_EXPIRING
+  PAYMENT_OVERDUE
+  BOOKING_CONFIRMED
+  DOCUMENT_AVAILABLE
+  // Notificações transaccionais
+  INVOICE_ISSUED
+  PAYMENT_CONFIRMED
+  BOOKING_RECEIVED
+  TICKET_REPLY
+  // Onboarding
+  WELCOME
+  USER_INVITED
+}
+
+/// Acção de auditoria sobre um documento do portal.
+enum DocumentAccessAction {
+  VIEW
+  DOWNLOAD
+  SIGNED_URL_GENERATED
+  VERSION_VIEWED
+}
+
+/// Tipo de remetente de mensagem de suporte.
+enum SupportMessageSender {
+  CLIENT
+  STAFF
+}
+
+// ── Modelos Portal ───────────────────────────────────────────────────────────
+
+/// Utilizador do portal do cliente.
+/// Separado de AdminUser — autenticação independente (cookie portal-session).
+/// Regra: máximo 1 PORTAL_OWNER activo por empresa.
+/// Regra: @@unique([companyId, email]) — email único por empresa.
+model PortalUser {
+  id             String     @id @default(cuid())
+  companyId      String
+  company        Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  email          String
+  passwordHash   String?    // null se usar Magic Link apenas (ADR-026)
+  name           String
+  phone          String?
+  role           PortalRole @default(PORTAL_MEMBER)
+  isActive       Boolean    @default(true)
+  isConfirmed    Boolean    @default(false)
+  // Preferências de notificação
+  notifyEmail    Boolean    @default(true)
+  notifyWhatsapp Boolean    @default(false)  // requer opt-in explícito (Meta)
+  notifyPush     Boolean    @default(true)
+  notifyInApp    Boolean    @default(true)
+  // Push Web (VAPID — ADR-027)
+  pushEndpoint   String?
+  pushP256dh     String?
+  pushAuth       String?
+  // Audit
+  lastLoginAt    DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  sessions       PortalSession[]
+  magicLinks     PortalMagicLink[]
+  notifications  PortalNotification[]
+  docAccesses    PortalDocumentAccess[]
+  ticketsCreated PortalSupportTicket[]
+
+  @@unique([companyId, email])
+  @@index([companyId])
+  @@index([email])
+  @@index([role])
+  @@index([isActive])
+}
+
+/// Sessão autenticada de um PortalUser.
+/// Cookie: portal-session (SEPARADO do cookie session do admin).
+/// TTL: 8 horas. tokenHash = SHA-256 do JWT (nunca guardar o token bruto).
+model PortalSession {
+  id           String     @id @default(cuid())
+  portalUserId String
+  portalUser   PortalUser @relation(fields: [portalUserId], references: [id], onDelete: Cascade)
+  tokenHash    String     @unique  // SHA-256 do token JWT
+  expiresAt    DateTime
+  isRevoked    Boolean    @default(false)
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime   @default(now())
+
+  @@index([portalUserId])
+  @@index([tokenHash])
+  @@index([expiresAt])
+}
+
+/// Token de magic link para autenticação sem password (ADR-026).
+/// 32 bytes aleatórios (hex = 64 chars), TTL 15 minutos, uso único.
+/// Rate limit: máximo 3 por hora por email.
+model PortalMagicLink {
+  id           String     @id @default(cuid())
+  portalUserId String
+  portalUser   PortalUser @relation(fields: [portalUserId], references: [id], onDelete: Cascade)
+  token        String     @unique  // hex de 32 bytes
+  expiresAt    DateTime
+  isUsed       Boolean    @default(false)
+  usedAt       DateTime?
+  ipAddress    String?
+  createdAt    DateTime   @default(now())
+
+  @@index([token])
+  @@index([portalUserId])
+  @@index([expiresAt])
+}
+
+/// Documento partilhado com o cliente.
+/// Regra BR-PORT-002: nunca expor URL directa do Cloudinary.
+/// Sempre gerar URL assinada com TTL 15 minutos.
+/// Versões anteriores são imutáveis — nunca apagar.
+model PortalDocument {
+  id               String    @id @default(cuid())
+  companyId        String
+  company          Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  title            String
+  category         String    // contrato | fatura-manual | declaracao | comprovante | guia | outro
+  description      String?
+  tags             String[]
+  currentVersionId String?   // PortalDocumentVersion.id da versão actual
+  isActive         Boolean   @default(true)
+  uploadedById     String?   // AdminUser.id ou PortalUser.id
+  uploadedByName   String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  versions         PortalDocumentVersion[]
+  accesses         PortalDocumentAccess[]
+
+  @@index([companyId])
+  @@index([category])
+  @@index([isActive])
+}
+
+/// Versão imutável de um documento do portal.
+/// Regra: NUNCA apagar versões — append-only.
+/// cloudinaryPublicId: ID interno do Cloudinary (NUNCA URL directa).
+model PortalDocumentVersion {
+  id                 String         @id @default(cuid())
+  documentId         String
+  document           PortalDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  version            Int            // 1, 2, 3, ... (incrementa atomicamente)
+  cloudinaryPublicId String         // ID Cloudinary — URL gerada on-demand assinada
+  mimeType           String?
+  sizeBytes          Int?
+  changeNote         String?
+  uploadedById       String?
+  uploadedByName     String?
+  createdAt          DateTime       @default(now())
+
+  @@unique([documentId, version])
+  @@index([documentId])
+}
+
+/// Auditoria de acesso a documentos — append-only.
+/// Regra BR-PORT-003: toda leitura e download é registada.
+/// NUNCA executar UPDATE ou DELETE nesta tabela.
+model PortalDocumentAccess {
+  id           String               @id @default(cuid())
+  documentId   String
+  document     PortalDocument       @relation(fields: [documentId], references: [id])
+  portalUserId String
+  portalUser   PortalUser           @relation(fields: [portalUserId], references: [id])
+  versionId    String?
+  action       DocumentAccessAction
+  signedUrl    String?              // URL assinada gerada (para auditoria — pode ser longa)
+  urlExpiresAt DateTime?
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime             @default(now())
+
+  @@index([documentId])
+  @@index([portalUserId])
+  @@index([action])
+  @@index([createdAt])
+  // Índice composto — VOL03-10C (Performance)
+  @@index([documentId, createdAt])             // histórico de acesso por documento (paginado)
+}
+
+/// Notificação enviada a um utilizador do portal.
+/// Regra BR-PORT-NOTIF-001: toda notificação tem estado final.
+/// Motor de re-tentativas: max 3, backoff 5 min / 30 min (cron */5 * * * *).
+/// Fallback: canal != EMAIL → tentar email se falhar.
+model PortalNotification {
+  id           String             @id @default(cuid())
+  companyId    String
+  company      Company            @relation(fields: [companyId], references: [id])
+  portalUserId String?
+  portalUser   PortalUser?        @relation(fields: [portalUserId], references: [id])
+  type         PortalAlertType
+  status       NotificationStatus @default(PENDING)
+  channel      OmnichannelType
+  title        String
+  body         String
+  actionUrl    String?
+  // Timestamps de ciclo de vida
+  sentAt       DateTime?
+  deliveredAt  DateTime?
+  readAt       DateTime?
+  failedAt     DateTime?
+  // Re-tentativas
+  attempts     Int                @default(0)
+  maxAttempts  Int                @default(3)
+  nextRetryAt  DateTime?
+  // Referências opcionais
+  invoiceId    String?
+  contractId   String?
+  documentId   String?
+  bookingId    String?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  @@index([companyId])
+  @@index([portalUserId])
+  @@index([status])
+  @@index([channel])
+  @@index([type])
+  @@index([nextRetryAt])
+  // Índices compostos — VOL03-10C (Performance)
+  @@index([portalUserId, status])              // unread count: WHERE portalUserId=X AND status IN (...)
+  @@index([portalUserId, channel])             // SSE: in-app por utilizador
+  @@index([status, nextRetryAt])               // cron retry: WHERE status=PENDING AND nextRetryAt<=now
+  @@index([companyId, status, nextRetryAt])    // retry por empresa (monitoring)
+}
+
+/// Mensagem enviada via canal omnicanal — audit trail de entregas.
+/// Um evento omnicanal pode gerar múltiplos OmnichannelMessage (um por canal tentado).
+model OmnichannelMessage {
+  id             String             @id @default(cuid())
+  companyId      String
+  channel        OmnichannelType
+  recipient      String             // email | +244XXXXXXXXX | push endpoint URL
+  body           String
+  template       String?            // nome do template (WhatsApp/Email)
+  status         NotificationStatus @default(PENDING)
+  externalId     String?            // ID do provider (Resend ID, Meta message ID)
+  notificationId String?            // PortalNotification.id associada
+  sentAt         DateTime?
+  deliveredAt    DateTime?
+  failedReason   String?
+  metadata       Json?              // response do provider, headers, etc.
+  createdAt      DateTime           @default(now())
+
+  @@index([companyId])
+  @@index([channel])
+  @@index([status])
+  @@index([notificationId])
+}
+
+/// Ticket de suporte do cliente (ADR-029: suporte assíncrono, sem live chat).
+/// Numeração: ST-YYYY-NNNNNN via DocumentCounter (prefix "ST").
+/// SLA calculado em horas úteis (Mon-Fri, 08h-18h WAT).
+model PortalSupportTicket {
+  id          String                @id @default(cuid())
+  number      String                @unique  // ST-2026-000001
+  companyId   String
+  company     Company               @relation(fields: [companyId], references: [id])
+  createdById String
+  createdBy   PortalUser            @relation(fields: [createdById], references: [id])
+  subject     String                // máx 120 caracteres
+  category    String                // faturacao | contrato | reservas | tecnico | outro
+  priority    SupportTicketPriority @default(NORMAL)
+  status      SupportTicketStatus   @default(OPEN)
+  slaDeadline DateTime?             // createdAt + SLA(priority) em horas úteis WAT
+  assignedTo  String?               // AdminUser.id (não FK — admin separado)
+  resolvedAt  DateTime?
+  closedAt    DateTime?
+  reopenedAt  DateTime?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  messages    PortalSupportMessage[]
+
+  @@index([companyId])
+  @@index([status])
+  @@index([priority])
+  @@index([number])
+  @@index([createdAt])
+  // Índices compostos — VOL03-10C (Performance)
+  @@index([companyId, status])                 // lista tickets: WHERE companyId=X AND status=Y
+  @@index([companyId, status, updatedAt])      // auto-close cron: WAITING + updatedAt < 7d
+  @@index([companyId, createdAt])              // histórico paginado por empresa
+}
+
+/// Mensagem de um ticket de suporte.
+/// isInternal=true: nota interna do staff — NUNCA visível ao cliente.
+/// senderType: CLIENT | STAFF — senderId pode ser PortalUser.id ou AdminUser.id.
+model PortalSupportMessage {
+  id          String               @id @default(cuid())
+  ticketId    String
+  ticket      PortalSupportTicket  @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  body        String
+  isInternal  Boolean              @default(false)
+  senderType  SupportMessageSender
+  senderId    String               // PortalUser.id (CLIENT) ou AdminUser.id (STAFF)
+  senderName  String               // denormalizado para auditoria
+  attachments String[]             // Cloudinary URLs
+  createdAt   DateTime             @default(now())
+
+  @@index([ticketId])
+  @@index([isInternal])
+  @@index([createdAt])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VOLUME 08 — GESTÃO DOCUMENTAL
+// Modelos de geração e arquivo de documentos (propostas, contratos).
+// Docs: docs/11-gestao-documental/README.md · ADR-038
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Tipo de documento gerado pela plataforma.
+enum DocumentTemplateType {
+  PROPOSAL     // Proposta comercial (para leads/oportunidades)
+  CONTRACT     // Contrato de alocação (para ErpContract)
+  DECLARATION  // Declaração de coworker
+  LETTER       // Carta genérica
+}
+
+/// Template editável de documento — VOL08.
+/// version é imutável nos GeneratedDocument que o usaram (snapshot de templateVersion).
+/// Regra: cada PATCH no htmlBody/subject incrementa version atomicamente.
+/// Nunca decrementar version.
+model DocumentTemplate {
+  id           String               @id @default(cuid())
+  slug         String               @unique
+  name         String
+  type         DocumentTemplateType
+  description  String?
+  htmlBody     String               @db.Text   // HTML com {{variáveis}} — editável pelo operador
+  variables    String[]             // lista declarativa de variáveis esperadas
+  version      Int                  @default(1) // incrementa a cada edição — auditoria de versões
+  isActive     Boolean              @default(true)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  generatedDocs GeneratedDocument[]
+
+  @@index([type, isActive])
+  @@index([slug])
+}
+
+/// Documento gerado e arquivado — VOL08.
+/// IMUTÁVEL após criação. Regeneração cria novo registo (version + 1 por entidade).
+/// sha256Hash permite verificação de integridade futura do ficheiro.
+/// Falha de upload Cloudinary → registo NÃO é criado (ver document-generation-service.ts).
+model GeneratedDocument {
+  id              String               @id @default(cuid())
+  templateSlug    String
+  template        DocumentTemplate     @relation(fields: [templateSlug], references: [slug])
+  templateVersion Int                  // snapshot imutável de DocumentTemplate.version no momento da geração
+  type            DocumentTemplateType
+  entityType      String               // "LEAD" | "ERPCONTRACT" | "COMPANY"
+  entityId        String               // id da entidade associada
+  version         Int                  @default(1) // versão por (entityType, entityId, templateSlug): 1, 2, 3...
+  cloudinaryId    String               // public_id Cloudinary — imutável após geração
+  fileName        String               // ex: "proposta-azul-2026-000001-v1.pdf"
+  fileSizeBytes   Int
+  sha256Hash      String               // SHA-256 hex do buffer PDF — integridade documental
+  generatedBy     String               // AdminUser.id
+  generatedAt     DateTime             @default(now()) // timestamp explícito de geração (auditável)
+  createdAt       DateTime             @default(now())
+
+  @@index([entityType, entityId])
+  @@index([entityType, entityId, templateSlug])   // versioning: MAX(version) por entidade+template
+  @@index([templateSlug])
+  @@index([createdAt])
+  @@index([generatedBy])
 }

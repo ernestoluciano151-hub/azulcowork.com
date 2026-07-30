@@ -1,0 +1,169 @@
+---
+title: ERP — Modelo de Dados (Volume 02)
+---
+erDiagram
+    Company {
+        string id PK
+        string name
+        string nif
+        string billingEmail
+        string contractStatus
+    }
+
+    Contract {
+        string id PK
+        string companyId FK
+        string planType
+        datetime startDate
+        datetime endDate
+        float monthlyValue
+        float depositAmount
+        string depositStatus
+        string status
+        boolean autoRenew
+    }
+
+    RentSchedule {
+        string id PK
+        string contractId FK
+        string companyId FK
+        datetime dueDate
+        float amount
+        string status
+        string invoiceId FK
+    }
+
+    Invoice {
+        string id PK
+        string number
+        string type
+        string companyId FK
+        string contractId FK
+        string bookingId FK
+        string status
+        datetime issueDate
+        datetime dueDate
+        float subtotal
+        float taxAmount
+        float total
+        string pdfUrl
+    }
+
+    InvoiceItem {
+        string id PK
+        string invoiceId FK
+        string description
+        float quantity
+        float unitPrice
+        float total
+        string accountCode
+        string costCenterId FK
+    }
+
+    Payment {
+        string id PK
+        string invoiceId FK
+        string companyId FK
+        float amount
+        string method
+        string reference
+        datetime paidAt
+        datetime confirmedAt
+        string status
+        string receiptNumber
+    }
+
+    FinancialLedger {
+        string id PK
+        datetime entryDate
+        string type
+        float amount
+        string accountCode
+        string costCenterId FK
+        string companyId FK
+        string invoiceId FK
+        string paymentId FK
+        string expenseId FK
+        string reference
+    }
+
+    ExpenseCategory {
+        string id PK
+        string name
+        string accountCode
+    }
+
+    Expense {
+        string id PK
+        string categoryId FK
+        string costCenterId FK
+        string supplierName
+        float amount
+        datetime dueDate
+        string status
+        string recurrence
+    }
+
+    CostCenter {
+        string id PK
+        string code
+        string name
+        float budget
+    }
+
+    CashMovement {
+        string id PK
+        datetime date
+        string type
+        float amount
+        string source
+        boolean isProjected
+        float balance
+        string costCenterId FK
+    }
+
+    FinancialAlert {
+        string id PK
+        string type
+        string severity
+        string status
+        string companyId FK
+        string invoiceId FK
+        string contractId FK
+        datetime dueDate
+        float amount
+    }
+
+    FinancialReportSnapshot {
+        string id PK
+        string period
+        string type
+        json data
+        datetime generatedAt
+    }
+
+    Company ||--o{ Contract : "tem"
+    Company ||--o{ RentSchedule : "tem"
+    Company ||--o{ Invoice : "tem"
+    Company ||--o{ Payment : "tem"
+    Company ||--o{ FinancialLedger : "tem"
+    Company ||--o{ FinancialAlert : "tem"
+
+    Contract ||--o{ RentSchedule : "gera"
+    Contract ||--o{ Invoice : "origina"
+
+    RentSchedule }o--o| Invoice : "faturada em"
+
+    Invoice ||--|{ InvoiceItem : "contém"
+    Invoice ||--o{ Payment : "paga por"
+    Invoice ||--o{ FinancialLedger : "regista"
+
+    Payment ||--o{ FinancialLedger : "regista"
+
+    ExpenseCategory ||--o{ Expense : "categoriza"
+    CostCenter ||--o{ InvoiceItem : "atribuído"
+    CostCenter ||--o{ Expense : "atribuído"
+    CostCenter ||--o{ FinancialLedger : "atribuído"
+    CostCenter ||--o{ CashMovement : "atribuído"
+
+    Expense ||--o{ FinancialLedger : "regista"

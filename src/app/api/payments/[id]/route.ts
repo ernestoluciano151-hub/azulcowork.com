@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { AdminRole } from "@prisma/client";
+import { requireRole } from "@/lib/auth";
 import { recordFinancialHistory } from "@/lib/finance";
 import { publish } from "@/lib/event-bus";
 import "@/lib/bootstrap";
@@ -11,8 +12,8 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+  const { session, error } = await requireRole(AdminRole.ADMIN, AdminRole.FINANCEIRO);
+  if (error) return error;
 
   const data = await req.json();
 
@@ -20,29 +21,34 @@ export async function PATCH(
     data.paidDate = new Date();
   }
 
+  // Ler estado anterior ANTES da transacção (representa snapshot pré-update)
   const before = await prisma.payment.findUnique({
     where: { id: params.id },
     include: { company: { select: { name: true } } },
   });
 
-  const payment = await prisma.payment.update({
-    where: { id: params.id },
-    data,
-    include: { company: { select: { id: true, name: true } } },
-  });
-
-  // only record history for company-linked payments
-  if (data.status === "PAGO" && before?.status !== "PAGO" && payment.companyId) {
-    await recordFinancialHistory(prisma, {
-      companyId:   payment.companyId,
-      type:        "PAGAMENTO",
-      description: `Pagamento marcado como pago — ${payment.company?.name ?? "cliente"}`,
-      amount:      payment.amount,
-      method:      payment.paymentMethod || undefined,
-      reference:   payment.id,
-      createdBy:   session.name || session.email,
+  // ── payment.update + recordFinancialHistory atómicos ────────────────────
+  const payment = await prisma.$transaction(async (tx) => {
+    const updated = await tx.payment.update({
+      where: { id: params.id },
+      data,
+      include: { company: { select: { id: true, name: true } } },
     });
-  }
+
+    if (data.status === "PAGO" && before?.status !== "PAGO" && updated.companyId) {
+      await recordFinancialHistory(tx, {
+        companyId:   updated.companyId,
+        type:        "PAGAMENTO",
+        description: `Pagamento marcado como pago — ${updated.company?.name ?? "cliente"}`,
+        amount:      updated.amount,
+        method:      updated.paymentMethod || undefined,
+        reference:   updated.id,
+        createdBy:   session.name || session.email,
+      });
+    }
+
+    return updated;
+  });
 
   // Auto-notificações via Event Bus
   if (data.status === "PAGO" && before?.status !== "PAGO") {

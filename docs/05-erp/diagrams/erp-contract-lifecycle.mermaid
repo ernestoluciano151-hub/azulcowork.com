@@ -1,0 +1,31 @@
+---
+title: ERP — Ciclo de Vida do Contrato
+---
+stateDiagram-v2
+    [*] --> DRAFT : POST /api/erp/contracts
+
+    DRAFT --> ACTIVE : activate()\nGera RentSchedules
+    DRAFT --> CANCELLED : cancel()
+
+    ACTIVE --> SUSPENDED : suspend(reason)
+    ACTIVE --> TERMINATED : terminate(reason)\nCancela RentSchedules futuros
+    ACTIVE --> EXPIRED : cron: endDate atingida\nsem autoRenew
+
+    SUSPENDED --> ACTIVE : reactivate()
+    SUSPENDED --> TERMINATED : terminate(reason)
+
+    EXPIRED --> [*]
+    TERMINATED --> [*]
+    CANCELLED --> [*]
+
+    note right of ACTIVE
+        Gera Faturas mensalmente
+        Monitoriza vencimento
+        Alerta 60/30/7 dias
+    end note
+
+    note right of TERMINATED
+        Cancela RentSchedules PENDING
+        Calcula devolução caução
+        Actualiza Company status
+    end note

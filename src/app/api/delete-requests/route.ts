@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { AdminRole } from "@prisma/client";
+import { requireRole, requireSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
-  if (session.role !== "ADMIN") return NextResponse.json({ requests: [] });
+  const { error } = await requireRole(AdminRole.ADMIN);
+  if (error) return error;
 
   const requests = await prisma.deleteRequest.findMany({
     where: { status: "PENDING" },
@@ -17,8 +17,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+  const { session, error } = await requireSession();
+  if (error) return error;
 
   const { entityType, entityId, entityLabel, reason } = await req.json();
   if (!entityType || !entityId || !entityLabel || !reason) {

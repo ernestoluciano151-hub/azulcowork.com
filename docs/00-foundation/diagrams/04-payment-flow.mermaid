@@ -1,0 +1,60 @@
+---
+title: VD Platform — Fluxo de Confirmação de Pagamento (FinanceService)
+---
+sequenceDiagram
+  actor Admin as Admin
+  participant API as API Route<br/>/api/reservations/[id]/receive-payment
+  participant FS as FinanceService<br/>confirmPayment()
+  participant TX as Prisma $transaction
+  participant DB as PostgreSQL
+
+  Admin->>API: POST { amount, paymentMethod, operationRef }
+  API->>API: Verificar auth + role (ADMIN/FINANCEIRO)
+  API->>API: Validar input
+  API->>FS: confirmPayment(prisma, input)
+
+  FS->>DB: findUnique(Reservation + Plan)
+  DB-->>FS: Reservation { totalAmount, companyId, ... }
+
+  FS->>TX: $transaction(async tx => ...)
+
+  rect rgb(30, 41, 59)
+    Note over TX,DB: Bloco Atómico — ou tudo ou nada
+
+    TX->>DB: PASSO 1: findFirst(Invoice where reservationId)
+    DB-->>TX: null (não existe)
+    TX->>DB: PASSO 2: count(Invoice where FT-SALA-2026-)
+    DB-->>TX: 5
+    TX->>DB: PASSO 3: create(Invoice { FT-SALA-2026-000006 })
+    DB-->>TX: Invoice criada
+
+    TX->>DB: PASSO 4: create(InvoicePayment { amount: 60000 })
+    DB-->>TX: InvoicePayment criada
+
+    TX->>DB: PASSO 5: Calcular newAmountPaid, balance, paidPct
+    TX->>DB: PASSO 6: update(Invoice { amountPaid, balance, status: PARCIAL })
+    DB-->>TX: Invoice actualizada
+
+    TX->>DB: PASSO 7: count(Payment where REC-2026-)
+    TX->>DB: PASSO 8: create(Payment { REC-2026-000007, status: PENDENTE })
+    TX->>DB: update(Reservation { paymentId })
+
+    TX->>DB: PASSO 9: update(Reservation { paymentStatus, amountPaid })
+    DB-->>TX: Reservation actualizada
+
+    TX->>DB: PASSO 10: count(LiquidationNote where NL-2026-)
+    TX->>DB: PASSO 11: create(LiquidationNote { NL-2026-000004 })
+    DB-->>TX: NL criada
+
+    TX->>DB: PASSO 12: create(FinancialHistory) [se company]
+    TX->>DB: PASSO 13: create(Timeline)
+    TX->>DB: PASSO 14: create(FinancialAudit) [IMUTÁVEL]
+  end
+
+  TX-->>FS: { invoiceNumber, noteNumber, balance, ... }
+  FS-->>API: ConfirmPaymentResult
+
+  API->>API: publish("reservation.paymentReceived", ...)
+  Note over API: Event Bus → Email, WhatsApp, Notificação
+
+  API-->>Admin: 200 OK { invoiceNumber: "FT-SALA-2026-000006", balance: 40000 }

@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { AdminRole } from "@prisma/client";
+import { requireRole } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+  const { error } = await requireRole(AdminRole.ADMIN, AdminRole.FINANCEIRO);
+  if (error) return error;
 
   const { searchParams } = new URL(req.url);
   const category = searchParams.get("category");
@@ -46,8 +47,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+  const { error } = await requireRole(AdminRole.ADMIN, AdminRole.FINANCEIRO);
+  if (error) return error;
 
   const data = await req.json();
   const { category, description, amount, expenseDate, supplier, status, receiptUrl, notes } = data;

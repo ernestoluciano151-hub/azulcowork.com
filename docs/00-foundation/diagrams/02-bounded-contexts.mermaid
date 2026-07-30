@@ -1,0 +1,71 @@
+---
+title: VD Platform — Bounded Contexts (DDD)
+---
+graph TB
+  subgraph CRM["🎯 CRM Context"]
+    Lead["Lead\n(Aggregate Root)"]
+    Note["Note"]
+    LeadTimeline["Timeline (Lead)"]
+    Lead --> Note
+    Lead --> LeadTimeline
+  end
+
+  subgraph COWORK["🏢 Cowork Context"]
+    Company["Company\n(Aggregate Root)"]
+    Employee["Employee"]
+    CompanyTimeline["Timeline (Company)"]
+    Company --> Employee
+    Company --> CompanyTimeline
+  end
+
+  subgraph FINANCIAL["💰 Financial Context"]
+    Invoice["Invoice\n(Aggregate Root)"]
+    InvoicePayment["InvoicePayment"]
+    Payment["Payment"]
+    LiquidationNote["LiquidationNote"]
+    FinancialHistory["FinancialHistory"]
+    FinancialAudit["FinancialAudit"]
+    Expense["Expense"]
+    Invoice --> InvoicePayment
+    Invoice --> LiquidationNote
+    Company_F["Company (ref)"] --> Payment
+    Company_F --> FinancialHistory
+  end
+
+  subgraph RESERVATION["📅 Reservation Context"]
+    Reservation["Reservation\n(Aggregate Root)"]
+    MeetingPlan["MeetingPlan"]
+    RoomPricing["RoomPricing"]
+    RoomSettings["RoomSettings"]
+    RoomBookingLead["RoomBookingLead"]
+    Reservation --> MeetingPlan
+    MeetingPlan --> RoomPricing
+    RoomBookingLead --> Reservation
+  end
+
+  subgraph SECURITY["🔐 Security Context"]
+    AdminUser["AdminUser"]
+    DeleteRequest["DeleteRequest"]
+  end
+
+  subgraph COMM["📨 Communication Context"]
+    Notification["Notification"]
+    Email["Email (service)"]
+    WhatsApp["WhatsApp (service)"]
+  end
+
+  %% Cross-context relationships via Events (não FKs directas)
+  CRM -->|"lead.converted →"| COWORK
+  COWORK -->|"payment.received →"| FINANCIAL
+  RESERVATION -->|"reservation.paymentReceived →"| FINANCIAL
+  CRM -->|"lead.created →"| COMM
+  COWORK -->|"company.contractExpiringSoon →"| COMM
+  FINANCIAL -->|"payment.overdue →"| COMM
+  RESERVATION -->|"reservation.created →"| COMM
+
+  classDef context fill:#1e293b,stroke:#3b82f6,color:#e2e8f0
+  classDef aggregate fill:#1d4ed8,stroke:#93c5fd,color:#e2e8f0
+  classDef entity fill:#374151,stroke:#6b7280,color:#d1d5db
+
+  class CRM,COWORK,FINANCIAL,RESERVATION,SECURITY,COMM context
+  class Lead,Company,Invoice,Reservation aggregate

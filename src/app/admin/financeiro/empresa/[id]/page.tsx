@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import AdminLayout from "@/components/admin/AdminLayout";
 import EmployeesPanel from "@/components/admin/EmployeesPanel";
+import GenerateDocModal from "@/components/admin/GenerateDocModal";
 import { formatKz } from "@/lib/currency";
 import { format } from "date-fns";
 import { pt } from "date-fns/locale";
@@ -91,9 +92,10 @@ type HistoryEntry = {
 export default function CompanyFinancePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const [data, setData]       = useState<FinanceSummary | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
+  const [data, setData]             = useState<FinanceSummary | null>(null);
+  const [loading, setLoading]       = useState(true);
+  const [showModal, setShowModal]   = useState(false);
+  const [showDocModal, setShowDocModal] = useState(false);
   const [form, setForm] = useState({ amount: "", paymentMethod: "Transferência Bancária", notes: "", dueDate: new Date().toISOString().split("T")[0] });
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
@@ -182,12 +184,20 @@ export default function CompanyFinancePage() {
             <h1 className="font-display text-2xl font-bold text-[#F5F7FA] mt-2">{company.name}</h1>
             <p className="text-sm text-[#94A3B8]">{company.planType} · Sala {company.roomNumber} · {company.responsible}</p>
           </div>
-          <button
-            onClick={() => setShowModal(true)}
-            className="rounded-xl bg-[#2F6FED] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#1E4FB8] transition-colors"
-          >
-            + Registar Pagamento
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setShowDocModal(true)}
+              className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-sm font-medium text-emerald-300 transition hover:bg-emerald-500/20"
+            >
+              📃 Gerar Contrato
+            </button>
+            <button
+              onClick={() => setShowModal(true)}
+              className="rounded-xl bg-[#2F6FED] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#1E4FB8] transition-colors"
+            >
+              + Registar Pagamento
+            </button>
+          </div>
         </div>
 
         {/* Resumo Financeiro */}
@@ -485,6 +495,32 @@ export default function CompanyFinancePage() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Modal geração de contrato (VOL08) */}
+        {data && (
+          <GenerateDocModal
+            isOpen={showDocModal}
+            onClose={() => setShowDocModal(false)}
+            entityType="COMPANY"
+            entityId={id}
+            entityName={data.company.name}
+            defaultSlug="contrato-coworking"
+            prefillVars={{
+              nomeEmpresa:      data.company.name,
+              nifEmpresa:       data.company.nif ?? "",
+              planoDescricao:   data.company.planType,
+              valorMensal:      formatKz(data.company.rentAmount),
+              dataInicio:       data.company.contractStart
+                                  ? format(new Date(data.company.contractStart), "dd/MM/yyyy", { locale: pt })
+                                  : "",
+              dataFim:          data.company.contractEnd
+                                  ? format(new Date(data.company.contractEnd), "dd/MM/yyyy", { locale: pt })
+                                  : "",
+              dataDocumento:    format(new Date(), "dd/MM/yyyy", { locale: pt }),
+              emailContacto:    data.company.email,
+            }}
+          />
         )}
     </AdminLayout>
   );

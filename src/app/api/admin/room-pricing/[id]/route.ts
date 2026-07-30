@@ -3,14 +3,15 @@
  * DELETE /api/admin/room-pricing/[id]  → soft-delete (active=false)
  */
 import { NextRequest, NextResponse } from "next/server";
+import { AdminRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { requireRole } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+  const { error } = await requireRole(AdminRole.ADMIN);
+  if (error) return error;
 
   const body = await req.json();
   const data: Record<string, unknown> = {};
@@ -26,8 +27,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+  const { error } = await requireRole(AdminRole.ADMIN);
+  if (error) return error;
 
   await prisma.roomPricing.update({ where: { id: params.id }, data: { active: false } });
   return NextResponse.json({ ok: true });

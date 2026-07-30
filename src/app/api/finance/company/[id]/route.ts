@@ -2,15 +2,16 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { AdminRole } from "@prisma/client";
+import { requireRole } from "@/lib/auth";
 import { getCompanyFinanceSummary } from "@/lib/finance";
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+  const { error } = await requireRole(AdminRole.ADMIN, AdminRole.COMERCIAL, AdminRole.FINANCEIRO);
+  if (error) return error;
 
   const summary = await getCompanyFinanceSummary(prisma, params.id);
   if (!summary) return NextResponse.json({ error: "Empresa não encontrada." }, { status: 404 });

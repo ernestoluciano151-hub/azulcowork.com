@@ -5,14 +5,15 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { AdminRole } from "@prisma/client";
+import { requireRole } from "@/lib/auth";
 import { confirmPayment } from "@/lib/finance-service";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+  const { session, error } = await requireRole(AdminRole.ADMIN, AdminRole.FINANCEIRO);
+  if (error) return error;
 
   const body = await req.json();
   const { paymentMethod, operationRef, receiptUrl, paidDate, amount } = body;

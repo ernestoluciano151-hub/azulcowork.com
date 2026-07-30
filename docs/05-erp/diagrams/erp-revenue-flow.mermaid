@@ -1,0 +1,45 @@
+---
+title: ERP — Fluxo de Receita (Caminho Feliz)
+---
+flowchart TD
+    A([Lead Qualificado\nno CRM]) --> B{Deal WON?}
+    B -- Sim --> C[Criar Contrato\nContract DRAFT]
+    B -- Não --> Z([Continuar pipeline])
+
+    C --> D[Assinar Contrato\nAnexar PDF]
+    D --> E[Activar Contrato\nDRAFT → ACTIVE]
+
+    E --> F[Gerar RentSchedules\n12x parcelas mensais]
+    E --> G{Caução > 0?}
+    G -- Sim --> G1[FinancialAlert\nDEPOSIT_DUE]
+    G1 --> G2[Receber caução\nLedger: CREDIT 1401]
+
+    F --> H[Cron dia 25:\nGerar Faturas]
+    H --> I[Invoice ISSUED\nFT-CWORK-YYYY-N]
+    I --> J[Gerar PDF\nCloudinary]
+    J --> K[Enviar Email\nResend]
+    K --> L[Cliente recebe fatura]
+
+    L --> M{Paga em 30 dias?}
+    M -- Sim --> N[Registar Payment\nPENDING]
+    M -- Não --> O[Cron diário:\nInvoice OVERDUE]
+    O --> O1[FinancialAlert\nPAYMENT_OVERDUE]
+    O1 --> O2[Email lembrete\npara cliente]
+    O2 --> N
+
+    N --> P[ADMIN confirma\ncomprovativo]
+    P --> Q[Payment CONFIRMED\n$transaction]
+
+    Q --> R[Invoice PAID]
+    Q --> S[Ledger: DEBIT 1201\nCREDIT 2111]
+    Q --> T[CashMovement\nINFLOW]
+    Q --> U[Gerar Recibo\nREC-YYYY-N]
+    Q --> V[Resolver Alert\nPAYMENT_OVERDUE]
+    Q --> W[Timeline Entry\nPAYMENT_CONFIRMED]
+    Q --> X[Email Recibo\npara cliente]
+
+    style A fill:#2F6FED,color:#fff
+    style E fill:#10b981,color:#fff
+    style Q fill:#10b981,color:#fff
+    style O fill:#ef4444,color:#fff
+    style O1 fill:#ef4444,color:#fff

@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { AdminRole } from "@prisma/client";
+import { requireRole } from "@/lib/auth";
+import { nextDocumentNumber } from "@/lib/document-numbering";
+import { isApiRateLimited } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+  const { error } = await requireRole(AdminRole.ADMIN, AdminRole.FINANCEIRO, AdminRole.COMERCIAL);
+  if (error) return error;
 
   const { searchParams } = new URL(req.url);
   const companyId = searchParams.get("companyId");
@@ -45,8 +48,13 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  if (isApiRateLimited(ip, "invoices")) {
+    return NextResponse.json({ error: "Demasiados pedidos. Aguarde um momento." }, { status: 429 });
+  }
+
+  const { error } = await requireRole(AdminRole.ADMIN, AdminRole.FINANCEIRO);
+  if (error) return error;
 
   const data = await req.json();
   const { companyId, serviceType, amount, issueDate, dueDate, paymentMethod, notes } = data;
@@ -55,35 +63,33 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Campos obrigatórios em falta." }, { status: 400 });
   }
 
-  // Auto-generate invoice number
-  const year = new Date().getFullYear();
-  const count = await prisma.invoice.count({
-    where: { invoiceNumber: { startsWith: `FT-${year}-` } },
-  });
-  const invoiceNumber = `FT-${year}-${String(count + 1).padStart(4, "0")}`;
-
-  const amountNum    = Number(amount);
-  const discountNum  = Number(data.discount  || 0);
-  const ivaNum       = Number(data.iva       || 0);
+  const amountNum     = Number(amount);
+  const discountNum   = Number(data.discount  || 0);
+  const ivaNum        = Number(data.iva       || 0);
   const afterDiscount = amountNum - discountNum;
   const totalAmount   = afterDiscount + (afterDiscount * ivaNum / 100);
 
-  const invoice = await prisma.invoice.create({
-    data: {
-      invoiceNumber,
-      companyId,
-      serviceType,
-      amount:        amountNum,
-      discount:      discountNum,
-      iva:           ivaNum,
-      totalAmount,
-      balance:       totalAmount,
-      issueDate:     issueDate ? new Date(issueDate) : new Date(),
-      dueDate:       new Date(dueDate),
-      paymentMethod: paymentMethod || null,
-      notes:         notes || null,
-    },
-    include: { company: { select: { id: true, name: true } } },
+  // Numeração atómica: FT-CWORK-YYYY-NNNNNN (DT-014)
+  const invoice = await prisma.$transaction(async (tx) => {
+    const invoiceNumber = await nextDocumentNumber(tx, "FT-CWORK");
+
+    return tx.invoice.create({
+      data: {
+        invoiceNumber,
+        companyId,
+        serviceType,
+        amount:        amountNum,
+        discount:      discountNum,
+        iva:           ivaNum,
+        totalAmount,
+        balance:       totalAmount,
+        issueDate:     issueDate ? new Date(issueDate) : new Date(),
+        dueDate:       new Date(dueDate),
+        paymentMethod: paymentMethod || null,
+        notes:         notes || null,
+      },
+      include: { company: { select: { id: true, name: true } } },
+    });
   });
 
   return NextResponse.json(invoice, { status: 201 });

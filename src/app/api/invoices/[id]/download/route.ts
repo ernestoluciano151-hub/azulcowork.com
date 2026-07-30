@@ -1,7 +1,8 @@
 export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
+import { AdminRole } from "@prisma/client";
+import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { InvoiceDocument, type InvoiceData } from "@/lib/invoice-pdf";
@@ -18,10 +19,8 @@ export async function GET(
 ) {
   try {
     // ── auth ────────────────────────────────────────────────────────────
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { error: authError } = await requireRole(AdminRole.ADMIN, AdminRole.FINANCEIRO, AdminRole.COMERCIAL);
+    if (authError) return authError;
 
     // ── dados da fatura + empresa ────────────────────────────────────────
     const invoice = await prisma.invoice.findUnique({

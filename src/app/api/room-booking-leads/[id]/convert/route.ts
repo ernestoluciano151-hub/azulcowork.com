@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { AdminRole } from "@prisma/client";
+import { requireRole } from "@/lib/auth";
 import { addTimeline } from "@/lib/timeline";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+  const { session, error } = await requireRole(AdminRole.ADMIN, AdminRole.COMERCIAL);
+  if (error) return error;
 
   const lead = await prisma.roomBookingLead.findUnique({ where: { id: params.id } });
   if (!lead) return NextResponse.json({ error: "Lead não encontrado." }, { status: 404 });

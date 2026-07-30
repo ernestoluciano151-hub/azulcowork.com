@@ -4,14 +4,15 @@
  * PUT  /api/admin/room-pricing        → bulk-upsert (replace all for a roomId)
  */
 import { NextRequest, NextResponse } from "next/server";
+import { AdminRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { requireRole } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+  const { error } = await requireRole(AdminRole.ADMIN);
+  if (error) return error;
 
   const roomId = new URL(req.url).searchParams.get("roomId") || "sala-reuniao";
 
@@ -24,8 +25,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+  const { error } = await requireRole(AdminRole.ADMIN);
+  if (error) return error;
 
   const body = await req.json();
   const { roomId = "sala-reuniao", label, durationMinutes, price, sortOrder } = body;
@@ -48,8 +49,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+  const { error } = await requireRole(AdminRole.ADMIN);
+  if (error) return error;
 
   const body = await req.json();
   const { tiers, roomId = "sala-reuniao" } = body as {

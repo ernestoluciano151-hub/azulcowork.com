@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { AdminRole } from "@prisma/client";
+import { requireRole } from "@/lib/auth";
 import { recordFinancialHistory } from "@/lib/finance";
+import { nextDocumentNumber } from "@/lib/document-numbering";
+import { isApiRateLimited } from "@/lib/rateLimit";
+import { recordAudit, actorFromSession } from "@/lib/audit-service";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+  const { error } = await requireRole(AdminRole.ADMIN, AdminRole.FINANCEIRO, AdminRole.COMERCIAL);
+  if (error) return error;
 
   const { searchParams } = new URL(req.url);
   const status    = searchParams.get("status");
@@ -51,8 +55,13 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  if (isApiRateLimited(ip, "payments")) {
+    return NextResponse.json({ error: "Demasiados pedidos. Aguarde um momento." }, { status: 429 });
+  }
+
+  const { session, error } = await requireRole(AdminRole.ADMIN, AdminRole.FINANCEIRO);
+  if (error) return error;
 
   const data = await req.json();
   const {
@@ -69,13 +78,7 @@ export async function POST(req: NextRequest) {
   const amountNum = Number(amount);
 
   // ── auto-gerar número de recibo ──────────────────────────────────────────
-  const year  = new Date().getFullYear();
-  const count = await prisma.payment.count({
-    where: { receiptNumber: { startsWith: `REC-${year}-` } },
-  });
-  const receiptNumber = `REC-${year}-${String(count + 1).padStart(6, "0")}`;
-
-  // ── saldo anterior (auditoria) ───────────────────────────────────────────
+  // ── saldo anterior calculado ANTES da transacção (representa estado pré-pagamento) ──
   const company = await prisma.company.findUnique({ where: { id: companyId } });
   let previousBalance: number | null = null;
   if (company) {
@@ -88,37 +91,60 @@ export async function POST(req: NextRequest) {
     previousBalance = totalContracted - (paidAgg._sum.amount ?? 0);
   }
 
-  const payment = await prisma.payment.create({
-    data: {
-      companyId,
-      amount:          amountNum,
-      dueDate:         new Date(dueDate),
-      paidDate:        isPago ? (paidDate ? new Date(paidDate) : new Date()) : null,
-      paymentMethod:   paymentMethod || null,
-      notes:           notes || null,
-      status:          status || "PENDENTE",
-      category:        category || null,
-      receiptUrl:      receiptUrl || null,
-      doc2Url:         doc2Url || null,
-      operationRef:    operationRef || null,
-      receiptNumber,
-      previousBalance,
-    },
-    include: { company: { select: { id: true, name: true } } },
+  // ── payment.create + recordFinancialHistory atómicos ────────────────────
+  const payment = await prisma.$transaction(async (tx) => {
+    const receiptNumber = await nextDocumentNumber(tx, "REC");
+
+    const created = await tx.payment.create({
+      data: {
+        companyId,
+        amount:          amountNum,
+        dueDate:         new Date(dueDate),
+        paidDate:        isPago ? (paidDate ? new Date(paidDate) : new Date()) : null,
+        paymentMethod:   paymentMethod || null,
+        notes:           notes || null,
+        status:          status || "PENDENTE",
+        category:        category || null,
+        receiptUrl:      receiptUrl || null,
+        doc2Url:         doc2Url || null,
+        operationRef:    operationRef || null,
+        receiptNumber,
+        previousBalance,
+      },
+      include: { company: { select: { id: true, name: true } } },
+    });
+
+    if (isPago && companyId) {
+      await recordFinancialHistory(tx, {
+        companyId,
+        type:        "PAGAMENTO",
+        description: `${receiptNumber} — ${created.company?.name ?? "empresa"}`,
+        amount:      amountNum,
+        method:      paymentMethod || undefined,
+        reference:   created.id,
+        createdBy:   session.name || session.email,
+      });
+    }
+
+    return created;
   });
 
-  // ── registar no histórico se pago ────────────────────────────────────────
-  if (isPago && companyId) {
-    await recordFinancialHistory(prisma, {
-      companyId,
-      type:        "PAGAMENTO",
-      description: `${receiptNumber} — ${payment.company?.name ?? "empresa"}`,
-      amount:      amountNum,
-      method:      paymentMethod || undefined,
-      reference:   payment.id,
-      createdBy:   session.name || session.email,
-    });
-  }
+  // Audit: PAYMENT_CREATED — post-commit, nunca bloqueia resposta
+  recordAudit({
+    actor:     actorFromSession(session),
+    action:    "PAYMENT_CREATED",
+    entity:    "Payment",
+    entityId:  payment.id,
+    entityRef: payment.receiptNumber ?? undefined,
+    ipAddress: ip,
+    after: {
+      amount:        payment.amount,
+      status:        payment.status,
+      companyId:     payment.companyId,
+      receiptNumber: payment.receiptNumber,
+      dueDate:       payment.dueDate,
+    },
+  }).catch(err => console.error("[Audit] PAYMENT_CREATED:", err));
 
   return NextResponse.json(payment, { status: 201 });
 }

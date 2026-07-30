@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { AdminRole } from "@prisma/client";
+import { requireRole } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 // PATCH /api/employees/:id
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+  const { error } = await requireRole(AdminRole.ADMIN, AdminRole.COMERCIAL);
+  if (error) return error;
 
   const body = await req.json();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -29,8 +30,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
 // DELETE /api/employees/:id
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+  const { error } = await requireRole(AdminRole.ADMIN);
+  if (error) return error;
 
   await prisma.employee.delete({ where: { id: params.id } });
 

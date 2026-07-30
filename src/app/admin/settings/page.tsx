@@ -26,7 +26,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 export default function SettingsPage() {
   const router = useRouter();
-  const [tab, setTab] = useState<"seguranca" | "utilizadores">("seguranca");
+  const [tab, setTab] = useState<"seguranca" | "utilizadores" | "sessoes">("seguranca");
   const [me, setMe] = useState<{ role?: string } | null>(null);
 
   // Password change
@@ -40,7 +40,13 @@ export default function SettingsPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [showAddUser, setShowAddUser] = useState(false);
-  const [addForm, setAddForm] = useState({ email: "", name: "", password: "", role: "USER" });
+  const [addForm, setAddForm] = useState({ email: "", name: "", password: "", role: "VIEWER" });
+
+  // Sessions (VOL05-2)
+  type SessionEntry = { id: string; ipAddress: string | null; userAgent: string | null; lastActiveAt: string; createdAt: string; expiresAt: string; };
+  const [sessions, setSessions] = useState<SessionEntry[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [revoking, setRevoking] = useState<string | null>(null);
   const [addError, setAddError] = useState("");
   const [addSaving, setAddSaving] = useState(false);
 
@@ -62,7 +68,22 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (tab === "utilizadores" && me?.role === "ADMIN") fetchUsers();
+    if (tab === "sessoes") fetchSessions();
   }, [tab, me]);
+
+  async function fetchSessions() {
+    setSessionsLoading(true);
+    const res = await fetch("/api/admin/sessions");
+    if (res.ok) { const d = await res.json(); setSessions(d.sessions); }
+    setSessionsLoading(false);
+  }
+
+  async function revokeSession(id: string) {
+    setRevoking(id);
+    await fetch(`/api/admin/sessions/${id}`, { method: "DELETE" });
+    await fetchSessions();
+    setRevoking(null);
+  }
 
   async function fetchUsers() {
     setUsersLoading(true);
@@ -98,7 +119,7 @@ export default function SettingsPage() {
       body: JSON.stringify(addForm),
     });
     const d = await res.json();
-    if (res.ok) { setShowAddUser(false); setAddForm({ email: "", name: "", password: "", role: "USER" }); fetchUsers(); }
+    if (res.ok) { setShowAddUser(false); setAddForm({ email: "", name: "", password: "", role: "VIEWER" }); fetchUsers(); }
     else setAddError(d.error || "Erro ao criar utilizador.");
     setAddSaving(false);
   }
@@ -116,7 +137,7 @@ export default function SettingsPage() {
     await fetch(`/api/admin/users/${user.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ role: user.role === "ADMIN" ? "USER" : "ADMIN" }),
+      body: JSON.stringify({ role: user.role === "ADMIN" ? "VIEWER" : "ADMIN" }),
     });
     fetchUsers();
   }
@@ -147,7 +168,7 @@ export default function SettingsPage() {
 
         {/* Tabs */}
         <div className="mt-6 flex gap-1 rounded-xl border border-white/10 bg-white/[0.03] p-1 w-fit">
-          {(["seguranca", "utilizadores"] as const).map((t) => (
+          {(["seguranca", "utilizadores", "sessoes"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -156,7 +177,7 @@ export default function SettingsPage() {
                 tab === t ? "bg-azul text-white" : "text-mist hover:text-paper"
               ].join(" ")}
             >
-              {t === "seguranca" ? "🔒 Segurança" : "👥 Utilizadores"}
+              {t === "seguranca" ? "🔒 Segurança" : t === "utilizadores" ? "👥 Utilizadores" : "🖥 Sessões"}
             </button>
           ))}
         </div>
@@ -195,11 +216,11 @@ export default function SettingsPage() {
                   <p className="mt-0.5 text-sm text-mist">Adicione uma camada extra de segurança à sua conta.</p>
                 </div>
               </div>
-              <div className="mt-4 rounded-lg bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
-                🚧 Em breve — funcionalidade TOTP em desenvolvimento.
+              <div className="mt-4 rounded-lg bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+                ✅ TOTP 2FA disponível — configure em <span className="font-mono">/api/auth/totp/setup</span> e verifique em <span className="font-mono">/api/auth/totp/verify</span>.
               </div>
               <p className="mt-3 text-xs text-mist">
-                Quando disponível, poderá ligar a autenticação de dois fatores usando apps como Google Authenticator ou Authy.
+                Use o Google Authenticator ou Authy para gerar o QR Code e activar o segundo factor de autenticação.
               </p>
             </div>
           </div>
@@ -290,9 +311,73 @@ export default function SettingsPage() {
               </table>
             </div>
 
-            <div className="mt-4 rounded-lg bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
-              ℹ️ Utilizadores com papel USER não têm acesso às páginas de Pagamentos e Definições.
+            <div className="mt-4 rounded-lg bg-azul/10 px-4 py-3 text-sm text-azul-glow">
+              ℹ️ Papéis disponíveis: ADMIN (acesso total) · COMERCIAL (CRM + Reservas) · FINANCEIRO (ERP + Pagamentos) · VIEWER (só leitura).
             </div>
+          </div>
+        )}
+
+        {tab === "sessoes" && (
+          <div className="mt-6 max-w-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="font-display text-lg font-bold text-paper">Sessões activas</h2>
+                <p className="text-sm text-mist mt-1">Sessões abertas na sua conta. Revogue as que não reconhece.</p>
+              </div>
+              <button onClick={fetchSessions} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-mist hover:text-paper">
+                ↻ Actualizar
+              </button>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-white/[0.03] text-mist">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">IP / Dispositivo</th>
+                    <th className="px-4 py-3 font-medium">Última actividade</th>
+                    <th className="px-4 py-3 font-medium">Expira</th>
+                    <th className="px-4 py-3 font-medium">Acção</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {sessionsLoading && (
+                    <tr><td colSpan={4} className="px-4 py-8 text-center text-mist">A carregar...</td></tr>
+                  )}
+                  {!sessionsLoading && sessions.length === 0 && (
+                    <tr><td colSpan={4} className="px-4 py-8 text-center text-mist">Sem sessões activas.</td></tr>
+                  )}
+                  {!sessionsLoading && sessions.map((s) => (
+                    <tr key={s.id} className="text-paper hover:bg-white/[0.02]">
+                      <td className="px-4 py-3">
+                        <p className="font-medium font-mono text-xs">{s.ipAddress || "—"}</p>
+                        <p className="text-xs text-mist truncate max-w-xs" title={s.userAgent || ""}>
+                          {s.userAgent ? s.userAgent.slice(0, 60) + (s.userAgent.length > 60 ? "…" : "") : "—"}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-mist">
+                        {new Date(s.lastActiveAt).toLocaleString("pt-PT")}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-mist">
+                        {new Date(s.expiresAt).toLocaleString("pt-PT")}
+                      </td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => revokeSession(s.id)}
+                          disabled={revoking === s.id}
+                          className="rounded-lg border border-red-500/30 px-3 py-1.5 text-xs text-red-300 hover:bg-red-500/10 disabled:opacity-50"
+                        >
+                          {revoking === s.id ? "A revogar…" : "Revogar"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <p className="mt-3 text-xs text-mist">
+              As sessões expiram automaticamente ao fim de 12 horas. Revogar uma sessão desliga imediatamente o dispositivo associado.
+            </p>
           </div>
         )}
 
@@ -316,7 +401,9 @@ export default function SettingsPage() {
               </Field>
               <Field label="Papel">
                 <select className={input} value={addForm.role} onChange={(e) => setAddForm((f) => ({ ...f, role: e.target.value }))}>
-                  <option value="USER">USER</option>
+                  <option value="VIEWER">VIEWER</option>
+                  <option value="COMERCIAL">COMERCIAL</option>
+                  <option value="FINANCEIRO">FINANCEIRO</option>
                   <option value="ADMIN">ADMIN</option>
                 </select>
               </Field>

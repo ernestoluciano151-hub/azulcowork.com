@@ -1,4 +1,41 @@
 import nodemailer from "nodemailer";
+import { prisma } from "@/lib/prisma";
+
+/** Regista um envio de email no CommunicationLog. Fire-and-forget. */
+async function logEmail(opts: {
+  templateSlug: string;
+  to: string;
+  subject: string;
+  body: string;
+  channel: string;
+  entityType?: string;
+  entityId?: string;
+  success: boolean;
+  errorMsg?: string;
+}) {
+  try {
+    await prisma.communicationLog.create({
+      data: {
+        type:         "EMAIL",
+        channel:      opts.channel,
+        templateSlug: opts.templateSlug,
+        to:           opts.to,
+        subject:      opts.subject,
+        body:         opts.body,
+        status:       opts.success ? "SENT" : "FAILED",
+        attempts:     1,
+        lastAttemptAt: new Date(),
+        sentAt:       opts.success ? new Date() : null,
+        errorMsg:     opts.errorMsg ?? null,
+        entityType:   opts.entityType ?? null,
+        entityId:     opts.entityId   ?? null,
+        triggeredBy:  "SYSTEM",
+      },
+    });
+  } catch (logErr) {
+    console.error("[email] Falha ao registar CommunicationLog:", logErr);
+  }
+}
 
 function createTransporter() {
   return nodemailer.createTransport({
@@ -48,11 +85,8 @@ export async function sendNewLeadEmail(lead: {
   });
 
   try {
-    await createTransporter().sendMail({
-      from: `"Azul Coworking CRM" <${process.env.SMTP_USER}>`,
-      to: process.env.ADMIN_EMAIL,
-      subject: `🔔 Novo lead coworking: ${lead.firstName} ${lead.lastName}`,
-      html: `
+    const subject = `🔔 Novo lead coworking: ${lead.firstName} ${lead.lastName}`;
+    const html = `
         <div style="${baseStyle}">
           <h2 style="color:#2F6FED;margin-top:0;font-size:20px">🎉 Novo lead captado — Coworking</h2>
           <table style="width:100%;border-collapse:collapse;margin-top:12px">
@@ -68,11 +102,18 @@ export async function sendNewLeadEmail(lead: {
           <a href="${siteUrl()}/admin/leads" style="${btnStyle}">Ver no CRM →</a>
           <p style="${footStyle}">Azul Coworking · Bairro Azul, Edifício 18, Luanda</p>
         </div>
-      `,
+      `;
+    await createTransporter().sendMail({
+      from: `"Azul Coworking CRM" <${process.env.SMTP_USER}>`,
+      to: process.env.ADMIN_EMAIL,
+      subject,
+      html,
     });
     console.log(`[email] ✓ Notificação coworking enviada — ${lead.firstName} ${lead.lastName}`);
+    void logEmail({ templateSlug: "lead-new-coworking", to: process.env.ADMIN_EMAIL!, subject, body: html, channel: "transactional", entityType: "LEAD", success: true });
   } catch (err) {
     console.error("[email] ✗ Erro ao enviar notificação coworking:", err);
+    void logEmail({ templateSlug: "lead-new-coworking", to: process.env.ADMIN_EMAIL ?? "unknown", subject: `Novo lead: ${lead.firstName} ${lead.lastName}`, body: "", channel: "transactional", entityType: "LEAD", success: false, errorMsg: String(err) });
   }
 }
 
@@ -98,13 +139,8 @@ export async function sendReservationConfirmationEmail(data: {
   const fmtKz = (v: number) =>
     new Intl.NumberFormat("pt-AO", { minimumFractionDigits: 2 }).format(v) + " Kz";
 
-  try {
-    await createTransporter().sendMail({
-      from: `"Azul Coworking" <${process.env.SMTP_USER}>`,
-      to: data.clientEmail,
-      bcc: process.env.ADMIN_EMAIL,
-      subject: `✅ Reserva confirmada — ${data.eventName} | Azul Coworking`,
-      html: `
+  const subject = `✅ Reserva confirmada — ${data.eventName} | Azul Coworking`;
+  const html = `
         <div style="${baseStyle}">
           <h2 style="color:#22c55e;margin-top:0;font-size:20px">✅ Reserva Confirmada!</h2>
           <p style="color:#94a3b8">Olá ${data.clientName}, a sua reserva foi confirmada com sucesso.</p>
@@ -124,11 +160,20 @@ export async function sendReservationConfirmationEmail(data: {
           </div>
           <p style="${footStyle}">Azul Coworking · Bairro Azul, Edifício 18, Luanda · azulcoworking.ao</p>
         </div>
-      `,
+      `;
+  try {
+    await createTransporter().sendMail({
+      from: `"Azul Coworking" <${process.env.SMTP_USER}>`,
+      to: data.clientEmail,
+      bcc: process.env.ADMIN_EMAIL,
+      subject,
+      html,
     });
     console.log(`[email] ✓ Confirmação de reserva enviada — ${data.clientEmail}`);
+    void logEmail({ templateSlug: "reservation-confirmation", to: data.clientEmail, subject, body: html, channel: "transactional", entityType: "RESERVATION", entityId: data.reservationId, success: true });
   } catch (err) {
     console.error("[email] ✗ Erro ao enviar confirmação de reserva:", err);
+    void logEmail({ templateSlug: "reservation-confirmation", to: data.clientEmail, subject, body: html, channel: "transactional", entityType: "RESERVATION", entityId: data.reservationId, success: false, errorMsg: String(err) });
   }
 }
 
@@ -155,12 +200,8 @@ export async function sendNewReservationAdminEmail(data: {
   const fmtKz = (v: number) =>
     new Intl.NumberFormat("pt-AO", { minimumFractionDigits: 2 }).format(v) + " Kz";
 
-  try {
-    await createTransporter().sendMail({
-      from: `"Azul Coworking CRM" <${process.env.SMTP_USER}>`,
-      to: process.env.ADMIN_EMAIL,
-      subject: `🏨 Nova reserva: ${data.eventName} — ${data.planName}`,
-      html: `
+  const subject = `🏨 Nova reserva: ${data.eventName} — ${data.planName}`;
+  const html = `
         <div style="${baseStyle}">
           <h2 style="color:#2F6FED;margin-top:0;font-size:20px">🏨 Nova Reserva de Sala</h2>
           <table style="width:100%;border-collapse:collapse;margin-top:12px">
@@ -179,11 +220,19 @@ export async function sendNewReservationAdminEmail(data: {
           <a href="${siteUrl()}/admin/salas/reserva/${data.reservationId}" style="${btnStyle}">Ver reserva →</a>
           <p style="${footStyle}">Azul Coworking CRM · notificação automática</p>
         </div>
-      `,
+      `;
+  try {
+    await createTransporter().sendMail({
+      from: `"Azul Coworking CRM" <${process.env.SMTP_USER}>`,
+      to: process.env.ADMIN_EMAIL,
+      subject,
+      html,
     });
     console.log(`[email] ✓ Notificação admin reserva enviada — ${data.eventName}`);
+    void logEmail({ templateSlug: "reservation-new-admin", to: process.env.ADMIN_EMAIL!, subject, body: html, channel: "transactional", entityType: "RESERVATION", entityId: data.reservationId, success: true });
   } catch (err) {
     console.error("[email] ✗ Erro ao enviar notificação admin reserva:", err);
+    void logEmail({ templateSlug: "reservation-new-admin", to: process.env.ADMIN_EMAIL ?? "unknown", subject, body: html, channel: "transactional", entityType: "RESERVATION", entityId: data.reservationId, success: false, errorMsg: String(err) });
   }
 }
 
@@ -207,12 +256,8 @@ export async function sendNewRoomLeadEmail(lead: {
     ? lead.preferredDate.toLocaleDateString("pt-PT", { dateStyle: "full", timeZone: "Africa/Luanda" })
     : "Não especificada";
 
-  try {
-    await createTransporter().sendMail({
-      from: `"Azul Coworking CRM" <${process.env.SMTP_USER}>`,
-      to: process.env.ADMIN_EMAIL,
-      subject: `🏨 Pedido de sala: ${lead.firstName} ${lead.lastName} — Plano ${lead.planName}`,
-      html: `
+  const subject = `🏨 Pedido de sala: ${lead.firstName} ${lead.lastName} — Plano ${lead.planName}`;
+  const html = `
         <div style="${baseStyle}">
           <h2 style="color:#2F6FED;margin-top:0;font-size:20px">🏨 Novo pedido de reserva — Sala de Reunião</h2>
           <table style="width:100%;border-collapse:collapse;margin-top:12px">
@@ -230,10 +275,18 @@ export async function sendNewRoomLeadEmail(lead: {
           <a href="${siteUrl()}/admin/leads-salas" style="${btnStyle}">Ver no CRM →</a>
           <p style="${footStyle}">Azul Coworking · Bairro Azul, Edifício 18, Luanda</p>
         </div>
-      `,
+      `;
+  try {
+    await createTransporter().sendMail({
+      from: `"Azul Coworking CRM" <${process.env.SMTP_USER}>`,
+      to: process.env.ADMIN_EMAIL,
+      subject,
+      html,
     });
     console.log(`[email] ✓ Notificação sala enviada — ${lead.firstName} ${lead.lastName}`);
+    void logEmail({ templateSlug: "lead-new-sala", to: process.env.ADMIN_EMAIL!, subject, body: html, channel: "transactional", entityType: "LEAD", success: true });
   } catch (err) {
     console.error("[email] ✗ Erro ao enviar notificação sala:", err);
+    void logEmail({ templateSlug: "lead-new-sala", to: process.env.ADMIN_EMAIL ?? "unknown", subject, body: html, channel: "transactional", entityType: "LEAD", success: false, errorMsg: String(err) });
   }
 }

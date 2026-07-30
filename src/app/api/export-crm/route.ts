@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { AdminRole } from "@prisma/client";
+import { requireRole } from "@/lib/auth";
 import ExcelJS from "exceljs";
 
 function headerStyle(cell: ExcelJS.Cell) {
@@ -17,8 +18,8 @@ function addSheet(wb: ExcelJS.Workbook, name: string, columns: Partial<ExcelJS.C
 }
 
 export async function GET() {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+  const { error } = await requireRole(AdminRole.ADMIN);
+  if (error) return error;
 
   // Paginated fetch para evitar timeout em BDs grandes
   const [leads, roomLeads, companies, payments, reservations] = await Promise.all([

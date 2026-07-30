@@ -1,6 +1,17 @@
+/**
+ * /api/admin/room-settings
+ *
+ * GET — obter configurações globais das salas (ADMIN)
+ * PUT — actualizar configurações (ADMIN)
+ *
+ * VOL04-3B: validação de openTime/closeTime, minHours, maxHours, maxDiscount
+ */
+
 import { NextRequest, NextResponse } from "next/server";
+import { AdminRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { requireRole } from "@/lib/auth";
+import { validateRoomSettings } from "@/lib/plan-validators";
 
 export const dynamic = "force-dynamic";
 
@@ -15,17 +26,22 @@ async function getOrCreate() {
 }
 
 export async function GET() {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+  const { error } = await requireRole(AdminRole.ADMIN);
+  if (error) return error;
   const settings = await getOrCreate();
   return NextResponse.json({ settings });
 }
 
 export async function PUT(req: NextRequest) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+  const { session, error } = await requireRole(AdminRole.ADMIN);
+  if (error) return error;
 
   const body = await req.json();
+
+  // ── Validação ──────────────────────────────────────────────────────────────
+  const validationErr = validateRoomSettings(body);
+  if (validationErr) return NextResponse.json(validationErr, { status: 400 });
+
   const settings = await getOrCreate();
 
   const updated = await prisma.roomSettings.update({
@@ -42,7 +58,7 @@ export async function PUT(req: NextRequest) {
       closeTime:           body.closeTime            ?? undefined,
       minHours:            body.minHours             !== undefined ? Number(body.minHours)             : undefined,
       maxHours:            body.maxHours             !== undefined ? Number(body.maxHours)             : undefined,
-      updatedBy:           (session as { name?: string; email?: string }).name || (session as { name?: string; email?: string }).email,
+      updatedBy:           session.name || session.email,
     },
   });
 

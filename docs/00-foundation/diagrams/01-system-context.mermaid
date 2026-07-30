@@ -1,0 +1,33 @@
+---
+title: VD Platform — Diagrama de Contexto de Sistema
+---
+C4Context
+  title VD Platform — Contexto de Sistema
+
+  Person(operador, "Operador / Gestor", "Ernesto Pinto Luciano<br/>Sócio-gerente do Azul Coworking")
+  Person(comercial, "Assistente Comercial", "Teresa Zua<br/>Gestão de leads e reservas")
+  Person(financeiro, "Responsável Financeiro", "Gestão de pagamentos<br/>e relatórios")
+  Person(cliente, "Empresa Cliente", "Inquilinos do coworking<br/>Portal do cliente (futuro)")
+  Person(visitante, "Visitante / Lead", "Potencial cliente<br/>Landing page pública")
+
+  System(vdplatform, "VD Platform", "Plataforma SaaS de gestão empresarial<br/>CRM · ERP · Cowork · Reservas · Financeiro")
+
+  System_Ext(postgresql, "PostgreSQL (Supabase)", "Base de dados relacional<br/>Dados da plataforma")
+  System_Ext(cloudinary, "Cloudinary", "CDN e gestão de activos<br/>Documentos · Imagens · Logos")
+  System_Ext(smtp, "SMTP (Email)", "Servidor de email<br/>Notificações · Confirmações")
+  System_Ext(whatsapp, "WhatsApp", "Comunicação directa<br/>Links deep-link com mensagens")
+  System_Ext(vercel, "Vercel", "Plataforma de deployment<br/>Hosting · Edge Functions")
+
+  Rel(operador, vdplatform, "Gere tudo", "HTTPS / Browser")
+  Rel(comercial, vdplatform, "Gere leads e reservas", "HTTPS / Browser")
+  Rel(financeiro, vdplatform, "Gere financeiro", "HTTPS / Browser")
+  Rel(cliente, vdplatform, "Consulta portal (futuro)", "HTTPS / Browser")
+  Rel(visitante, vdplatform, "Submete formulário", "HTTPS / Landing Page")
+
+  Rel(vdplatform, postgresql, "Persiste dados", "Prisma / TCP")
+  Rel(vdplatform, cloudinary, "Upload / Serve activos", "HTTPS / API")
+  Rel(vdplatform, smtp, "Envia emails", "SMTP / TLS")
+  Rel(vdplatform, whatsapp, "Gera links", "Deep Link URL")
+  Rel(vdplatform, vercel, "Deploy / Edge", "Git Push")
+
+  UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")

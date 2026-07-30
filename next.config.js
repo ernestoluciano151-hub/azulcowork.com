@@ -1,4 +1,5 @@
 /** @type {import('next').NextConfig} */
+const { withSentryConfig } = require("@sentry/nextjs");
 
 const securityHeaders = [
   // Impede que a página seja carregada em iframes (clickjacking)
@@ -28,8 +29,10 @@ const securityHeaders = [
       "frame-src 'self' https://scripts.converteai.net https://cdn.converteai.net",
       // Fontes
       "font-src 'self' data:",
-      // Conexões (API própria + Neon DB via Prisma no servidor + Cloudinary)
-      "connect-src 'self' https://res.cloudinary.com",
+      // Conexões (API própria + Cloudinary + Sentry telemetria — VOL03-10D)
+      "connect-src 'self' https://res.cloudinary.com https://*.ingest.sentry.io",
+      // Força HTTPS em recursos mistos (redundante com HSTS, mas defensivo)
+      "upgrade-insecure-requests",
       // Objectos e workers
       "object-src 'none'",
       "worker-src 'self' blob:",
@@ -41,8 +44,9 @@ const securityHeaders = [
 
 const nextConfig = {
   reactStrictMode: true,
-  typescript: { ignoreBuildErrors: true },
-  eslint: { ignoreDuringBuilds: true },
+  // DT-001 resolvido: ignoreBuildErrors removido — tsc --noEmit confirma 0 erros em 2026-07-27
+  // ESLint activado: next lint valida em CI antes de cada deploy
+
   images: {
     // Restringir apenas a domínios conhecidos (evita SSRF via _next/image)
     remotePatterns: [
@@ -60,4 +64,17 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+module.exports = withSentryConfig(nextConfig, {
+  org:     "azul-coworking",
+  project: "vd-platform",
+  // Silencioso em local; verboso em CI
+  silent:  !process.env.CI,
+  // Source maps completos para stack traces legíveis no dashboard Sentry
+  widenClientFileUpload: true,
+  // Não expor source maps no bundle público (segurança)
+  hideSourceMaps: true,
+  // Remover logs do Sentry do bundle final (reduz tamanho)
+  disableLogger: true,
+  // Vercel Monitors não usado — desactivar para evitar ruído
+  automaticVercelMonitors: false,
+});

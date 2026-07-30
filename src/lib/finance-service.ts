@@ -6,6 +6,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { recordFinancialHistory } from "@/lib/finance";
 import { addTimeline } from "@/lib/timeline";
+import { nextDocumentNumber } from "@/lib/document-numbering";
 
 type TX = Parameters<Parameters<PrismaClient["$transaction"]>[0]>[0];
 type DB = PrismaClient | TX;
@@ -66,11 +67,7 @@ export async function confirmPayment(
     });
 
     if (!invoice) {
-      const invYear  = new Date().getFullYear();
-      const invCount = await tx.invoice.count({
-        where: { invoiceNumber: { startsWith: `FT-SALA-${invYear}-` } },
-      });
-      const invoiceNumber = `FT-SALA-${invYear}-${String(invCount + 1).padStart(6, "0")}`;
+      const invoiceNumber = await nextDocumentNumber(tx, "FT-SALA");
 
       invoice = await tx.invoice.create({
         data: {
@@ -142,11 +139,7 @@ export async function confirmPayment(
         },
       });
     } else {
-      const recYear  = new Date().getFullYear();
-      const recCount = await tx.payment.count({
-        where: { receiptNumber: { startsWith: `REC-${recYear}-` } },
-      });
-      const receiptNumber = `REC-${recYear}-${String(recCount + 1).padStart(6, "0")}`;
+      const receiptNumber = await nextDocumentNumber(tx, "REC");
 
       const paymentRec = await tx.payment.create({
         data: {
@@ -188,11 +181,7 @@ export async function confirmPayment(
     });
 
     // ── 6. Generate LiquidationNote ───────────────────────────────────────
-    const nlYear  = new Date().getFullYear();
-    const nlCount = await tx.liquidationNote.count({
-      where: { noteNumber: { startsWith: `NL-${nlYear}-` } },
-    });
-    const noteNumber = `NL-${nlYear}-${String(nlCount + 1).padStart(6, "0")}`;
+    const noteNumber = await nextDocumentNumber(tx, "NL");
 
     await tx.liquidationNote.create({
       data: {
@@ -211,7 +200,7 @@ export async function confirmPayment(
 
     // ── 7. Financial history (company only) ───────────────────────────────
     if (reservation.companyId) {
-      await recordFinancialHistory(tx as Parameters<typeof recordFinancialHistory>[0], {
+      await recordFinancialHistory(tx, {
         companyId:   reservation.companyId,
         type:        "PAGAMENTO",
         description: `${invoice.invoiceNumber} — Sala ${reservation.plan.name} | ${reservation.reservationNumber}`,

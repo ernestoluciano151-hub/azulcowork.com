@@ -1,17 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { AdminRole, Prisma } from "@prisma/client";
+import { requireRole } from "@/lib/auth";
 import { recordFinancialHistory } from "@/lib/finance";
 import { addTimeline } from "@/lib/timeline";
 import { notifyReservationCreated } from "@/lib/notifications";
+import { nextDocumentNumber } from "@/lib/document-numbering";
 import { publish } from "@/lib/event-bus";
 import "@/lib/bootstrap";
+import { recordAudit, actorFromSession } from "@/lib/audit-service";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+  const { error } = await requireRole(AdminRole.ADMIN, AdminRole.COMERCIAL, AdminRole.FINANCEIRO);
+  if (error) return error;
 
   const { searchParams } = new URL(req.url);
   const from        = searchParams.get("from");
@@ -47,8 +50,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+  const { session, error } = await requireRole(AdminRole.ADMIN, AdminRole.COMERCIAL);
+  if (error) return error;
 
   const body = await req.json();
   const {
@@ -81,20 +84,6 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const conflict = await prisma.reservation.findFirst({
-    where: {
-      status: { in: ["CONFIRMADA", "RESERVADO", "PENDENTE_APROVACAO"] },
-      AND: [{ startDatetime: { lt: end } }, { endDatetime: { gt: start } }],
-    },
-  });
-  if (conflict) {
-    return NextResponse.json({ error: "Conflito: já existe uma reserva neste período." }, { status: 409 });
-  }
-
-  const year  = new Date().getFullYear();
-  const count = await prisma.reservation.count({ where: { reservationNumber: { startsWith: `RES-${year}-` } } });
-  const reservationNumber = `RES-${year}-${String(count + 1).padStart(6, "0")}`;
-
   const opt = paymentOption || "PAGAR_NO_DIA";
   let reservationStatus = "CONFIRMADA";
   let paymentStatus     = "PENDENTE";
@@ -110,197 +99,217 @@ export async function POST(req: NextRequest) {
   const finalDisc   = Number(discount)    || 0;
   const finalIva    = Number(iva)         || 0;
 
-  const result = await prisma.$transaction(async (tx) => {
-    const reservation = await tx.reservation.create({
-      data: {
-        reservationNumber,
-        eventName,
-        companyName:     companyName  || null,
-        companyId:       companyId    || null,
-        responsible,
-        email:           email        || null,
-        whatsapp:        whatsapp     || null,
-        planId,
-        participants:    Number(participants) || 1,
-        startDatetime:   start,
-        endDatetime:     end,
-        totalHours,
-        coffeeBreak:     coffeeBreak  ?? false,
-        observations:    observations || null,
-        status:          reservationStatus,
-        isCustomPricing: isCustomPricing ?? false,
-        customRequest:   customRequest  || null,
-        paymentOption:   opt,
-        amount:          finalAmount,
-        discount:        finalDisc,
-        iva:             finalIva,
-        totalAmount:     finalTotal,
-        paymentStatus,
-        paymentMethod:   opt === "PAGAR_AGORA" ? (paymentMethod || null) : null,
-        operationRef:    opt === "PAGAR_AGORA" ? (operationRef  || null) : null,
-        receiptUrl:      opt === "PAGAR_AGORA" ? (receiptUrl    || null) : null,
-        financialNotes:  financialNotes || null,
-        amountPaid:      Number(amountPaid) || 0,
-        paidDate:        paidDate ? new Date(paidDate) : null,
-      },
-      include: { plan: true },
-    });
+  let result: Awaited<ReturnType<typeof runTransaction>>;
+  try {
+    result = await runTransaction();
+  } catch (e) {
+    if (e instanceof ReservationConflictError) {
+      return NextResponse.json({ error: "Conflito: já existe uma reserva neste período." }, { status: 409 });
+    }
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2034") {
+      return NextResponse.json({ error: "Conflito de concorrência. Tente novamente." }, { status: 409 });
+    }
+    throw e;
+  }
 
-    let paymentRec = null;
-    let invoiceRec = null;
-
-    let noteNumber: string | null = null;
-
-    if (opt === "PAGAR_AGORA" && finalTotal > 0) {
-      const finalAmountPaid = Number(amountPaid) || finalTotal;
-      const isPartial       = paymentTiming === "PARCIAL" && finalAmountPaid < finalTotal;
-      const invoiceStatus   = isPartial ? "PARCIAL" : "PAGO";
-      const reservPayStatus = isPartial ? "PARCIAL" : "PAGO";
-
-      const recYear  = new Date().getFullYear();
-      const recCount = await tx.payment.count({ where: { receiptNumber: { startsWith: `REC-${recYear}-` } } });
-      const receiptNumber = `REC-${recYear}-${String(recCount + 1).padStart(6, "0")}`;
-
-      paymentRec = await tx.payment.create({
-        data: {
-          companyId:     companyId    || null,
-          reservationId: reservation.id,
-          amount:        finalAmountPaid,
-          dueDate:       start,
-          paidDate:      paidDate ? new Date(paidDate) : new Date(),
-          status:        "PAGO",
-          paymentMethod: paymentMethod || null,
-          operationRef:  operationRef  || null,
-          receiptUrl:    receiptUrl    || null,
-          notes:         `${reservationNumber} — ${eventName}`,
-          category:      "SALA_REUNIAO",
-          receiptNumber,
+  async function runTransaction() {
+    return prisma.$transaction(async (tx) => {
+      // ── Conflict check DENTRO da transacção serializable ─────────────────────
+      const conflict = await tx.reservation.findFirst({
+        where: {
+          status: { in: ["CONFIRMADA", "RESERVADO", "PENDENTE_APROVACAO"] },
+          AND: [{ startDatetime: { lt: end } }, { endDatetime: { gt: start } }],
         },
       });
+      if (conflict) throw new ReservationConflictError();
 
-      const invYear  = new Date().getFullYear();
-      const invCount = await tx.invoice.count({ where: { invoiceNumber: { startsWith: `FT-SALA-${invYear}-` } } });
-      const invoiceNumber = `FT-SALA-${invYear}-${String(invCount + 1).padStart(6, "0")}`;
-      const invoiceBalance = Math.max(0, finalTotal - finalAmountPaid);
+      // ── Numeração DENTRO da transacção (evita race condition) ────────────────
+      const reservationNumber = await nextDocumentNumber(tx, "RES");
 
-      invoiceRec = await tx.invoice.create({
+      const reservation = await tx.reservation.create({
         data: {
-          invoiceNumber,
-          companyId:      companyId    || null,
-          reservationId:  reservation.id,
-          serviceType:    `Sala de Reunião — ${plan.name}`,
-          amount:         finalAmount,
-          discount:       finalDisc,
-          iva:            finalIva,
-          totalAmount:    finalTotal,
-          amountPaid:     finalAmountPaid,
-          balance:        invoiceBalance,
-          paidPercentage: finalTotal > 0 ? Math.min(100, (finalAmountPaid / finalTotal) * 100) : 0,
-          issueDate:      new Date(),
-          dueDate:        start,
-          paymentMethod:  paymentMethod || null,
-          status:         invoiceStatus,
-          notes:          `${reservationNumber} | ${totalHours.toFixed(1)}h | ${participants || 1} participantes`,
+          reservationNumber,
+          eventName,
+          companyName:     companyName  || null,
+          companyId:       companyId    || null,
+          responsible,
+          email:           email        || null,
+          whatsapp:        whatsapp     || null,
+          planId,
+          participants:    Number(participants) || 1,
+          startDatetime:   start,
+          endDatetime:     end,
+          totalHours,
+          coffeeBreak:     coffeeBreak  ?? false,
+          observations:    observations || null,
+          status:          reservationStatus,
+          isCustomPricing: isCustomPricing ?? false,
+          customRequest:   customRequest  || null,
+          paymentOption:   opt,
+          amount:          finalAmount,
+          discount:        finalDisc,
+          iva:             finalIva,
+          totalAmount:     finalTotal,
+          paymentStatus,
+          paymentMethod:   opt === "PAGAR_AGORA" ? (paymentMethod || null) : null,
+          operationRef:    opt === "PAGAR_AGORA" ? (operationRef  || null) : null,
+          receiptUrl:      opt === "PAGAR_AGORA" ? (receiptUrl    || null) : null,
+          financialNotes:  financialNotes || null,
+          amountPaid:      Number(amountPaid) || 0,
+          paidDate:        paidDate ? new Date(paidDate) : null,
         },
+        include: { plan: true },
       });
 
-      // LiquidationNote
-      const nlYear  = new Date().getFullYear();
-      const nlCount = await tx.liquidationNote.count({ where: { noteNumber: { startsWith: `NL-${nlYear}-` } } });
-      noteNumber = `NL-${nlYear}-${String(nlCount + 1).padStart(6, "0")}`;
+      let paymentRec = null;
+      let invoiceRec = null;
 
-      await tx.liquidationNote.create({
-        data: {
-          noteNumber,
-          invoiceId:     invoiceRec.id,
-          reservationId: reservation.id,
-          companyId:     companyId || null,
-          amountBilled:  finalTotal,
-          amountPaid:    finalAmountPaid,
-          balance:       invoiceBalance,
-          paymentMethod: paymentMethod || null,
-          operationRef:  operationRef  || null,
-          createdBy:     session.name || session.email,
-        },
-      });
+      let noteNumber: string | null = null;
 
-      await tx.reservation.update({
-        where: { id: reservation.id },
-        data: { paymentId: paymentRec.id, invoiceId: invoiceRec.id, paymentStatus: reservPayStatus },
-      });
+      if (opt === "PAGAR_AGORA" && finalTotal > 0) {
+        const finalAmountPaid = Number(amountPaid) || finalTotal;
+        const isPartial       = paymentTiming === "PARCIAL" && finalAmountPaid < finalTotal;
+        const invoiceStatus   = isPartial ? "PARCIAL" : "PAGO";
+        const reservPayStatus = isPartial ? "PARCIAL" : "PAGO";
 
-      if (companyId) {
-        await recordFinancialHistory(tx as Parameters<typeof recordFinancialHistory>[0], {
-          companyId,
-          type:        "PAGAMENTO",
-          description: `${invoiceNumber} — Sala ${plan.name} | ${reservationNumber}`,
-          amount:      finalAmountPaid,
-          method:      paymentMethod || undefined,
-          reference:   paymentRec.id,
-          createdBy:   session.name || session.email,
+        const receiptNumber = await nextDocumentNumber(tx, "REC");
+
+        paymentRec = await tx.payment.create({
+          data: {
+            companyId:     companyId    || null,
+            reservationId: reservation.id,
+            amount:        finalAmountPaid,
+            dueDate:       start,
+            paidDate:      paidDate ? new Date(paidDate) : new Date(),
+            status:        "PAGO",
+            paymentMethod: paymentMethod || null,
+            operationRef:  operationRef  || null,
+            receiptUrl:    receiptUrl    || null,
+            notes:         `${reservationNumber} — ${eventName}`,
+            category:      "SALA_REUNIAO",
+            receiptNumber,
+          },
         });
+
+        const invoiceNumber  = await nextDocumentNumber(tx, "FT-SALA");
+        const invoiceBalance = Math.max(0, finalTotal - finalAmountPaid);
+
+        invoiceRec = await tx.invoice.create({
+          data: {
+            invoiceNumber,
+            companyId:      companyId    || null,
+            reservationId:  reservation.id,
+            serviceType:    `Sala de Reunião — ${plan.name}`,
+            amount:         finalAmount,
+            discount:       finalDisc,
+            iva:            finalIva,
+            totalAmount:    finalTotal,
+            amountPaid:     finalAmountPaid,
+            balance:        invoiceBalance,
+            paidPercentage: finalTotal > 0 ? Math.min(100, (finalAmountPaid / finalTotal) * 100) : 0,
+            issueDate:      new Date(),
+            dueDate:        start,
+            paymentMethod:  paymentMethod || null,
+            status:         invoiceStatus,
+            notes:          `${reservationNumber} | ${totalHours.toFixed(1)}h | ${participants || 1} participantes`,
+          },
+        });
+
+        // LiquidationNote
+        noteNumber = await nextDocumentNumber(tx, "NL");
+
+        await tx.liquidationNote.create({
+          data: {
+            noteNumber,
+            invoiceId:     invoiceRec.id,
+            reservationId: reservation.id,
+            companyId:     companyId || null,
+            amountBilled:  finalTotal,
+            amountPaid:    finalAmountPaid,
+            balance:       invoiceBalance,
+            paymentMethod: paymentMethod || null,
+            operationRef:  operationRef  || null,
+            createdBy:     session.name || session.email,
+          },
+        });
+
+        await tx.reservation.update({
+          where: { id: reservation.id },
+          data: { paymentId: paymentRec.id, invoiceId: invoiceRec.id, paymentStatus: reservPayStatus },
+        });
+
+        // recordFinancialHistory chamado APÓS commit da tx (ver DT-017)
       }
-    }
 
-    if (opt === "FACTURAR" && finalTotal > 0) {
-      const invYear  = new Date().getFullYear();
-      const invCount = await tx.invoice.count({ where: { invoiceNumber: { startsWith: `FT-SALA-${invYear}-` } } });
-      const invoiceNumber = `FT-SALA-${invYear}-${String(invCount + 1).padStart(6, "0")}`;
+      if (opt === "FACTURAR" && finalTotal > 0) {
+        const invoiceNumber = await nextDocumentNumber(tx, "FT-SALA");
 
-      invoiceRec = await tx.invoice.create({
-        data: {
-          invoiceNumber,
-          companyId:     companyId    || null,
-          reservationId: reservation.id,
-          serviceType:   `Sala de Reunião — ${plan.name}`,
-          amount:        finalAmount,
-          discount:      finalDisc,
-          iva:           finalIva,
-          totalAmount:   finalTotal,
-          issueDate:     new Date(),
-          dueDate:       start,
-          status:        "PENDENTE",
-          notes:         `${reservationNumber} | ${totalHours.toFixed(1)}h | ${participants || 1} participantes`,
-        },
+        invoiceRec = await tx.invoice.create({
+          data: {
+            invoiceNumber,
+            companyId:     companyId    || null,
+            reservationId: reservation.id,
+            serviceType:   `Sala de Reunião — ${plan.name}`,
+            amount:        finalAmount,
+            discount:      finalDisc,
+            iva:           finalIva,
+            totalAmount:   finalTotal,
+            issueDate:     new Date(),
+            dueDate:       start,
+            status:        "PENDENTE",
+            notes:         `${reservationNumber} | ${totalHours.toFixed(1)}h | ${participants || 1} participantes`,
+          },
+        });
+
+        await tx.reservation.update({ where: { id: reservation.id }, data: { invoiceId: invoiceRec.id } });
+      }
+
+      if (opt === "PAGAR_NO_DIA" && finalTotal > 0) {
+        const receiptNumber = await nextDocumentNumber(tx, "REC");
+
+        paymentRec = await tx.payment.create({
+          data: {
+            companyId:     companyId    || null,
+            reservationId: reservation.id,
+            amount:        finalTotal,
+            dueDate:       start,
+            status:        "PENDENTE",
+            notes:         `${reservationNumber} — Pagamento no dia do evento`,
+            category:      "SALA_REUNIAO",
+            receiptNumber,
+          },
+        });
+
+        await tx.reservation.update({ where: { id: reservation.id }, data: { paymentId: paymentRec.id } });
+      }
+
+      // Add timeline entry
+      await addTimeline(tx, {
+        type:          "RESERVA_CRIADA",
+        title:         `Reserva criada — ${reservationNumber}`,
+        description:   `${plan.name} | ${totalHours.toFixed(1)}h | ${start.toLocaleDateString("pt-PT")}`,
+        companyId:     companyId || null,
+        referenceId:   reservation.id,
+        referenceType: "Reservation",
+        createdBy:     session.name || session.email,
       });
 
-      await tx.reservation.update({ where: { id: reservation.id }, data: { invoiceId: invoiceRec.id } });
-    }
+      return { reservation, payment: paymentRec, invoice: invoiceRec, noteNumber };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }
 
-    if (opt === "PAGAR_NO_DIA" && finalTotal > 0) {
-      const recYear  = new Date().getFullYear();
-      const recCount = await tx.payment.count({ where: { receiptNumber: { startsWith: `REC-${recYear}-` } } });
-      const receiptNumber = `REC-${recYear}-${String(recCount + 1).padStart(6, "0")}`;
-
-      paymentRec = await tx.payment.create({
-        data: {
-          companyId:     companyId    || null,
-          reservationId: reservation.id,
-          amount:        finalTotal,
-          dueDate:       start,
-          status:        "PENDENTE",
-          notes:         `${reservationNumber} — Pagamento no dia do evento`,
-          category:      "SALA_REUNIAO",
-          receiptNumber,
-        },
-      });
-
-      await tx.reservation.update({ where: { id: reservation.id }, data: { paymentId: paymentRec.id } });
-    }
-
-    // Add timeline entry
-    await addTimeline(tx, {
-      type:          "RESERVA_CRIADA",
-      title:         `Reserva criada — ${reservationNumber}`,
-      description:   `${plan.name} | ${totalHours.toFixed(1)}h | ${start.toLocaleDateString("pt-PT")}`,
-      companyId:     companyId || null,
-      referenceId:   reservation.id,
-      referenceType: "Reservation",
-      createdBy:     session.name || session.email,
-    });
-
-    return { reservation, payment: paymentRec, invoice: invoiceRec, noteNumber };
-  });
+  // ── DT-017: recordFinancialHistory APÓS commit (nunca dentro de $transaction) ─
+  if (companyId && opt === "PAGAR_AGORA" && result.payment && result.invoice) {
+    recordFinancialHistory(prisma, {
+      companyId,
+      type:        "PAGAMENTO",
+      description: `${result.invoice.invoiceNumber} — Sala ${plan?.name} | ${result.reservation.reservationNumber}`,
+      amount:      Number(amountPaid) || finalTotal,
+      method:      paymentMethod || undefined,
+      reference:   result.payment.id,
+      createdBy:   session.name || session.email,
+    }).catch(err => console.error("[financialHistory] reserva sala:", err));
+  }
 
   // ── Notificações automáticas (não bloqueiam a resposta) ─────────────────────
   notifyReservationCreated({
@@ -331,6 +340,25 @@ export async function POST(req: NextRequest) {
     }).catch(() => {});
   }
 
+  // Audit: RESERVATION_CREATED — post-commit
+  recordAudit({
+    actor:     actorFromSession(session),
+    action:    "RESERVATION_CREATED",
+    entity:    "Reservation",
+    entityId:  result.reservation.id,
+    entityRef: result.reservation.reservationNumber ?? undefined,
+    after: {
+      reservationNumber: result.reservation.reservationNumber,
+      status:            reservationStatus,
+      paymentStatus,
+      eventName,
+      startDatetime:     start,
+      endDatetime:       end,
+      totalAmount:       finalTotal,
+      planId,
+    },
+  }).catch(err => console.error("[Audit] RESERVATION_CREATED:", err));
+
   // Publicar evento de reserva criada → Event Bus notifica todos os módulos
   publish("reservation.created", {
     reservationId:   result.reservation.id,
@@ -346,4 +374,8 @@ export async function POST(req: NextRequest) {
   }).catch(() => {});
 
   return NextResponse.json({ ...result, noteNumber: result.noteNumber }, { status: 201 });
+}
+
+class ReservationConflictError extends Error {
+  constructor() { super("RESERVATION_CONFLICT"); }
 }

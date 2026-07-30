@@ -40,8 +40,14 @@ export function fmtAOA(v: number): string {
 // ── sumário financeiro de uma empresa (usa Prisma) ──────────────────────────
 import type { PrismaClient } from "@prisma/client";
 
+// Tipo compatível com PrismaClient e com o cliente de transacção (tx)
+export type DbClient = Omit<
+  PrismaClient,
+  "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
+>;
+
 export async function getCompanyFinanceSummary(
-  prisma: PrismaClient,
+  prisma: DbClient,
   companyId: string
 ) {
   const company = await prisma.company.findUnique({
@@ -55,14 +61,28 @@ export async function getCompanyFinanceSummary(
 
   if (!company) return null;
 
+  // ── Separar contextos financeiros (RFT-009) ──────────────────────────────
+  // coworkPayments: mensalidades e outros pagamentos do contrato de coworking
+  // salaPayments:   pagamentos de reservas de sala de reunião (contexto distinto)
+  const coworkPayments = company.payments.filter((p) => p.category !== "SALA_REUNIAO");
+  const salaPayments   = company.payments.filter((p) => p.category === "SALA_REUNIAO");
+
   const months          = calcContractMonths(company.contractStart, company.contractEnd);
   const totalContracted = calcTotalContracted(company.rentAmount, company.contractStart, company.contractEnd);
-  const totalPaid       = company.payments
+
+  // totalPaid reflecte apenas pagamentos de coworking
+  const totalPaid = coworkPayments
     .filter((p) => p.status === "PAGO")
     .reduce((s, p) => s + p.amount, 0);
-  const balance         = totalContracted - totalPaid;
-  const now             = new Date();
-  const isOverdue       = company.payments.some(
+
+  // totalSala é informativo — não afecta o saldo do contrato
+  const totalSala = salaPayments
+    .filter((p) => p.status === "PAGO")
+    .reduce((s, p) => s + p.amount, 0);
+
+  const balance   = totalContracted - totalPaid;
+  const now       = new Date();
+  const isOverdue = coworkPayments.some(
     (p) => p.status !== "PAGO" && new Date(p.dueDate) < now
   );
   const financialStatus = calcFinancialStatus(totalContracted, totalPaid, isOverdue);
@@ -72,14 +92,17 @@ export async function getCompanyFinanceSummary(
     months,
     totalContracted,
     totalPaid,
+    totalSala,
     balance,
     financialStatus,
+    coworkPayments,
+    salaPayments,
   };
 }
 
 // ── registar entrada no histórico ────────────────────────────────────────────
 export async function recordFinancialHistory(
-  prisma: PrismaClient,
+  prisma: DbClient,
   params: {
     companyId:   string;
     type:        string;
@@ -99,8 +122,9 @@ export async function recordFinancialHistory(
     company.contractStart,
     company.contractEnd
   );
+  // Apenas pagamentos de coworking afectam o saldo do contrato (RFT-009)
   const paidAgg = await prisma.payment.aggregate({
-    where: { companyId: params.companyId, status: "PAGO" },
+    where: { companyId: params.companyId, status: "PAGO", category: { not: "SALA_REUNIAO" } },
     _sum: { amount: true },
   });
   const totalPaid       = paidAgg._sum.amount || 0;

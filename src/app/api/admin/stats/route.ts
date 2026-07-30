@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
+import { AdminRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { requireRole } from "@/lib/auth";
 import { subDays, startOfDay, format } from "date-fns";
 
 export async function GET() {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+  const { error } = await requireRole(AdminRole.ADMIN);
+  if (error) return error;
 
   const today = startOfDay(new Date());
 

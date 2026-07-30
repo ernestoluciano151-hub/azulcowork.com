@@ -1,0 +1,61 @@
+---
+title: ERP — Mapa de Integrações
+---
+graph TB
+    subgraph CRM["🏢 Volume 01 — CRM"]
+        CO[Company\nSSoT]
+        DE[Deal]
+        CT[CrmContact]
+    end
+
+    subgraph ERP["💰 Volume 02 — ERP"]
+        CON[Contract]
+        INV[Invoice]
+        PAY[Payment]
+        LED[FinancialLedger\nImutável]
+        EXP[Expense]
+        ALR[FinancialAlert]
+        CSH[CashMovement]
+    end
+
+    subgraph BOOK["📅 Reservas"]
+        BK[RoomBooking]
+    end
+
+    subgraph INFRA["⚙ Infraestrutura"]
+        EB[Event Bus\npublish / subscribe]
+        DC[DocumentCounter\nnumeração atómica]
+        RS[Resend\nemail transaccional]
+        CLD[Cloudinary\nPDF storage]
+        CRON[Cron Jobs\nfaturação + alertas]
+    end
+
+    %% CRM → ERP
+    CO -- "pivot financeiro" --> CON
+    CO -- "billingEmail" --> INV
+    DE -- "deal.won → criar contrato" --> CON
+
+    %% Reservas → ERP
+    BK -- "booking.confirmed\n→ Invoice ROOM" --> INV
+
+    %% ERP interno
+    CON -- "gera" --> RS2[RentSchedule]
+    RS2 -- "faturada em" --> INV
+    INV -- "paga por" --> PAY
+    PAY -- "regista" --> LED
+    EXP -- "regista" --> LED
+    PAY -- "cria" --> CSH
+    EXP -- "cria" --> CSH
+
+    %% Infra
+    EB -- "erp.payment.confirmed" --> RS
+    EB -- "erp.invoice.issued" --> RS
+    DC -- "numeração" --> INV
+    CLD -- "PDF" --> INV
+    CRON -- "fatura mensal" --> INV
+    CRON -- "alertas diários" --> ALR
+
+    style CRM fill:#1e3a5f,color:#fff
+    style ERP fill:#1a3300,color:#fff
+    style BOOK fill:#2d1b69,color:#fff
+    style INFRA fill:#1a1a1a,color:#fff

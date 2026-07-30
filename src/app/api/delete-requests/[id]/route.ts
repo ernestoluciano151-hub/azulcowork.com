@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { AdminRole } from "@prisma/client";
+import { requireRole } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
-  if (session.role !== "ADMIN") return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
+  const { session, error } = await requireRole(AdminRole.ADMIN);
+  if (error) return error;
 
   const { action, reviewNote } = await req.json();
   if (action !== "APPROVE" && action !== "REJECT") {

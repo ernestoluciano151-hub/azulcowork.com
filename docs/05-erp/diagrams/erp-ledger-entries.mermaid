@@ -1,0 +1,42 @@
+---
+title: ERP — Lançamentos no Ledger (Partida Dupla)
+---
+flowchart LR
+    subgraph Receita["💰 Recepção de Pagamento"]
+        direction TB
+        R1["DEBIT\nConta 1201 — BCS\n(Banco)"]
+        R2["CREDIT\nConta 2111 — Clientes\n(Reduz AR)"]
+    end
+
+    subgraph Despesa["💸 Pagamento de Despesa"]
+        direction TB
+        D1["DEBIT\nConta 6xxx — Despesa\n(Regista custo)"]
+        D2["CREDIT\nConta 1201 — BCS\n(Sai do banco)"]
+    end
+
+    subgraph Caucao["🔒 Caução Recebida"]
+        direction TB
+        C1["DEBIT\nConta 1201 — BCS\n(Entra no banco)"]
+        C2["CREDIT\nConta 1401 — Cauções\n(Passivo — não é receita)"]
+    end
+
+    subgraph CaucaoDev["↩ Devolução de Caução"]
+        direction TB
+        CD1["DEBIT\nConta 1401 — Cauções\n(Elimina passivo)"]
+        CD2["CREDIT\nConta 1201 — BCS\n(Sai do banco)"]
+    end
+
+    subgraph Estorno["🔄 Estorno de Fatura Anulada"]
+        direction TB
+        E1["DEBIT\nConta 2111 — Clientes\n(Reverte AR)"]
+        E2["CREDIT\nConta 7111 — Receita\n(Reverte proveito)"]
+    end
+
+    note["⚠ Regra Invariante\nsum(DEBIT) = sum(CREDIT)\nLedger é IMUTÁVEL — append-only"]
+
+    style note fill:#1e4fb8,color:#fff
+    style Receita fill:#10b981,color:#fff
+    style Despesa fill:#ef4444,color:#fff
+    style Caucao fill:#f59e0b,color:#000
+    style CaucaoDev fill:#6366f1,color:#fff
+    style Estorno fill:#64748b,color:#fff

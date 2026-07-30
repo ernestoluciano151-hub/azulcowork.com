@@ -1,3 +1,49 @@
 {
-  "buildCommand": "npm run build:prod"
+  "buildCommand": "npm run build:prod",
+  "crons": [
+    {
+      "path": "/api/cron/erp-daily",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/communication-daily",
+      "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/portal-rent-due",
+      "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/portal-contract-expiring",
+      "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/portal-payment-overdue",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/portal-auto-close-tickets",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/reservations-close",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/erp-invoice-generate",
+      "schedule": "0 6 1 * *"
+    },
+    {
+      "path": "/api/cron/erp-monthly-snapshot",
+      "schedule": "0 22 28-31 * *"
+    },
+    {
+      "path": "/api/cron/portal-sla-check",
+      "schedule": "0 0,2,4,6,8,10,12,14,16,18,20,22 * * *"
+    },
+    {
+      "path": "/api/cron/portal-notifications-retry",
+      "schedule": "0,5,10,15,20,25,30,35,40,45,50,55 * * * *"
+    }
+  ]
 }

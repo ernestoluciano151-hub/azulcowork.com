@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { AdminRole } from "@prisma/client";
+import { requireRole } from "@/lib/auth";
 import { publish } from "@/lib/event-bus";
 import "@/lib/bootstrap";
 
 // PATCH /api/leads/:id -> editar estado, dados ou adicionar nota
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+  const { session, error } = await requireRole(AdminRole.ADMIN, AdminRole.COMERCIAL);
+  if (error) return error;
 
   const body = await req.json();
   const {
@@ -60,8 +61,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
 // DELETE /api/leads/:id -> remover lead (uso administrativo)
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+  const { session, error } = await requireRole(AdminRole.ADMIN);
+  if (error) return error;
 
   await prisma.lead.delete({ where: { id: params.id } });
 
