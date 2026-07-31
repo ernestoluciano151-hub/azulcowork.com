@@ -6,7 +6,6 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
-import { AdminRole } from "@prisma/client";
 
 const CHARSET =
   "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%&*";
@@ -19,8 +18,8 @@ function generatePassword(): string {
 }
 
 const ADMINS = [
-  { name: "Ernesto Luciano",       email: "ernesto@azulcowork.com",   role: AdminRole.ADMIN },
-  { name: "Operações Azul Cowork", email: "operacoes@azulcowork.com", role: AdminRole.ADMIN },
+  { name: "Ernesto Luciano",       email: "ernesto@azulcowork.com" },
+  { name: "Operações Azul Cowork", email: "operacoes@azulcowork.com" },
 ];
 
 export async function POST(req: NextRequest) {
@@ -51,31 +50,26 @@ export async function POST(req: NextRequest) {
       const password = generatePassword();
       const passwordHash = await bcrypt.hash(password, 12);
 
-      const existing = await prisma.adminUser.findUnique({
-        where: { email: admin.email },
-        select: { id: true, active: true },
-      });
+      // Raw SQL — bypasses Prisma enum conversion entirely
+      const existing = await prisma.$queryRaw<{ id: string }[]>`
+        SELECT id FROM "AdminUser" WHERE email = ${admin.email} LIMIT 1
+      `;
 
-      if (existing) {
-        await prisma.adminUser.update({
-          where: { email: admin.email },
-          data: { passwordHash, active: true },
-          select: { id: true },
-        });
-        results.push({ email: admin.email, name: admin.name, role: admin.role, action: "updated", password });
+      if (existing.length > 0) {
+        await prisma.$executeRaw`
+          UPDATE "AdminUser"
+          SET "passwordHash" = ${passwordHash}, active = true
+          WHERE email = ${admin.email}
+        `;
+        results.push({ email: admin.email, name: admin.name, action: "updated", password });
       } else {
-        await prisma.adminUser.create({
-          data: {
-            name: admin.name,
-            email: admin.email,
-            passwordHash,
-            role: admin.role,
-            active: true,
-            totpEnabled: false,
-          },
-          select: { id: true },
-        });
-        results.push({ email: admin.email, name: admin.name, role: admin.role, action: "created", password });
+        const id = crypto.randomUUID();
+        const now = new Date();
+        await prisma.$executeRaw`
+          INSERT INTO "AdminUser" (id, name, email, "passwordHash", role, active, "totpEnabled", "createdAt", "updatedAt")
+          VALUES (${id}, ${admin.name}, ${admin.email}, ${passwordHash}, 'ADMIN', true, false, ${now}, ${now})
+        `;
+        results.push({ email: admin.email, name: admin.name, action: "created", password });
       }
     }
 
