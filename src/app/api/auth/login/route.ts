@@ -22,8 +22,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Indique e-mail e senha." }, { status: 400 });
   }
 
-  const admin = await prisma.adminUser.findUnique({
-    where: { email: String(email).toLowerCase() },
+  const admins = await prisma.$queryRaw<Array<{
+    id: string; email: string; passwordHash: string; name: string | null;
+    active: boolean; role: string; totpEnabled: boolean; totpSecret: string | null;
+  }>>`SELECT id, email, "passwordHash", name, active, role::text, "totpEnabled", "totpSecret"
+      FROM "AdminUser" WHERE email = ${String(email).toLowerCase()} LIMIT 1`;
+  const admin = admins[0] ?? null;
   });
 
   // Comparar sempre (mesmo que utilizador não exista) para evitar timing attacks
