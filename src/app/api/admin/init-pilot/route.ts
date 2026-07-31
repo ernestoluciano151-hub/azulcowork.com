@@ -53,12 +53,14 @@ export async function POST(req: NextRequest) {
 
       const existing = await prisma.adminUser.findUnique({
         where: { email: admin.email },
+        select: { id: true, active: true },
       });
 
       if (existing) {
         await prisma.adminUser.update({
           where: { email: admin.email },
           data: { passwordHash, active: true },
+          select: { id: true },
         });
         results.push({ email: admin.email, name: admin.name, role: admin.role, action: "updated", password });
       } else {
@@ -71,6 +73,7 @@ export async function POST(req: NextRequest) {
             active: true,
             totpEnabled: false,
           },
+          select: { id: true },
         });
         results.push({ email: admin.email, name: admin.name, role: admin.role, action: "created", password });
       }
