@@ -28,7 +28,6 @@ export async function POST(req: NextRequest) {
   }>>`SELECT id, email, "passwordHash", name, active, role::text, "totpEnabled", "totpSecret"
       FROM "AdminUser" WHERE email = ${String(email).toLowerCase()} LIMIT 1`;
   const admin = admins[0] ?? null;
-  });
 
   // Comparar sempre (mesmo que utilizador não exista) para evitar timing attacks
   const dummyHash = "$2a$12$invalidhashtopreventtimingattacksxxxxxxxxxxxxxxxxxxxxxxxxx";
