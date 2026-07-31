@@ -39,11 +39,11 @@
     },
     {
       "path": "/api/cron/portal-sla-check",
-      "schedule": "0 0,2,4,6,8,10,12,14,16,18,20,22 * * *"
+      "schedule": "0 9 * * *"
     },
     {
       "path": "/api/cron/portal-notifications-retry",
-      "schedule": "0,5,10,15,20,25,30,35,40,45,50,55 * * * *"
+      "schedule": "30 9 * * *"
     }
   ]
 }
