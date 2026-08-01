@@ -1,0 +1,13 @@
+node_modules/.prisma/client/index.d.ts(331,70): error TS1109: Expression expected.
+node_modules/.prisma/client/index.d.ts(331,72): error TS1109: Expression expected.
+node_modules/.prisma/client/index.d.ts(331,74): error TS1109: Expression expected.
+node_modules/.prisma/client/index.d.ts(331,75): error TS1109: Expression expected.
+node_modules/.prisma/client/index.d.ts(331,76): error TS1128: Declaration or statement expected.
+node_modules/.prisma/client/index.d.ts(332,2): error TS1109: Expression expected.
+node_modules/.prisma/client/index.d.ts(332,12): error TS1005: ';' expected.
+node_modules/.prisma/client/index.d.ts(332,29): error TS1127: Invalid character.
+node_modules/.prisma/client/index.d.ts(332,31): error TS1434: Unexpected keyword or identifier.
+node_modules/.prisma/client/index.d.ts(332,38): error TS1434: Unexpected keyword or identifier.
+node_modules/.prisma/client/index.d.ts(332,44): error TS1434: Unexpected keyword or identifier.
+node_modules/.prisma/client/index.d.ts(333,2): error TS1003: Identifier expected.
+node_modules/.prisma/client/index.d.ts(333,3): error TS1161: Unterminated regular expression literal.

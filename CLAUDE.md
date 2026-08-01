@@ -259,6 +259,7 @@ RES-YYYY-NNNNNN      → Números de Reserva
 | DT-009 | Sem error monitoring (Sentry) | Alto | P0-D ✅ |
 | DT-010 | Rate limiting incompleto | Alto | P0-D ✅ |
 | DT-035 | Cron JSDoc fecha bloco com `*/5` — erros tsc em VOL03 cron routes | Médio | P0-B ✅ 29 Jul 2026 |
+| DT-036 | `ignoreBuildErrors` reactivado (01 Ago) — 20+ routes com params síncrono Next 14; corrigir com codemod `next-async-request-api` e remover flag | Alto | 📋 Pós-piloto |
 
 Ver inventário completo: `docs/audit/metrics-dashboard.md`
 
