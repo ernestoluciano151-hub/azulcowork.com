@@ -13,10 +13,10 @@
  * que chegam directamente aqui em vez da API route.
  */
 
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-export default function PortalMagicCallbackPage() {
+function PortalMagicCallbackInner() {
   const router       = useRouter();
   const searchParams = useSearchParams();
 
@@ -40,5 +40,14 @@ export default function PortalMagicCallbackPage() {
         <p className="text-sm text-gray-500 mt-1">Aguarde um momento.</p>
       </div>
     </div>
+  );
+}
+
+// useSearchParams() exige Suspense boundary no prerender (Next 15)
+export default function PortalMagicCallbackPage() {
+  return (
+    <Suspense fallback={null}>
+      <PortalMagicCallbackInner />
+    </Suspense>
   );
 }

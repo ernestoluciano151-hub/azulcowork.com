@@ -11,7 +11,7 @@
  * automaticamente para /portal/dashboard.
  */
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 // Mensagens de erro mapeadas do parâmetro ?error=
@@ -24,7 +24,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   server_error:    "Erro interno do servidor. Por favor tente mais tarde.",
 };
 
-export default function PortalLoginPage() {
+function PortalLoginInner() {
   const router       = useRouter();
   const searchParams = useSearchParams();
   const [mode, setMode]       = useState<"magic" | "password">("magic");
@@ -248,5 +248,14 @@ export default function PortalLoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+// useSearchParams() exige Suspense boundary no prerender (Next 15)
+export default function PortalLoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <PortalLoginInner />
+    </Suspense>
   );
 }
