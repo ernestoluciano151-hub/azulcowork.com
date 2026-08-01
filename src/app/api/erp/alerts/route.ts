@@ -15,7 +15,7 @@
 import { NextRequest, NextResponse }   from "next/server";
 import { AdminRole, AlertType, AlertSeverity, AlertStatus } from "@prisma/client";
 import { requireRole, requireSession } from "@/lib/auth";
-import { isApiRateLimited }            from "@/lib/validators";
+import { isApiRateLimited }            from "@/lib/rateLimit";
 import { listAlerts, createCustomAlert } from "@/lib/erp-alerts-service";
 import "@/lib/bootstrap";
 

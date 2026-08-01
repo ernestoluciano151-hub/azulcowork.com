@@ -22,7 +22,7 @@ import { NextRequest, NextResponse }  from "next/server";
 import { AdminRole }                  from "@prisma/client";
 import { requireRole }                from "@/lib/auth";
 import { registerAdjustment }         from "@/lib/erp-cashflow-service";
-import { isApiRateLimited }           from "@/lib/validators";
+import { isApiRateLimited }           from "@/lib/rateLimit";
 import "@/lib/bootstrap";
 
 export async function POST(req: NextRequest) {

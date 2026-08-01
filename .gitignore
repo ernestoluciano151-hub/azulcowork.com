@@ -8,3 +8,5 @@ out
 dev.db
 dev.db-journal
 *.log
+.vercel
+.env*
