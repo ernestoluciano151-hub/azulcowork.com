@@ -45,6 +45,20 @@ export default function PortalUtilizadoresPage() {
   const [showForm, setShowForm]     = useState(false);
   const [form, setForm]             = useState({ name: "", email: "", companyId: "", role: "MEMBER" });
   const [creating, setCreating]     = useState(false);
+  const [companies, setCompanies]   = useState<{ id: string; name: string }[]>([]);
+
+  // Carregar lista de empresas para o dropdown (apenas quando o form abre)
+  useEffect(() => {
+    if (!showForm) return;
+    void (async () => {
+      try {
+        const res = await fetch("/api/companies");
+        if (!res.ok) return;
+        const data = await res.json() as { companies: { id: string; name: string }[] };
+        setCompanies(data.companies ?? []);
+      } catch { /* noop */ }
+    })();
+  }, [showForm]);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -93,7 +107,7 @@ export default function PortalUtilizadoresPage() {
 
   async function createUser() {
     if (!form.name || !form.email || !form.companyId) {
-      alert("Nome, email e ID da empresa são obrigatórios.");
+      alert("Nome, email e empresa são obrigatórios.");
       return;
     }
     setCreating(true);
@@ -156,14 +170,20 @@ export default function PortalUtilizadoresPage() {
               />
             </div>
             <div>
-              <label className="block text-xs text-slate-400 mb-1">ID da Empresa</label>
-              <input
-                type="text"
+              <label className="block text-xs text-slate-400 mb-1">Empresa</label>
+              <select
                 value={form.companyId}
                 onChange={e => setForm(f => ({ ...f, companyId: e.target.value }))}
                 className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white"
-                placeholder="UUID da empresa"
-              />
+              >
+                <option value="">— Seleccionar empresa —</option>
+                {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              {companies.length === 0 && (
+                <p className="text-xs text-amber-400 mt-1">
+                  Sem empresas registadas. Crie primeiro a empresa em Empresas.
+                </p>
+              )}
             </div>
             <div>
               <label className="block text-xs text-slate-400 mb-1">Papel</label>
