@@ -80,4 +80,12 @@ module.exports = withSentryConfig(nextConfig, {
   disableLogger: true,
   // Vercel Monitors não usado — desactivar para evitar ruído
   automaticVercelMonitors: false,
+  // Telemetria do Sentry NUNCA deve bloquear um deploy de produção.
+  // "finalize release" chama a API do Sentry no fim do build; se a API deles
+  // estiver instável (503, timeout, etc.), o build falhava por inteiro.
+  release: { finalize: false },
+  errorHandler: (err, invokeErr, compilation) => {
+    console.warn("[Sentry] Aviso: falha não-crítica no plugin de build:", err?.message || err);
+    // Não invoca invokeErr(err) — deixa o build de Next.js continuar normalmente.
+  },
 });
