@@ -23,7 +23,7 @@ const STATUS_COLORS: Record<string, string> = {
   RESERVA_CRIADA: "bg-indigo-500/15 text-indigo-300",
   CONVERTIDO: "bg-emerald-600/20 text-emerald-200",
 };
-const PLANS = ["Alpha", "Beta", "Gamma", "Easy", "Personalizado"];
+const PLANS = ["Alpha", "Beta", "Gamma", "Easy", "Executiva", "Personalizado"];
 
 const EMPTY_FORM = {
   firstName: "", lastName: "", company: "", email: "",

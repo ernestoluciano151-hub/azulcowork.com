@@ -98,6 +98,28 @@ export default function SalasPage() {
         </div>
       </section>
 
+      {/* Vídeo de apresentação */}
+      <section className="py-12 md:py-16 bg-ink">
+        <div className="mx-auto max-w-4xl px-4 md:px-8">
+          <div className="text-center mb-8">
+            <span className="text-azul font-semibold text-sm uppercase tracking-widest">Conheça o Espaço</span>
+            <h2 className="font-display text-2xl md:text-4xl font-bold text-paper mt-3">
+              Veja as nossas salas por dentro
+            </h2>
+          </div>
+          <div className="relative w-full overflow-hidden rounded-2xl border border-white/10" style={{ paddingTop: "56.25%" }}>
+            <iframe
+              className="absolute inset-0 h-full w-full"
+              src="https://www.youtube.com/embed/s0d7qDC7mck?si=YM1UJ7bIS9mVKNpy&controls=0"
+              title="Azul Coworking — Salas de Reunião"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              referrerPolicy="strict-origin-when-cross-origin"
+              allowFullScreen
+            />
+          </div>
+        </div>
+      </section>
+
       {/* O que está incluído */}
       <section className="py-16 md:py-20 bg-ink2">
         <div className="mx-auto max-w-7xl px-4 md:px-8">

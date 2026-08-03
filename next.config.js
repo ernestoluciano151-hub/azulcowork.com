@@ -25,8 +25,8 @@ const securityHeaders = [
       "img-src 'self' data: blob: https://res.cloudinary.com",
       // Media (vídeos VSL)
       "media-src 'self' https://cdn.converteai.net https://scripts.converteai.net blob:",
-      // Frames (player Vturb)
-      "frame-src 'self' https://scripts.converteai.net https://cdn.converteai.net",
+      // Frames (player Vturb + YouTube embed na página /salas)
+      "frame-src 'self' https://scripts.converteai.net https://cdn.converteai.net https://www.youtube.com https://www.youtube-nocookie.com",
       // Fontes
       "font-src 'self' data:",
       // Conexões (API própria + Cloudinary + Sentry telemetria — VOL03-10D)

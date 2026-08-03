@@ -25,6 +25,7 @@ async function main() {
     { name: "Beta", maxPeople: 15, description: "Sala climatizada para até 15 pessoas. Inclui projetor, internet de alta velocidade, impressões limitadas e ambiente profissional.", coffeeBreakAvailable: true, customPricingAllowed: false },
     { name: "Gamma", maxPeople: 8, description: "Sala climatizada para até 8 pessoas. Inclui projetor, internet de alta velocidade, impressões limitadas e ambiente profissional.", coffeeBreakAvailable: true, customPricingAllowed: false },
     { name: "Easy", maxPeople: 4, description: "Sala climatizada para até 4 pessoas. Inclui projetor, internet de alta velocidade, impressões limitadas e ambiente profissional.", coffeeBreakAvailable: true, customPricingAllowed: false },
+    { name: "Executiva", maxPeople: 6, description: "Sala executiva privativa, reservada por diária (35.000 Kz/dia). Ambiente premium para reuniões de direcção e encontros estratégicos.", coffeeBreakAvailable: true, customPricingAllowed: false, fullDayPrice: 35000 },
     { name: "Personalizado", maxPeople: 24, description: "Plano especial para reuniões, formações e eventos corporativos com mais de 16 horas. Valores negociáveis.", coffeeBreakAvailable: true, customPricingAllowed: true, minHoursForCustom: 16 },
   ];
 
