@@ -48,6 +48,11 @@ function PortalUtilizadoresPageInner() {
   const [creating, setCreating]     = useState(false);
   const [companies, setCompanies]   = useState<{ id: string; name: string }[]>([]);
 
+  // Modal do magic link gerado (o endpoint não envia email — devolve o link
+  // para o admin copiar e enviar manualmente, ex: WhatsApp)
+  const [linkModal, setLinkModal] = useState<{ url: string; userName: string; ttlMinutes: number } | null>(null);
+  const [copied, setCopied]       = useState(false);
+
   // Carregar lista de empresas para o dropdown (apenas quando o form abre)
   useEffect(() => {
     if (!showForm) return;
@@ -77,19 +82,33 @@ function PortalUtilizadoresPageInner() {
 
   useEffect(() => { void fetchUsers(); }, [fetchUsers]);
 
-  async function sendMagicLink(userId: string) {
-    setActing("magic-" + userId);
+  async function sendMagicLink(user: PortalUser) {
+    setActing("magic-" + user.id);
     try {
       const res = await fetch(`/api/admin/portal/magic-link`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId }),
+        // A API espera "portalUserId" (não "userId").
+        body: JSON.stringify({ portalUserId: user.id }),
       });
-      const data = await res.json() as { ok?: boolean; error?: string };
-      if (!res.ok) { alert(data.error ?? "Erro"); return; }
-      alert("Magic link enviado por email!");
+      const data = await res.json() as {
+        ok?: boolean; error?: string; magicLinkUrl?: string; ttlMinutes?: number;
+      };
+      if (!res.ok || !data.magicLinkUrl) { alert(data.error ?? "Erro ao gerar link."); return; }
+      // Este endpoint NÃO envia email — só gera o link. Mostramos aqui para
+      // o admin copiar e enviar manualmente (WhatsApp, email, presencial).
+      setCopied(false);
+      setLinkModal({ url: data.magicLinkUrl, userName: user.name, ttlMinutes: data.ttlMinutes ?? 15 });
     } catch { alert("Erro de rede"); }
     finally { setActing(null); }
+  }
+
+  async function copyLink() {
+    if (!linkModal) return;
+    try {
+      await navigator.clipboard.writeText(linkModal.url);
+      setCopied(true);
+    } catch { /* clipboard indisponível — o link continua visível para copiar manualmente */ }
   }
 
   async function toggleActive(user: PortalUser) {
@@ -206,7 +225,8 @@ function PortalUtilizadoresPageInner() {
               {creating ? "A criar…" : "Criar Utilizador"}
             </button>
             <p className="text-slate-500 text-xs self-center">
-              Um email de boas-vindas será enviado automaticamente.
+              Tentamos enviar um email de boas-vindas automaticamente — se o cliente não o
+              receber, usa o botão 🔗 Link na tabela para gerar e enviar o acesso manualmente.
             </p>
           </div>
         </div>
@@ -261,10 +281,10 @@ function PortalUtilizadoresPageInner() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1 justify-center">
                       <button
-                        onClick={() => sendMagicLink(u.id)}
+                        onClick={() => sendMagicLink(u)}
                         disabled={acting === "magic-" + u.id || !u.isActive}
                         className="px-2 py-1 rounded text-xs bg-indigo-600/30 text-indigo-300 hover:bg-indigo-600/50 transition disabled:opacity-40"
-                        title="Enviar link de acesso"
+                        title="Gerar link de acesso para copiar e enviar ao cliente"
                       >
                         {acting === "magic-" + u.id ? "…" : "🔗 Link"}
                       </button>
@@ -298,6 +318,42 @@ function PortalUtilizadoresPageInner() {
               className="px-3 py-1 rounded bg-gray-800 hover:bg-gray-700 disabled:opacity-40 transition">← Anterior</button>
             <button onClick={() => setPage(p => Math.min(pagination.pages, p + 1))} disabled={page >= pagination.pages}
               className="px-3 py-1 rounded bg-gray-800 hover:bg-gray-700 disabled:opacity-40 transition">Seguinte →</button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: link de acesso gerado */}
+      {linkModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-indigo-500/30 bg-gray-900 p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-white font-semibold">🔗 Link de acesso — {linkModal.userName}</h2>
+              <button onClick={() => setLinkModal(null)} className="text-slate-400 hover:text-white text-xl">✕</button>
+            </div>
+            <p className="text-sm text-amber-300 mb-3">
+              Este link ainda não é enviado por email automaticamente — copia-o e envia
+              manualmente ao cliente (WhatsApp, email, presencial). Válido por {linkModal.ttlMinutes} minutos
+              e só pode ser usado uma vez.
+            </p>
+            <div className="flex gap-2 mb-2">
+              <input
+                readOnly
+                value={linkModal.url}
+                onFocus={e => e.currentTarget.select()}
+                className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs text-white font-mono"
+              />
+              <button
+                onClick={copyLink}
+                className="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium transition whitespace-nowrap"
+              >
+                {copied ? "Copiado ✓" : "Copiar"}
+              </button>
+            </div>
+            <div className="flex justify-end mt-4">
+              <button onClick={() => setLinkModal(null)} className="px-4 py-2 rounded-lg border border-gray-700 text-slate-300 hover:bg-gray-800 text-sm">
+                Fechar
+              </button>
+            </div>
           </div>
         </div>
       )}
