@@ -17,8 +17,8 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      // Scripts: próprio domínio + Vturb/Converteai
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://scripts.converteai.net https://cdn.converteai.net",
+      // Scripts: próprio domínio + Vturb/Converteai + YouTube IFrame API (player /salas)
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://scripts.converteai.net https://cdn.converteai.net https://www.youtube.com https://s.ytimg.com",
       // Estilos: próprio domínio + inline (Tailwind)
       "style-src 'self' 'unsafe-inline'",
       // Imagens: próprio domínio + Cloudinary + dados inline

@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import Navbar from "@/components/Navbar";
 import SalaBookingForm from "@/components/SalaBookingForm";
+import SalaVideoPlayer from "@/components/SalaVideoPlayer";
 
 const PLANS = [
   {
@@ -107,16 +108,7 @@ export default function SalasPage() {
               Veja as nossas salas por dentro
             </h2>
           </div>
-          <div className="relative w-full overflow-hidden rounded-2xl border border-white/10" style={{ paddingTop: "56.25%" }}>
-            <iframe
-              className="absolute inset-0 h-full w-full"
-              src="https://www.youtube.com/embed/s0d7qDC7mck?si=YM1UJ7bIS9mVKNpy&controls=0"
-              title="Azul Coworking — Salas de Reunião"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              referrerPolicy="strict-origin-when-cross-origin"
-              allowFullScreen
-            />
-          </div>
+          <SalaVideoPlayer />
         </div>
       </section>
 
