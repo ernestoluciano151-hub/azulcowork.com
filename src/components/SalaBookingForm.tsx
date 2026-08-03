@@ -8,6 +8,7 @@ import { ptBR } from "date-fns/locale";
 import { getDialInfoFromTimezone, type DialInfo } from "@/lib/countryCode";
 
 const PLANS = ["Alpha","Beta","Gamma","Easy","Executiva","Personalizado"];
+const PLAN_MAX_PARTICIPANTS: Record<string, number> = { Alpha:24, Beta:15, Gamma:8, Easy:4, Executiva:3 };
 const TIMES = Array.from({length:21},(_,i)=>{const h=Math.floor(i/2)+8;const m=i%2===0?"00":"30";return `${String(h).padStart(2,"0")}:${m}`;});
 
 export default function SalaBookingForm() {
@@ -26,7 +27,23 @@ export default function SalaBookingForm() {
     try { const tz = Intl.DateTimeFormat().resolvedOptions().timeZone; setDialInfo(getDialInfoFromTimezone(tz)); } catch{}
   },[]);
 
-  function update(k: string, v: string) { setForm(p => ({...p,[k]:v})); }
+  const maxParticipants = PLAN_MAX_PARTICIPANTS[form.planName];
+
+  function update(k: string, v: string) {
+    setForm(p => {
+      const next = {...p,[k]:v};
+      // Ao trocar de plano, ajustar automaticamente o nº de participantes ao limite do plano
+      if (k === "planName") {
+        const max = PLAN_MAX_PARTICIPANTS[v];
+        if (max && Number(p.participants) > max) next.participants = String(max);
+      }
+      // Impedir digitar acima do limite do plano seleccionado
+      if (k === "participants" && maxParticipants && Number(v) > maxParticipants) {
+        next.participants = String(maxParticipants);
+      }
+      return next;
+    });
+  }
 
   function validate() {
     const e: Record<string,string> = {};
@@ -35,6 +52,9 @@ export default function SalaBookingForm() {
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email="E-mail inválido.";
     if(form.whatsappNumber.replace(/\D/g,"").length < 7) e.whatsapp="Número inválido.";
     if(!form.planName) e.planName="Escolha um plano.";
+    if(maxParticipants && form.participants && Number(form.participants) > maxParticipants) {
+      e.participants = `A Sala ${form.planName} tem um limite de ${maxParticipants} pessoas.`;
+    }
     setErrors(e);
     return Object.keys(e).length===0;
   }
@@ -72,7 +92,7 @@ export default function SalaBookingForm() {
         <div><label className="block text-sm font-medium text-paper mb-1.5">E-mail *</label><input type="email" className={inp(!!errors.email)} value={form.email} onChange={e=>update("email",e.target.value)} placeholder="email@empresa.com"/>{errors.email&&<p className="text-xs text-red-300 mt-1">{errors.email}</p>}</div>
         <div><label className="block text-sm font-medium text-paper mb-1.5">WhatsApp *</label><div className="flex gap-2"><div className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-ink2 px-3 py-3 text-sm text-paper whitespace-nowrap"><span>{dialInfo.flag}</span><span className="font-medium">{dialInfo.code}</span></div><input type="tel" className={`${inp(!!errors.whatsapp)} flex-1`} value={form.whatsappNumber} onChange={e=>update("whatsappNumber",e.target.value)} placeholder="9XX XXX XXX"/></div>{errors.whatsapp&&<p className="text-xs text-red-300 mt-1">{errors.whatsapp}</p>}</div>
         <div><label className="block text-sm font-medium text-paper mb-1.5">Plano *</label><select className={inp(!!errors.planName)} value={form.planName} onChange={e=>update("planName",e.target.value)}><option value="">Escolha um plano</option>{PLANS.map(p=><option key={p} value={p}>{p}{p==="Alpha"?" — até 24 pessoas":p==="Beta"?" — até 15 pessoas":p==="Gamma"?" — até 8 pessoas":p==="Easy"?" — até 4 pessoas":p==="Executiva"?" — sala executiva (35.000 Kz/dia)":" — negociável (≥16h)"}</option>)}</select>{errors.planName&&<p className="text-xs text-red-300 mt-1">{errors.planName}</p>}</div>
-        <div><label className="block text-sm font-medium text-paper mb-1.5">Nº de participantes</label><input type="number" min="1" className={inp(false)} value={form.participants} onChange={e=>update("participants",e.target.value)} placeholder="Ex: 10"/></div>
+        <div><label className="block text-sm font-medium text-paper mb-1.5">Nº de participantes</label><input type="number" min="1" max={maxParticipants||undefined} className={inp(!!errors.participants)} value={form.participants} onChange={e=>update("participants",e.target.value)} placeholder={maxParticipants?`Máx. ${maxParticipants} pessoas`:"Ex: 10"}/>{errors.participants?<p className="text-xs text-red-300 mt-1">{errors.participants}</p>:maxParticipants?<p className="text-xs text-mist mt-1">A Sala {form.planName} está limitada a {maxParticipants} pessoas.</p>:null}</div>
         <div><label className="block text-sm font-medium text-paper mb-1.5">Data pretendida</label><button type="button" onClick={()=>setShowCal(s=>!s)} className={`${inp(false)} flex items-center justify-between text-left`}><span className={date?"text-paper":"text-mist/60"}>{date?format(date,"PPP",{locale:ptBR}):"Selecionar data"}</span><span>📅</span></button>{showCal&&<div className="mt-3 rounded-xl border border-white/10 bg-ink2 p-3"><DayPicker mode="single" selected={date} onSelect={d=>{setDate(d);setShowCal(false);}} fromDate={new Date()} locale={ptBR}/></div>}</div>
         <div><label className="block text-sm font-medium text-paper mb-1.5">Hora pretendida</label><select className={inp(false)} value={form.preferredTime} onChange={e=>update("preferredTime",e.target.value)}><option value="">Escolha uma hora</option>{TIMES.map(t=><option key={t} value={t}>{t}</option>)}</select></div>
         <div className="flex items-start gap-3 rounded-lg border border-white/10 bg-ink2 p-4"><input type="checkbox" id="cb" checked={coffeeBreak} onChange={e=>setCoffeeBreak(e.target.checked)} className="mt-0.5 h-4 w-4 rounded"/><label htmlFor="cb" className="text-sm text-paper cursor-pointer">☕ <strong>Coffee Break</strong> <span className="text-mist">(opcional — custos adicionais aplicáveis)</span></label></div>
