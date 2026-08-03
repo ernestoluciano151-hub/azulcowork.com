@@ -25,6 +25,9 @@
 | 03 Ago 2026 | Facturação de sala de reunião: 15.000 Kz/h com arredondamento de 30 min (`roundBillableHours`) — substitui o matching de tiers com bug | `src/lib/pricing-service.ts`, `src/components/admin/ReservationModal.tsx` | Não |
 | 03 Ago 2026 | "Taxa de Condomínio" — 9.500 Kz/mês, renovável, visível em Atividades para todas as empresas SALA_PRIVADA | `src/app/api/atividades/route.ts`, `src/app/admin/atividades/page.tsx` | Não |
 | 03 Ago 2026 | Categoria de empresa (`CompanyCategory`: SALA_PRIVADA / SALA_REUNIAO) — leads de sala de reunião registam-se como empresa sem contrato/mensalidade; aparecem automaticamente nas reservas | `prisma/schema.prisma`, `src/app/api/companies/route.ts`, `src/app/api/room-booking-leads/[id]/convert/route.ts`, `src/components/admin/CompanyModal.tsx`, `src/app/admin/leads-salas/page.tsx` + filtros de exclusão em `atividades`, `companies/alerts`, `finance/summary`, `admin/dashboard` | **Sim** — `20260803175727_company_category` (aditiva: novo enum + coluna com `DEFAULT 'SALA_PRIVADA'`, sem alterar colunas existentes) |
+| 03 Ago 2026 | Portal do Cliente: corrigido loop no magic link (fallback de `NEXT_PUBLIC_APP_URL` vazio a gerar redirects inválidos), botão "Link" a devolver o URL real em vez de alegar envio falso, envio opcional do link por email, mensagens de erro reais em vez de genéricas ao activar/desactivar utilizadores | `src/app/api/portal/auth/magic/route.ts`, `src/app/api/portal/auth/magic-link/route.ts`, `src/app/api/admin/portal/magic-link/route.ts`, `src/app/admin/portal/utilizadores/page.tsx` | Não |
+| 03 Ago 2026 | Confirmação de pagamento da Taxa de Condomínio directamente em Atividades — gera fatura ERP (FT-SERV) + pagamento + recibo (REC) automaticamente, sincronizado com Faturas/Fluxo de Caixa; recibo gerado em PDF de imediato, envio por email fica ao critério do admin | `src/lib/condominio-service.ts` (novo), `src/app/api/atividades/condominio/route.ts` (novo), `src/app/api/atividades/route.ts`, `src/app/admin/atividades/page.tsx`, `src/lib/erp-communication-service.ts` (`sendReceipt` com `skipEmail`), `src/app/api/erp/payments/[id]/receipt/route.ts` | Não — reaproveita `ErpInvoice`/`ErpPayment` já existentes; idempotência por marcador `CONDOMINIO:YYYY-MM` em `ErpInvoice.notes` |
+| 03 Ago 2026 | Corrigido input de data nativo (`<input type="date">`) que permitia digitação por segmento sem validação, produzindo datas corrompidas (ex.: ano "0266") em Nova Fatura/Nova Despesa — substituído por `SmartDatePicker` (máscara dd/mm/aaaa com clamping + calendário visual), valor mantém formato ISO `yyyy-MM-dd` sem alterar API/schema | `src/components/admin/SmartDatePicker.tsx` (novo), `src/app/admin/pagamentos/page.tsx` | Não |
 
 **Nota de risco:** a migração é puramente aditiva (novo enum + coluna com valor por omissão) — não altera, torna nula, nem remove qualquer coluna existente. Todas as leituras de `contractStart`/`contractEnd`/`rentAmount` continuam não-nulas (empresas SALA_REUNIAO recebem valores-placeholder preenchidos pela API, nunca `null`).
 
@@ -235,6 +238,7 @@ Propor solução e aguardar aprovação quando:
 ```
 FT-SALA-YYYY-NNNNNN  → Faturas de sala de reunião
 FT-CWORK-YYYY-NNNNNN → Faturas de coworking
+FT-SERV-YYYY-NNNNNN  → Faturas de serviços avulsos (ex: Taxa de Condomínio)
 REC-YYYY-NNNNNN      → Recibos de pagamento
 NL-YYYY-NNNNNN       → Notas de Liquidação
 RES-YYYY-NNNNNN      → Números de Reserva

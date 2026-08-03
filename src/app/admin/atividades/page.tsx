@@ -5,18 +5,32 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import { formatKz } from "@/lib/currency";
 
 interface CompanyActivity {
-  id:             string;
-  name:           string;
-  plan:           string | null;
-  contractStatus: string;
-  salaMinutes:    number;
-  salaLimit:      number;
-  prints:         number;
-  printLimit:     number;
-  condominioFee:  number;
+  id:                      string;
+  name:                    string;
+  plan:                    string | null;
+  contractStatus:          string;
+  salaMinutes:             number;
+  salaLimit:               number;
+  prints:                  number;
+  printLimit:              number;
+  condominioFee:           number;
+  condominioPaid:          boolean;
+  condominioReceiptNumber: string | null;
+  condominioReceiptUrl:    string | null;
+  condominioPaymentId:     string | null;
+  condominioPaidAt:        string | null;
 }
 
 type ModalType = "sala" | "prints" | null;
+
+const PAYMENT_METHODS: { value: string; label: string }[] = [
+  { value: "BANK_TRANSFER", label: "Transferência bancária" },
+  { value: "CASH",          label: "Dinheiro" },
+  { value: "MULTICAIXA",    label: "Multicaixa" },
+  { value: "TPA",           label: "TPA" },
+  { value: "CHECK",         label: "Cheque" },
+  { value: "CREDITO",       label: "Crédito" },
+];
 
 function pct(used: number, limit: number) {
   return Math.min(100, Math.round((used / limit) * 100));
@@ -54,6 +68,20 @@ export default function AtividadesPage() {
   const [notes, setNotes]           = useState("");
   const [saving, setSaving]         = useState(false);
 
+  // Confirmar pagamento da Taxa de Condomínio
+  const [condoCompany, setCondoCompany]   = useState<CompanyActivity | null>(null);
+  const [condoMethod, setCondoMethod]     = useState("BANK_TRANSFER");
+  const [condoReference, setCondoReference] = useState("");
+  const [condoSaving, setCondoSaving]     = useState(false);
+  const [condoError, setCondoError]       = useState("");
+
+  // Recibo — enviar por email manualmente
+  const [receiptModal, setReceiptModal]   = useState<{
+    paymentId: string; receiptNumber: string; receiptUrl: string | null; companyName: string;
+  } | null>(null);
+  const [sendingReceipt, setSendingReceipt] = useState(false);
+  const [receiptStatus, setReceiptStatus]   = useState<{ ok: boolean; msg: string } | null>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -74,6 +102,81 @@ export default function AtividadesPage() {
   }
   function closeModal() {
     setModal(null); setSelCompany(null);
+  }
+
+  function openCondoConfirm(c: CompanyActivity) {
+    setCondoCompany(c); setCondoMethod("BANK_TRANSFER"); setCondoReference(""); setCondoError("");
+  }
+  function closeCondoConfirm() {
+    setCondoCompany(null); setCondoError("");
+  }
+
+  async function handleConfirmCondominio() {
+    if (!condoCompany) return;
+    setCondoSaving(true); setCondoError("");
+    try {
+      const res = await fetch("/api/atividades/condominio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId: condoCompany.id,
+          month,
+          method: condoMethod,
+          reference: condoReference || undefined,
+        }),
+      });
+      const resData = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setCondoError(resData.error ?? "Erro ao confirmar pagamento.");
+        return;
+      }
+      closeCondoConfirm();
+      await load();
+      // Abre logo o modal do recibo, pronto para enviar por email se quiseres.
+      setReceiptStatus(null);
+      setReceiptModal({
+        paymentId:     resData.paymentId,
+        receiptNumber: resData.receiptNumber,
+        receiptUrl:    resData.receiptUrl,
+        companyName:   condoCompany.name,
+      });
+    } catch {
+      setCondoError("Erro de rede.");
+    } finally {
+      setCondoSaving(false);
+    }
+  }
+
+  async function sendReceiptEmail() {
+    if (!receiptModal) return;
+    setSendingReceipt(true); setReceiptStatus(null);
+    try {
+      const res = await fetch(`/api/erp/payments/${receiptModal.paymentId}/receipt`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ skipEmail: false }),
+      });
+      const resData = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setReceiptStatus({ ok: false, msg: resData.error ?? "Erro ao enviar recibo." });
+        return;
+      }
+      if (resData.emailSent) {
+        setReceiptStatus({ ok: true, msg: "Recibo enviado por email." });
+      } else {
+        setReceiptStatus({
+          ok: false,
+          msg: `Não foi possível enviar por email${resData.warnings?.length ? ` (${resData.warnings[0]})` : ""}.`,
+        });
+      }
+      if (resData.pdfUrl) {
+        setReceiptModal(m => m ? { ...m, receiptUrl: resData.pdfUrl } : m);
+      }
+    } catch {
+      setReceiptStatus({ ok: false, msg: "Erro de rede." });
+    } finally {
+      setSendingReceipt(false);
+    }
   }
 
   async function handleSave() {
@@ -234,11 +337,41 @@ export default function AtividadesPage() {
 
                       {/* Taxa de Condomínio — encargo mensal fixo, igual para todas as empresas */}
                       <td className="px-5 py-4">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-sm font-medium text-paper">{formatKz(c.condominioFee)}</span>
-                          <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-300 whitespace-nowrap">
-                            🔄 Renovável mensal
-                          </span>
+                          {c.condominioPaid ? (
+                            <>
+                              <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-300 whitespace-nowrap">
+                                ✓ Pago{c.condominioReceiptNumber ? ` · ${c.condominioReceiptNumber}` : ""}
+                              </span>
+                              <button
+                                onClick={() => {
+                                  setReceiptStatus(null);
+                                  setReceiptModal({
+                                    paymentId:     c.condominioPaymentId!,
+                                    receiptNumber: c.condominioReceiptNumber!,
+                                    receiptUrl:    c.condominioReceiptUrl,
+                                    companyName:   c.name,
+                                  });
+                                }}
+                                className="text-xs text-azul hover:underline whitespace-nowrap"
+                              >
+                                Ver recibo
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-medium text-mist whitespace-nowrap">
+                                🔄 Renovável mensal
+                              </span>
+                              <button
+                                onClick={() => openCondoConfirm(c)}
+                                className="text-xs text-azul hover:underline whitespace-nowrap"
+                              >
+                                Confirmar Pagamento
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -352,6 +485,110 @@ export default function AtividadesPage() {
                   className="focus-ring rounded-lg bg-azul px-4 py-2 text-sm font-medium text-white hover:bg-azul-dim disabled:opacity-50"
                 >
                   {saving ? "A guardar…" : "Registar"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal — Confirmar Pagamento da Taxa de Condomínio */}
+        {condoCompany && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+            <div className="w-full max-w-sm rounded-xl border border-white/10 bg-[#0d1829] p-6 space-y-4">
+              <div>
+                <h2 className="font-semibold text-paper">Confirmar pagamento — Condomínio</h2>
+                <p className="text-xs text-mist mt-1">
+                  {condoCompany.name} — {formatKz(condoCompany.condominioFee)} · {month}
+                </p>
+                <p className="text-xs text-mist/70 mt-1">
+                  Gera fatura + recibo no ERP automaticamente (fica visível em Faturas/Fluxo de Caixa).
+                </p>
+              </div>
+              <div>
+                <label className="block text-xs text-mist mb-1">Método de pagamento</label>
+                <select
+                  value={condoMethod}
+                  onChange={e => setCondoMethod(e.target.value)}
+                  className="w-full focus-ring h-9 rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-paper"
+                >
+                  {PAYMENT_METHODS.map(m => (
+                    <option key={m.value} value={m.value}>{m.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-mist mb-1">Referência (opcional)</label>
+                <input
+                  value={condoReference}
+                  onChange={e => setCondoReference(e.target.value)}
+                  className="w-full focus-ring h-9 rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-paper"
+                  placeholder="Ex: nº de operação / transferência"
+                />
+              </div>
+              {condoError && <p className="text-xs text-red-400">{condoError}</p>}
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  onClick={closeCondoConfirm}
+                  className="rounded-lg border border-white/10 px-4 py-2 text-sm text-mist hover:text-paper hover:bg-white/5"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleConfirmCondominio}
+                  disabled={condoSaving}
+                  className="focus-ring rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  {condoSaving ? "A confirmar…" : "Confirmar Pagamento"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal — Recibo (ver/descarregar + enviar por email) */}
+        {receiptModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+            <div className="w-full max-w-sm rounded-xl border border-white/10 bg-[#0d1829] p-6 space-y-4">
+              <div>
+                <h2 className="font-semibold text-paper">🧾 Recibo — {receiptModal.receiptNumber}</h2>
+                <p className="text-xs text-mist mt-1">{receiptModal.companyName}</p>
+              </div>
+
+              {receiptModal.receiptUrl ? (
+                <a
+                  href={receiptModal.receiptUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block text-center rounded-lg border border-white/10 px-4 py-2 text-sm text-azul hover:bg-white/5"
+                >
+                  Abrir / descarregar PDF
+                </a>
+              ) : (
+                <p className="text-xs text-amber-400">
+                  PDF ainda não disponível (Cloudinary pode não estar configurado). O recibo continua
+                  válido no ERP — nº {receiptModal.receiptNumber}.
+                </p>
+              )}
+
+              <button
+                onClick={sendReceiptEmail}
+                disabled={sendingReceipt}
+                className="w-full rounded-lg bg-emerald-600 hover:bg-emerald-700 px-4 py-2 text-sm font-medium text-white transition disabled:opacity-50"
+              >
+                {sendingReceipt ? "A enviar…" : "✉️ Enviar recibo por email"}
+              </button>
+              {receiptStatus && (
+                <p className={`text-xs ${receiptStatus.ok ? "text-emerald-400" : "text-amber-400"}`}>
+                  {receiptStatus.ok ? "✓" : "⚠"} {receiptStatus.msg}
+                </p>
+              )}
+
+              <div className="flex justify-end pt-1">
+                <button
+                  onClick={() => setReceiptModal(null)}
+                  className="rounded-lg border border-white/10 px-4 py-2 text-sm text-mist hover:text-paper hover:bg-white/5"
+                >
+                  Fechar
                 </button>
               </div>
             </div>

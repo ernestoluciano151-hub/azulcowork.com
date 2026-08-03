@@ -219,10 +219,17 @@ export async function sendInvoice(
 // ── sendReceipt ───────────────────────────────────────────────────────────────
 
 /**
- * Gera recibo em PDF e envia por email.
+ * Gera recibo em PDF (e, por defeito, envia por email).
  * Actualiza ErpPayment.receiptUrl.
+ *
+ * opts.skipEmail — quando true, gera e guarda o PDF mas não tenta enviar
+ * email nem exige que a empresa tenha email configurado. Usado quando o
+ * admin prefere rever/enviar manualmente (ex: recibo da Taxa de Condomínio).
  */
-export async function sendReceipt(paymentId: string): Promise<CommunicationResult> {
+export async function sendReceipt(
+  paymentId: string,
+  opts: { skipEmail?: boolean } = {}
+): Promise<CommunicationResult> {
   const result: CommunicationResult = {
     pdfGenerated: false,
     pdfUrl:       null,
@@ -240,7 +247,7 @@ export async function sendReceipt(paymentId: string): Promise<CommunicationResul
   });
 
   const sentTo = payment.company?.email ?? payment.invoice?.sentTo;
-  if (!sentTo) {
+  if (!opts.skipEmail && !sentTo) {
     throw new Error("Pagamento sem email configurado — impossível enviar recibo.");
   }
 
@@ -289,22 +296,24 @@ export async function sendReceipt(paymentId: string): Promise<CommunicationResul
     });
   }
 
-  // 5. Enviar email
-  try {
-    await sendReceiptEmail({
-      to:             sentTo,
-      companyName:    payment.company?.name ?? "Cliente",
-      receiptNumber:  payment.receiptNumber,
-      invoiceNumber:  payment.invoice?.number,
-      amount:         payment.amount,
-      paidAt:         payment.paidAt,
-      method:         payment.method,
-      pdfUrl:         pdfUrl ?? undefined,
-    });
-    result.emailSent = true;
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    result.warnings.push(`Email não enviado: ${msg}`);
+  // 5. Enviar email (a menos que skipEmail tenha sido pedido)
+  if (!opts.skipEmail && sentTo) {
+    try {
+      await sendReceiptEmail({
+        to:             sentTo,
+        companyName:    payment.company?.name ?? "Cliente",
+        receiptNumber:  payment.receiptNumber,
+        invoiceNumber:  payment.invoice?.number,
+        amount:         payment.amount,
+        paidAt:         payment.paidAt,
+        method:         payment.method,
+        pdfUrl:         pdfUrl ?? undefined,
+      });
+      result.emailSent = true;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      result.warnings.push(`Email não enviado: ${msg}`);
+    }
   }
 
   return result;

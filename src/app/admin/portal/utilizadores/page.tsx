@@ -161,7 +161,11 @@ function PortalUtilizadoresPageInner() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isActive: !user.isActive }),
       });
-      if (!res.ok) { alert("Erro ao alterar estado"); return; }
+      const data = await res.json().catch(() => ({})) as { error?: string };
+      // A API tinha um motivo específico (ex: "não é possível desactivar o
+      // único PORTAL_OWNER da empresa") que estava a ser escondido por uma
+      // mensagem genérica — agora mostramos o erro real.
+      if (!res.ok) { alert(data.error ?? "Erro ao alterar estado."); return; }
       void fetchUsers();
     } catch { alert("Erro de rede"); }
     finally { setActing(null); }

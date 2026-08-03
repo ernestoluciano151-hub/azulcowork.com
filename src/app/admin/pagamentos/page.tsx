@@ -8,6 +8,7 @@ import { formatKz } from "@/lib/currency";
 import { format } from "date-fns";
 import DeleteRequestModal from "@/components/admin/DeleteRequestModal";
 import NewPaymentModal from "@/components/finance/NewPaymentModal";
+import SmartDatePicker from "@/components/admin/SmartDatePicker";
 
 // ⚠️ recharts usa APIs do browser (ResizeObserver, window) — deve ser importado
 // com ssr:false para evitar crash durante pre-rendering do Next.js 14.
@@ -569,20 +570,17 @@ function FaturasTab() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="mb-1 block text-xs text-[#94A3B8]">Data Emissão</label>
-                <input
-                  type="date"
+                <SmartDatePicker
                   value={form.issueDate}
-                  onChange={(e) => setForm({ ...form, issueDate: e.target.value })}
-                  className="w-full rounded-lg border border-white/10 bg-[#101a2e] px-3 py-2 text-sm text-[#F5F7FA] focus:outline-none focus:ring-1 focus:ring-[#2F6FED]"
+                  onChange={(v) => setForm({ ...form, issueDate: v })}
                 />
               </div>
               <div>
                 <label className="mb-1 block text-xs text-[#94A3B8]">Data Vencimento *</label>
-                <input
-                  type="date"
+                <SmartDatePicker
                   value={form.dueDate}
-                  onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
-                  className="w-full rounded-lg border border-white/10 bg-[#101a2e] px-3 py-2 text-sm text-[#F5F7FA] focus:outline-none focus:ring-1 focus:ring-[#2F6FED]"
+                  onChange={(v) => setForm({ ...form, dueDate: v })}
+                  required
                 />
               </div>
             </div>
@@ -816,11 +814,10 @@ function DespesasTab() {
               </div>
               <div>
                 <label className="mb-1 block text-xs text-[#94A3B8]">Data *</label>
-                <input
-                  type="date"
+                <SmartDatePicker
                   value={form.expenseDate}
-                  onChange={(e) => setForm({ ...form, expenseDate: e.target.value })}
-                  className="w-full rounded-lg border border-white/10 bg-[#101a2e] px-3 py-2 text-sm text-[#F5F7FA] focus:outline-none focus:ring-1 focus:ring-[#2F6FED]"
+                  onChange={(v) => setForm({ ...form, expenseDate: v })}
+                  required
                 />
               </div>
             </div>

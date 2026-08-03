@@ -2,15 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { AdminRole } from "@prisma/client";
 import { requireRole } from "@/lib/auth";
+import { CONDOMINIO_FEE_KZ, getCondominioStatusMap } from "@/lib/condominio-service";
 
 export const dynamic = "force-dynamic";
 
 const SALA_LIMIT_MINUTES = 120;
 const PRINT_LIMIT        = 30;
 // Taxa de condomínio — benefício/encargo mensal fixo, igual para todas as
-// empresas activas. Não é cumulativo: é recalculado a cada mês pedido,
-// daí "renovar automaticamente" sem necessidade de qualquer registo manual.
-const CONDOMINIO_FEE_KZ  = 9500;
+// empresas activas (valor em src/lib/condominio-service.ts — SSoT). O
+// admin confirma o pagamento mês a mês (ver POST /api/atividades/condominio),
+// o que gera fatura + recibo reais no ERP.
 
 export async function GET(req: NextRequest) {
   const { error } = await requireRole(AdminRole.ADMIN, AdminRole.COMERCIAL, AdminRole.FINANCEIRO);
@@ -87,20 +88,31 @@ export async function GET(req: NextRequest) {
     printMap[p.companyId] = (printMap[p.companyId] || 0) + (p.amount || 0);
   }
 
-  const data = companies.map(c => ({
-    id:             c.id,
-    name:           c.name,
-    plan:           c.planType,
-    contractStatus: c.contractStatus,
-    salaMinutes:    Math.round(salaMap[c.id] || 0),
-    salaLimit:      SALA_LIMIT_MINUTES,
-    prints:         Math.round(printMap[c.id] || 0),
-    printLimit:     PRINT_LIMIT,
-    // Taxa de condomínio — igual para todas as empresas, renovada todo mês
-    condominioFee:  CONDOMINIO_FEE_KZ,
-  }));
+  const monthKey = `${year}-${String(month).padStart(2, "0")}`;
+  const condominioStatus = await getCondominioStatusMap(ids, monthKey);
 
-  return NextResponse.json({ data, month: `${year}-${String(month).padStart(2, "0")}` });
+  const data = companies.map(c => {
+    const cond = condominioStatus[c.id];
+    return {
+      id:             c.id,
+      name:           c.name,
+      plan:           c.planType,
+      contractStatus: c.contractStatus,
+      salaMinutes:    Math.round(salaMap[c.id] || 0),
+      salaLimit:      SALA_LIMIT_MINUTES,
+      prints:         Math.round(printMap[c.id] || 0),
+      printLimit:     PRINT_LIMIT,
+      // Taxa de condomínio — igual para todas as empresas, renovada todo mês
+      condominioFee:           CONDOMINIO_FEE_KZ,
+      condominioPaid:          cond?.paymentStatus === "CONFIRMED",
+      condominioReceiptNumber: cond?.receiptNumber ?? null,
+      condominioReceiptUrl:    cond?.receiptUrl ?? null,
+      condominioPaymentId:     cond?.paymentStatus === "CONFIRMED" ? cond.paymentId : null,
+      condominioPaidAt:        cond?.paidAt ?? null,
+    };
+  });
+
+  return NextResponse.json({ data, month: monthKey });
 }
 
 export async function POST(req: NextRequest) {

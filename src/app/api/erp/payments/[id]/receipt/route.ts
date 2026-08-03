@@ -29,8 +29,15 @@ export async function POST(
   const { error } = await requireRole(AdminRole.ADMIN, AdminRole.FINANCEIRO);
   if (error) return error;
 
+  // Body opcional — { skipEmail: true } gera só o PDF/URL, sem tentar enviar.
+  let skipEmail = false;
   try {
-    const result = await sendReceipt(params.id);
+    const body = await req.json();
+    skipEmail = body?.skipEmail === true;
+  } catch { /* body vazio — comportamento por defeito (envia email) */ }
+
+  try {
+    const result = await sendReceipt(params.id, { skipEmail });
 
     return NextResponse.json(
       {
