@@ -32,6 +32,7 @@ const EMPTY_FORM = {
 };
 
 const EMPTY_CONVERT = {
+  category: "SALA_REUNIAO" as "SALA_REUNIAO" | "SALA_PRIVADA",
   roomNumber: "", planType: "", rentAmount: "", contractStart: "", contractEnd: "",
 };
 
@@ -131,16 +132,22 @@ export default function LeadsSalasPage() {
   async function handleConvert(e: React.FormEvent) {
     e.preventDefault();
     if (!convertLead) return;
+    const isPrivate = convertForm.category === "SALA_PRIVADA";
+    if (isPrivate && (!convertForm.roomNumber || !convertForm.contractStart || !convertForm.contractEnd)) {
+      setConvertError("Para Sala Privada, preencha Nº Sala, início e fim de contrato.");
+      return;
+    }
     setConvertSaving(true); setConvertError("");
     const res = await fetch(`/api/room-booking-leads/${convertLead.id}/convert`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        roomNumber: convertForm.roomNumber || "A definir",
+        category: convertForm.category,
+        roomNumber: isPrivate ? convertForm.roomNumber : undefined,
         planType: convertForm.planType || convertLead.planName,
-        rentAmount: convertForm.rentAmount ? Number(convertForm.rentAmount) : 0,
-        contractStart: convertForm.contractStart || undefined,
-        contractEnd: convertForm.contractEnd || undefined,
+        rentAmount: isPrivate && convertForm.rentAmount ? Number(convertForm.rentAmount) : 0,
+        contractStart: isPrivate ? (convertForm.contractStart || undefined) : undefined,
+        contractEnd: isPrivate ? (convertForm.contractEnd || undefined) : undefined,
       }),
     });
     const data = await res.json().catch(() => ({}));
@@ -378,30 +385,54 @@ export default function LeadsSalasPage() {
               Lead: <span className="text-paper font-medium">{convertLead.firstName} {convertLead.lastName}</span> · {convertLead.email}
             </p>
             <form onSubmit={handleConvert} className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={lbl}>Nº Sala</label>
-                  <input className={inp} placeholder="Ex: 101" value={convertForm.roomNumber} onChange={e => setConvertForm(f => ({ ...f, roomNumber: e.target.value }))} />
-                </div>
-                <div>
-                  <label className={lbl}>Tipo de Plano</label>
-                  <input className={inp} placeholder="Ex: Coworking" value={convertForm.planType} onChange={e => setConvertForm(f => ({ ...f, planType: e.target.value }))} />
-                </div>
-              </div>
               <div>
-                <label className={lbl}>Renda Mensal (AOA)</label>
-                <input type="number" min={0} className={inp} placeholder="Ex: 150000" value={convertForm.rentAmount} onChange={e => setConvertForm(f => ({ ...f, rentAmount: e.target.value }))} />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={lbl}>Início de Contrato</label>
-                  <input type="date" className={inp} value={convertForm.contractStart} onChange={e => setConvertForm(f => ({ ...f, contractStart: e.target.value }))} />
+                <label className={lbl}>Categoria de Registo</label>
+                <div className="grid grid-cols-1 gap-2 mt-1">
+                  <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer ${convertForm.category === "SALA_REUNIAO" ? "border-emerald-500/60 bg-emerald-500/10" : "border-white/10"}`}>
+                    <input type="radio" className="mt-1" name="category" checked={convertForm.category === "SALA_REUNIAO"} onChange={() => setConvertForm(f => ({ ...f, category: "SALA_REUNIAO" }))} />
+                    <span>
+                      <span className="block text-sm font-medium text-paper">Registo normal — Salas de Reunião</span>
+                      <span className="block text-xs text-mist">Cliente eventual, paga por evento. Sem contrato/mensalidade — fica logo disponível para novas reservas.</span>
+                    </span>
+                  </label>
+                  <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer ${convertForm.category === "SALA_PRIVADA" ? "border-emerald-500/60 bg-emerald-500/10" : "border-white/10"}`}>
+                    <input type="radio" className="mt-1" name="category" checked={convertForm.category === "SALA_PRIVADA"} onChange={() => setConvertForm(f => ({ ...f, category: "SALA_PRIVADA" }))} />
+                    <span>
+                      <span className="block text-sm font-medium text-paper">Sala Privada</span>
+                      <span className="block text-xs text-mist">Cliente com espaço/contrato dedicado — requer Nº Sala, renda e datas de contrato.</span>
+                    </span>
+                  </label>
                 </div>
-                <div>
-                  <label className={lbl}>Fim de Contrato</label>
-                  <input type="date" className={inp} value={convertForm.contractEnd} onChange={e => setConvertForm(f => ({ ...f, contractEnd: e.target.value }))} />
-                </div>
               </div>
+
+              {convertForm.category === "SALA_PRIVADA" && (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={lbl}>Nº Sala</label>
+                      <input className={inp} placeholder="Ex: 101" value={convertForm.roomNumber} onChange={e => setConvertForm(f => ({ ...f, roomNumber: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label className={lbl}>Tipo de Plano</label>
+                      <input className={inp} placeholder="Ex: Coworking" value={convertForm.planType} onChange={e => setConvertForm(f => ({ ...f, planType: e.target.value }))} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className={lbl}>Renda Mensal (AOA)</label>
+                    <input type="number" min={0} className={inp} placeholder="Ex: 150000" value={convertForm.rentAmount} onChange={e => setConvertForm(f => ({ ...f, rentAmount: e.target.value }))} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={lbl}>Início de Contrato</label>
+                      <input type="date" className={inp} value={convertForm.contractStart} onChange={e => setConvertForm(f => ({ ...f, contractStart: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label className={lbl}>Fim de Contrato</label>
+                      <input type="date" className={inp} value={convertForm.contractEnd} onChange={e => setConvertForm(f => ({ ...f, contractEnd: e.target.value }))} />
+                    </div>
+                  </div>
+                </>
+              )}
               {convertError && <p className="text-sm text-red-400">{convertError}</p>}
               <div className="flex gap-3 justify-end pt-2">
                 <button type="button" onClick={() => { setConvertLead(null); setConvertError(""); }} className="px-5 py-2.5 rounded-xl border border-white/10 text-mist hover:text-paper text-sm">Cancelar</button>

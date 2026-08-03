@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { AdminRole } from "@prisma/client";
+import { AdminRole, CompanyCategory } from "@prisma/client";
 import { requireRole } from "@/lib/auth";
 import { addTimeline } from "@/lib/timeline";
 
@@ -19,6 +19,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const today = new Date();
   const oneYear = new Date(today.getFullYear() + 1, today.getMonth(), today.getDate());
 
+  // Categoria: por defeito estes leads são clientes eventuais de sala de
+  // reunião (SALA_REUNIAO) — pagam por evento, sem mensalidade. O admin
+  // pode explicitamente pedir "SALA_PRIVADA" (ex: cliente que afinal quer
+  // um espaço/contrato dedicado), mantendo o fluxo actual nesse caso.
+  const category: CompanyCategory =
+    body.category === "SALA_PRIVADA" ? CompanyCategory.SALA_PRIVADA : CompanyCategory.SALA_REUNIAO;
+
   const result = await prisma.$transaction(async (tx) => {
     const company = await tx.company.create({
       data: {
@@ -26,7 +33,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         responsible:      `${lead.firstName} ${lead.lastName}`,
         email:            lead.email,
         whatsapp:         lead.whatsapp,
-        roomNumber:       body.roomNumber       ?? "A definir",
+        category,
+        roomNumber:       body.roomNumber       ?? "—",
         planType:         body.planType         ?? lead.planName,
         contractStart:    body.contractStart    ? new Date(body.contractStart) : today,
         contractEnd:      body.contractEnd      ? new Date(body.contractEnd)   : oneYear,

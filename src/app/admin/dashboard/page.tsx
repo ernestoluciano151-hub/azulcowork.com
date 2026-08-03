@@ -60,7 +60,7 @@ export default async function DashboardPage() {
     prisma.deleteRequest.count({ where: { status: "PENDING" } }),
     prisma.payment.count({ where: { status: "ATRASADO" } }),
     prisma.company.findMany({
-      where: { contractEnd: { lte: in60 }, contractStatus: { notIn: ["ENCERRADO"] } },
+      where: { contractEnd: { lte: in60 }, contractStatus: { notIn: ["ENCERRADO"] }, category: "SALA_PRIVADA" },
       orderBy: { contractEnd: "asc" },
       take: 5,
     }),

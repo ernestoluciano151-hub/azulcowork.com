@@ -13,6 +13,23 @@
 
 ---
 
+## Alterações durante o Piloto (excepções ao freeze — aprovadas directamente pelo PO)
+
+> Freeze de funcionalidades activo (linha 11) permite apenas correcções críticas.
+> As alterações abaixo foram pedidas directamente por Ernesto Pinto Luciano (PO) em
+> 03 Ago 2026, tratadas como correcções de regras de negócio/UX críticas para o
+> piloto em curso (facturação incorrecta e bloqueio de registo de leads).
+
+| Data | Alteração | Ficheiros principais | Migração DB |
+|---|---|---|---|
+| 03 Ago 2026 | Facturação de sala de reunião: 15.000 Kz/h com arredondamento de 30 min (`roundBillableHours`) — substitui o matching de tiers com bug | `src/lib/pricing-service.ts`, `src/components/admin/ReservationModal.tsx` | Não |
+| 03 Ago 2026 | "Taxa de Condomínio" — 9.500 Kz/mês, renovável, visível em Atividades para todas as empresas SALA_PRIVADA | `src/app/api/atividades/route.ts`, `src/app/admin/atividades/page.tsx` | Não |
+| 03 Ago 2026 | Categoria de empresa (`CompanyCategory`: SALA_PRIVADA / SALA_REUNIAO) — leads de sala de reunião registam-se como empresa sem contrato/mensalidade; aparecem automaticamente nas reservas | `prisma/schema.prisma`, `src/app/api/companies/route.ts`, `src/app/api/room-booking-leads/[id]/convert/route.ts`, `src/components/admin/CompanyModal.tsx`, `src/app/admin/leads-salas/page.tsx` + filtros de exclusão em `atividades`, `companies/alerts`, `finance/summary`, `admin/dashboard` | **Sim** — `20260803175727_company_category` (aditiva: novo enum + coluna com `DEFAULT 'SALA_PRIVADA'`, sem alterar colunas existentes) |
+
+**Nota de risco:** a migração é puramente aditiva (novo enum + coluna com valor por omissão) — não altera, torna nula, nem remove qualquer coluna existente. Todas as leituras de `contractStart`/`contractEnd`/`rentAmount` continuam não-nulas (empresas SALA_REUNIAO recebem valores-placeholder preenchidos pela API, nunca `null`).
+
+---
+
 ## Identidade e Papel
 
 Neste projecto, Claude actua como **Arquiteto-Chefe do VD Platform**. A missão principal não é escrever código — é garantir que todas as decisões técnicas preservam a qualidade, consistência e visão de longo prazo do produto.

@@ -44,7 +44,7 @@ export async function GET() {
     prisma.payment.aggregate({ where: { status: "PAGO"     }, _sum: { amount: true } }),
     prisma.payment.aggregate({ where: { status: "PENDENTE" }, _sum: { amount: true } }),
     prisma.payment.aggregate({ where: { status: "ATRASADO" }, _sum: { amount: true } }),
-    prisma.company.aggregate({ where: { contractStatus: "ATIVO" }, _sum: { rentAmount: true } }),
+    prisma.company.aggregate({ where: { contractStatus: "ATIVO", category: "SALA_PRIVADA" }, _sum: { rentAmount: true } }),
     prisma.payment.groupBy({ by: ["companyId"], where: { status: "ATRASADO" }, _count: { id: true } }),
     prisma.expense.aggregate({ where: { status: "PAGO", expenseDate: { gte: startOfYear } }, _sum: { amount: true } }),
     prisma.expense.groupBy({
@@ -65,9 +65,9 @@ export async function GET() {
       orderBy: { dueDate: "asc" },
       take: 10,
     }),
-    // Companies
+    // Companies — exclui SALA_REUNIAO (sem contrato/mensalidade real)
     prisma.company.findMany({
-      where: { contractStatus: { not: "ENCERRADO" } },
+      where: { contractStatus: { not: "ENCERRADO" }, category: "SALA_PRIVADA" },
       select: { rentAmount: true, contractStart: true, contractEnd: true },
     }),
     // Monthly aggregates — fetch all at once, group in memory

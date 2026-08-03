@@ -233,38 +233,28 @@ export default function ReservationModal({ reservation, plans, onClose, onSaved,
     }
   }
 
-  // Try DB pricing tiers first, fall back to plan-level pricing
+  // Preço calculado sempre pela fórmula horária com arredondamento de 30 min
+  // (15.000 Kz/hora por defeito — ou pricePerHour do plano, se definido).
+  // As tabelas fixas ("Preços da Sala") já não decidem o preço da reserva;
+  // matchedTier fica só para referência informativa no ecrã.
   const matchedTier  = durationMinutes > 0 && pricingTiers.length > 0
     ? matchTier(pricingTiers, durationMinutes)
     : undefined;
 
   const pricing = (() => {
     if (!selectedPlan || durationMinutes === 0) return null;
-    if (matchedTier) {
-      return calcPriceFromTier(
-        matchedTier,
-        selectedPlan.coffeeBreakPrice,
-        coffeeBreak,
-        Number(discount) || 0,
-        Number(ivaPercent) || 0
-      );
-    }
-    // Fallback: plan-level prices
-    if (selectedPlan.pricePerHour > 0 || selectedPlan.halfDayPrice > 0 || selectedPlan.fullDayPrice > 0) {
-      return calcPrice({
-        plan:       selectedPlan,
-        totalHours,
-        coffeeBreak,
-        discount:   Number(discount) || 0,
-        ivaPercent: Number(ivaPercent) || 0,
-        startDate,
-      });
-    }
-    return null;
+    return calcPrice({
+      plan:         selectedPlan,
+      totalHours,
+      totalMinutes: durationMinutes,
+      coffeeBreak,
+      discount:     Number(discount) || 0,
+      ivaPercent:   Number(ivaPercent) || 0,
+      startDate,
+    });
   })();
 
-  const noTierConfigured = durationMinutes > 0 && !pricing && pricingTiers.length > 0;
-  const noPricingAtAll   = durationMinutes > 0 && !pricing && pricingTiers.length === 0;
+  const noPlanSelected = durationMinutes > 0 && !selectedPlan;
 
   const totalAmount   = pricing?.totalAmount ?? 0;
   const discountNum   = pricing?.discountApplied ?? 0;
@@ -534,7 +524,7 @@ export default function ReservationModal({ reservation, plans, onClose, onSaved,
 
               {/* ── Smart duration + price preview card ── */}
               {durationMinutes > 0 && (
-                <div className={`rounded-xl border p-4 ${pricing ? "border-[#2F6FED]/30 bg-[#2F6FED]/5" : noTierConfigured ? "border-amber-500/30 bg-amber-500/5" : "border-white/10 bg-white/[0.02]"}`}>
+                <div className={`rounded-xl border p-4 ${pricing ? "border-[#2F6FED]/30 bg-[#2F6FED]/5" : noPlanSelected ? "border-amber-500/30 bg-amber-500/5" : "border-white/10 bg-white/[0.02]"}`}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2 text-sm">
@@ -547,54 +537,27 @@ export default function ReservationModal({ reservation, plans, onClose, onSaved,
                         </span>
                       </div>
 
-                      {pricing && matchedTier && (
-                        <>
-                          <div className="flex items-center gap-2 text-sm">
-                            <span className="text-[#94A3B8]">📋 Plano aplicado:</span>
-                            <span className="rounded-full bg-[#2F6FED]/15 border border-[#2F6FED]/30 px-2 py-0.5 text-xs text-[#5C8FFF] font-medium">
-                              {matchedTier.label}
-                            </span>
-                            {matchedTier.durationMinutes !== durationMinutes && (
-                              <span className="text-xs text-[#94A3B8]">
-                                (mais próximo: {minutesToHuman(matchedTier.durationMinutes)})
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-sm">
-                            <span className="text-[#94A3B8]">💰 Preço: </span>
-                            <span className="text-[#5C8FFF] font-bold text-base">{formatKz(matchedTier.price)}</span>
-                          </div>
-                        </>
-                      )}
-
-                      {pricing && !matchedTier && (
+                      {pricing && (
                         <div className="text-sm">
                           <span className="text-[#94A3B8]">💰 Preço: </span>
                           <span className="text-[#5C8FFF] font-bold text-base">{formatKz(pricing.totalAmount)}</span>
                           <span className="ml-2 text-xs rounded-full bg-[#2F6FED]/10 border border-[#2F6FED]/20 px-2 py-0.5 text-[#5C8FFF]">
                             {priceModeLabel(pricing.priceMode, pricing.tierLabel)}
                           </span>
+                          {pricing.priceMode === "hourly" && (
+                            <span className="ml-2 text-xs text-[#94A3B8]">
+                              ({minutesToHuman(durationMinutes)} → facturado como {(pricing.baseAmount / (selectedPlan!.pricePerHour > 0 ? selectedPlan!.pricePerHour : 15000)).toFixed(0)}h)
+                            </span>
+                          )}
                         </div>
                       )}
 
-                      {noTierConfigured && (
+                      {noPlanSelected && (
                         <div className="text-sm text-amber-300">
-                          ⚠️ Não existe um preço definido para {minutesToHuman(durationMinutes)}.
-                        </div>
-                      )}
-                      {noPricingAtAll && (
-                        <div className="text-sm text-amber-300">
-                          ⚠️ Sem preços configurados para esta sala.
+                          ⚠️ Escolha um plano para calcular o preço.
                         </div>
                       )}
                     </div>
-
-                    {(noTierConfigured || noPricingAtAll) && (
-                      <a href="/admin/configuracoes/precos" target="_blank"
-                        className="shrink-0 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-300 hover:bg-amber-500/20 transition-colors">
-                        Configurar Preços →
-                      </a>
-                    )}
                   </div>
                 </div>
               )}

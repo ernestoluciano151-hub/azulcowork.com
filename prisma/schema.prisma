@@ -217,6 +217,12 @@ model Company {
   roomNumber        String
   numEmployees      Int                @default(1)
   planType          String
+  // Categoria de registo — ver enum CompanyCategory. SALA_PRIVADA (default) é
+  // o cliente tradicional com contrato/espaço dedicado; SALA_REUNIAO é o
+  // cliente eventual, registado apenas para reservas de sala de reunião,
+  // sem mensalidade real (contractStart/contractEnd ficam com valores
+  // placeholder preenchidos automaticamente pela API — ver companies/route.ts).
+  category          CompanyCategory    @default(SALA_PRIVADA)
   contractStart     DateTime
   contractEnd       DateTime
   rentAmount        Float
@@ -694,6 +700,15 @@ enum CompanyStatus {
   INACTIVE
   CHURNED
   MERGED
+}
+
+/// Categoria de registo da empresa no ERP:
+/// - SALA_PRIVADA: cliente com espaço/contrato dedicado (coworking, gabinete)
+/// - SALA_REUNIAO: cliente eventual que apenas reserva salas de reunião,
+///   sem contrato nem mensalidade — paga por evento.
+enum CompanyCategory {
+  SALA_PRIVADA
+  SALA_REUNIAO
 }
 
 enum PipelineStage {

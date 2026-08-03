@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
+import { formatKz } from "@/lib/currency";
 
 interface CompanyActivity {
   id:             string;
@@ -12,6 +13,7 @@ interface CompanyActivity {
   salaLimit:      number;
   prints:         number;
   printLimit:     number;
+  condominioFee:  number;
 }
 
 type ModalType = "sala" | "prints" | null;
@@ -112,8 +114,8 @@ export default function AtividadesPage() {
           <div>
             <h1 className="font-display text-2xl font-bold text-paper">Atividades & Benefícios</h1>
             <p className="text-sm text-mist mt-1">
-              Utilização mensal por empresa — 2h sala de reunião + 30 impressões incluídas no plano.
-              Zera automaticamente no início de cada mês.
+              Utilização mensal por empresa — 2h sala de reunião + 30 impressões incluídas no plano,
+              mais a taxa de condomínio ({formatKz(9500)}/mês). Renova automaticamente no início de cada mês.
             </p>
           </div>
           <input
@@ -167,6 +169,7 @@ export default function AtividadesPage() {
                   <th className="px-5 py-3">Plano</th>
                   <th className="px-5 py-3">Sala de Reunião (2h/mês)</th>
                   <th className="px-5 py-3">Impressões (30/mês)</th>
+                  <th className="px-5 py-3">Taxa de Condomínio</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
@@ -226,6 +229,16 @@ export default function AtividadesPage() {
                             className={`h-1.5 rounded-full transition-all ${barColor(printPct)}`}
                             style={{ width: `${printPct}%` }}
                           />
+                        </div>
+                      </td>
+
+                      {/* Taxa de Condomínio — encargo mensal fixo, igual para todas as empresas */}
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-paper">{formatKz(c.condominioFee)}</span>
+                          <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-300 whitespace-nowrap">
+                            🔄 Renovável mensal
+                          </span>
                         </div>
                       </td>
                     </tr>

@@ -19,13 +19,41 @@ export interface RoomPricingTier {
 }
 
 export interface PriceInput {
-  plan:         PlanPricing;
-  totalHours:   number;
-  coffeeBreak:  boolean;
-  discount:     number;
-  ivaPercent:   number;
-  isWeekend?:   boolean;
-  startDate?:   Date;
+  plan:          PlanPricing;
+  totalHours:    number;
+  /** Duração exacta em minutos. Se omitido, é derivada de totalHours (menos precisa). */
+  totalMinutes?: number;
+  coffeeBreak:   boolean;
+  discount:      number;
+  ivaPercent:    number;
+  isWeekend?:    boolean;
+  startDate?:    Date;
+}
+
+/** Tarifa horária por defeito da Sala de Reunião (Kz), usada quando o plano
+ * não tem pricePerHour definido. */
+export const ROOM_HOURLY_RATE_KZ = 15000;
+
+/**
+ * roundBillableHours — Converte a duração real (minutos) em horas facturáveis.
+ *
+ * Regra de negócio: a reserva é cobrada por hora completa. Se o tempo que
+ * ultrapassa a última hora completa for de até 30 minutos, o preço mantém-se
+ * nessa hora; se ultrapassar os 30 minutos, arredonda-se para a hora seguinte.
+ *
+ * Exemplos (para 1h base):
+ *   60 min  (1h00) → 1h  (não excede)
+ *   80 min  (1h20) → 1h  (excedente de 20 min ≤ 30)
+ *   90 min  (1h30) → 1h  (excedente de exactamente 30 min — ainda não passou)
+ *   91 min  (1h31) → 2h  (excedente de 31 min > 30 — mais próximo de 2h)
+ *  120 min  (2h00) → 2h
+ */
+export function roundBillableHours(totalMinutes: number): number {
+  if (totalMinutes <= 0) return 0;
+  const wholeHours = Math.floor(totalMinutes / 60);
+  const remainder  = totalMinutes - wholeHours * 60;
+  if (remainder > 30) return wholeHours + 1;
+  return wholeHours > 0 ? wholeHours : 1;
 }
 
 export interface PriceBreakdown {
@@ -72,14 +100,20 @@ export function calcPriceFromTier(
  * Uses plan-level prices (halfDay / fullDay / weekend / hourly).
  */
 export function calcPrice(input: PriceInput): PriceBreakdown {
-  const { plan, totalHours, coffeeBreak, discount, ivaPercent, isWeekend, startDate } = input;
+  const { plan, totalHours, totalMinutes, coffeeBreak, discount, ivaPercent, isWeekend, startDate } = input;
 
   const weekend = isWeekend ?? (startDate
     ? (startDate.getDay() === 0 || startDate.getDay() === 6)
     : false);
 
+  // Tarifa horária efectiva: usa a do plano se configurada, senão a tarifa
+  // base da Sala de Reunião (15.000 Kz/h).
+  const hourlyRate = plan.pricePerHour > 0 ? plan.pricePerHour : ROOM_HOURLY_RATE_KZ;
+  const minutes    = totalMinutes ?? Math.round(totalHours * 60);
+
   let priceMode: PriceBreakdown["priceMode"] = "hourly";
-  let baseAmount = plan.pricePerHour * totalHours;
+  // Facturação por hora com arredondamento de 30 min (ver roundBillableHours).
+  let baseAmount = hourlyRate * roundBillableHours(minutes);
 
   if (weekend && plan.weekendPrice > 0) {
     priceMode  = "weekend";
@@ -87,7 +121,7 @@ export function calcPrice(input: PriceInput): PriceBreakdown {
   } else if (totalHours >= 6 && plan.fullDayPrice > 0) {
     priceMode  = "fullDay";
     baseAmount = plan.fullDayPrice;
-  } else if (totalHours >= 3 && plan.halfDayPrice > 0 && plan.halfDayPrice < plan.pricePerHour * totalHours) {
+  } else if (totalHours >= 3 && plan.halfDayPrice > 0 && plan.halfDayPrice < hourlyRate * totalHours) {
     priceMode  = "halfDay";
     baseAmount = plan.halfDayPrice;
   }

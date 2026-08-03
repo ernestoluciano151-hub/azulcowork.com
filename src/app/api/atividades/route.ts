@@ -7,6 +7,10 @@ export const dynamic = "force-dynamic";
 
 const SALA_LIMIT_MINUTES = 120;
 const PRINT_LIMIT        = 30;
+// Taxa de condomínio — benefício/encargo mensal fixo, igual para todas as
+// empresas activas. Não é cumulativo: é recalculado a cada mês pedido,
+// daí "renovar automaticamente" sem necessidade de qualquer registo manual.
+const CONDOMINIO_FEE_KZ  = 9500;
 
 export async function GET(req: NextRequest) {
   const { error } = await requireRole(AdminRole.ADMIN, AdminRole.COMERCIAL, AdminRole.FINANCEIRO);
@@ -21,8 +25,11 @@ export async function GET(req: NextRequest) {
   const monthStart = new Date(year, month - 1, 1);
   const monthEnd   = new Date(year, month, 0, 23, 59, 59, 999);
 
+  // Taxa de condomínio (e restantes benefícios mensais) só se aplica a
+  // clientes com contrato/mensalidade real — exclui SALA_REUNIAO (clientes
+  // eventuais de sala de reunião, sem contrato).
   const companies = await prisma.company.findMany({
-    where: { contractStatus: { not: "ENCERRADO" } },
+    where: { contractStatus: { not: "ENCERRADO" }, category: "SALA_PRIVADA" },
     select: { id: true, name: true, planType: true, contractStatus: true },
     orderBy: { name: "asc" },
   });
@@ -89,6 +96,8 @@ export async function GET(req: NextRequest) {
     salaLimit:      SALA_LIMIT_MINUTES,
     prints:         Math.round(printMap[c.id] || 0),
     printLimit:     PRINT_LIMIT,
+    // Taxa de condomínio — igual para todas as empresas, renovada todo mês
+    condominioFee:  CONDOMINIO_FEE_KZ,
   }));
 
   return NextResponse.json({ data, month: `${year}-${String(month).padStart(2, "0")}` });

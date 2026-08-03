@@ -19,7 +19,10 @@ export async function GET(_req: NextRequest) {
     prisma.company.findMany({
       where: {
         contractEnd: { lte: in60 },
-        contractStatus: { notIn: ["ENCERRADO"] }
+        contractStatus: { notIn: ["ENCERRADO"] },
+        // Exclui clientes eventuais de sala de reunião — não têm contrato
+        // real, a data é apenas um placeholder técnico.
+        category: "SALA_PRIVADA",
       },
       orderBy: { contractEnd: "asc" }
     }),

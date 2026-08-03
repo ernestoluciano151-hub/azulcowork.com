@@ -15,6 +15,7 @@ export type Company = {
   responsible: string;
   email: string;
   whatsapp: string;
+  category?: "SALA_PRIVADA" | "SALA_REUNIAO";
   roomNumber: string;
   numEmployees: number;
   planType: string;
@@ -68,6 +69,7 @@ export default function CompanyModal({ company, onClose, onSaved }: Props) {
   const isCreate = !company;
   const [activeTab, setActiveTab] = useState<ModalTab>("dados");
 
+  const [category, setCategory] = useState<"SALA_PRIVADA" | "SALA_REUNIAO">(company?.category ?? "SALA_PRIVADA");
   const [name, setName] = useState(company?.name ?? "");
   const [nif, setNif] = useState(company?.nif ?? "");
   const [responsible, setResponsible] = useState(company?.responsible ?? "");
@@ -94,8 +96,13 @@ export default function CompanyModal({ company, onClose, onSaved }: Props) {
 
   async function save() {
     setError("");
-    if (!name || !responsible || !email || !whatsapp || !roomNumber || !planType || !contractStart || !contractEnd || !rentAmount) {
+    const isRoomLead = isCreate && category === "SALA_REUNIAO";
+    if (!name || !responsible || !email || !whatsapp) {
       setError("Preencha todos os campos obrigatórios.");
+      return;
+    }
+    if (!isRoomLead && (!roomNumber || !planType || !contractStart || !contractEnd || !rentAmount)) {
+      setError("Preencha todos os campos obrigatórios do contrato.");
       return;
     }
     setSaving(true);
@@ -106,10 +113,14 @@ export default function CompanyModal({ company, onClose, onSaved }: Props) {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name, nif: nif || null, responsible, email, whatsapp, roomNumber,
+          name, nif: nif || null, responsible, email, whatsapp,
+          ...(isCreate ? { category } : {}),
+          roomNumber: isRoomLead ? undefined : roomNumber,
           numEmployees: Number(numEmployees),
-          planType, contractStart, contractEnd,
-          rentAmount: Number(rentAmount),
+          planType: isRoomLead ? undefined : planType,
+          contractStart: isRoomLead ? undefined : contractStart,
+          contractEnd: isRoomLead ? undefined : contractEnd,
+          rentAmount: isRoomLead ? 0 : Number(rentAmount),
           contractStatus, paymentStatus,
           contractFileUrl: contractFileUrl || null,
           notes: notes || null,
@@ -179,7 +190,8 @@ export default function CompanyModal({ company, onClose, onSaved }: Props) {
           {(isCreate || activeTab === "dados") && (
             <DadosTab
               {...{
-                isCreate, name, setName, nif, setNif, responsible, setResponsible,
+                isCreate, category, setCategory,
+                name, setName, nif, setNif, responsible, setResponsible,
                 email, setEmail, whatsapp, setWhatsapp, roomNumber, setRoomNumber,
                 numEmployees, setNumEmployees, planType, setPlanType,
                 contractStart, setContractStart, contractEnd, setContractEnd,
@@ -262,7 +274,8 @@ export default function CompanyModal({ company, onClose, onSaved }: Props) {
 
 /* ── Dados Tab ── */
 function DadosTab({
-  isCreate, name, setName, nif, setNif, responsible, setResponsible,
+  isCreate, category, setCategory,
+  name, setName, nif, setNif, responsible, setResponsible,
   email, setEmail, whatsapp, setWhatsapp, roomNumber, setRoomNumber,
   numEmployees, setNumEmployees, planType, setPlanType,
   contractStart, setContractStart, contractEnd, setContractEnd,
@@ -271,6 +284,7 @@ function DadosTab({
   notes, setNotes, error,
 }: {
   isCreate: boolean;
+  category: "SALA_PRIVADA" | "SALA_REUNIAO"; setCategory: (v: "SALA_PRIVADA" | "SALA_REUNIAO") => void;
   name: string; setName: (v: string) => void;
   nif: string; setNif: (v: string) => void;
   responsible: string; setResponsible: (v: string) => void;
@@ -288,6 +302,7 @@ function DadosTab({
   notes: string; setNotes: (v: string) => void;
   error: string;
 }) {
+  const isRoomLead = isCreate && category === "SALA_REUNIAO";
   return (
     <div>
       {error && (
@@ -295,6 +310,34 @@ function DadosTab({
           {error}
         </p>
       )}
+
+      {isCreate && (
+        <div className="mb-4">
+          <label className="mb-1 block text-xs text-mist">Categoria de Registo *</label>
+          <div className="grid grid-cols-1 gap-2">
+            <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer ${category === "SALA_PRIVADA" ? "border-emerald-500/60 bg-emerald-500/10" : "border-white/10"}`}>
+              <input type="radio" className="mt-1" name="company-category" checked={category === "SALA_PRIVADA"} onChange={() => setCategory("SALA_PRIVADA")} />
+              <span>
+                <span className="block text-sm font-medium text-paper">Sala Privada</span>
+                <span className="block text-xs text-mist">Cliente com espaço/contrato dedicado — requer sala, renda e datas de contrato.</span>
+              </span>
+            </label>
+            <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer ${category === "SALA_REUNIAO" ? "border-emerald-500/60 bg-emerald-500/10" : "border-white/10"}`}>
+              <input type="radio" className="mt-1" name="company-category" checked={category === "SALA_REUNIAO"} onChange={() => setCategory("SALA_REUNIAO")} />
+              <span>
+                <span className="block text-sm font-medium text-paper">Registo normal — Salas de Reunião</span>
+                <span className="block text-xs text-mist">Cliente eventual, paga por evento. Sem contrato/mensalidade — fica logo disponível para reservas.</span>
+              </span>
+            </label>
+          </div>
+        </div>
+      )}
+      {!isCreate && category === "SALA_REUNIAO" && (
+        <p className="mb-4 inline-block rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-medium text-emerald-300">
+          Registo normal — Salas de Reunião (sem contrato)
+        </p>
+      )}
+
       <div className="grid grid-cols-2 gap-3">
         <FInput label="Nome da empresa *" value={name} onChange={setName} />
         <FInput label="NIF" value={nif} onChange={setNif} />
@@ -305,8 +348,13 @@ function DadosTab({
       </div>
       <div className="mt-3 grid grid-cols-2 gap-3">
         <FInput label="WhatsApp *" value={whatsapp} onChange={setWhatsapp} />
-        <FInput label="Sala/Espaço *" value={roomNumber} onChange={setRoomNumber} />
+        {!isRoomLead && <FInput label="Sala/Espaço *" value={roomNumber} onChange={setRoomNumber} />}
       </div>
+      {isRoomLead ? (
+        <div className="mt-3">
+          <FInput label="Nº Colaboradores" value={numEmployees} onChange={setNumEmployees} type="number" />
+        </div>
+      ) : (
       <div className="mt-3 grid grid-cols-3 gap-3">
         <FInput label="Nº Colaboradores" value={numEmployees} onChange={setNumEmployees} type="number" />
         <div>
@@ -321,6 +369,8 @@ function DadosTab({
         </div>
         <FInput label="Renda Mensal (Kz) *" value={rentAmount} onChange={setRentAmount} type="number" />
       </div>
+      )}
+      {!isRoomLead && (
       <div className="mt-3 grid grid-cols-2 gap-3">
         <div>
           <label className="mb-1 block text-xs text-mist">Início do contrato *</label>
@@ -341,6 +391,7 @@ function DadosTab({
           />
         </div>
       </div>
+      )}
       <div className="mt-3 grid grid-cols-2 gap-3">
         <div>
           <label className="mb-1 block text-xs text-mist">Estado do Contrato</label>

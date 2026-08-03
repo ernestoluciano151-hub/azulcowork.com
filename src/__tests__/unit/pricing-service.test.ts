@@ -11,6 +11,8 @@ import {
   calcPriceFromTier,
   calcPrice,
   priceModeLabel,
+  roundBillableHours,
+  ROOM_HOURLY_RATE_KZ,
   type RoomPricingTier,
   type PlanPricing,
 } from "@/lib/pricing-service";
@@ -224,6 +226,86 @@ describe("calcPrice", () => {
     const planSemWeekend = { ...plan, weekendPrice: 0 };
     const r = calcPrice({ plan: planSemWeekend, totalHours: 8, coffeeBreak: false, discount: 0, ivaPercent: 0, isWeekend: true });
     expect(r.priceMode).toBe("fullDay"); // weekendPrice=0 → não activa; usa fullDay
+  });
+});
+
+// ─────────────────────────────────────────────
+// roundBillableHours — regra dos 30 minutos (Sala de Reunião, 15.000 Kz/h)
+// ─────────────────────────────────────────────
+describe("roundBillableHours", () => {
+  it("60 min → 1h (exacto)", () => {
+    expect(roundBillableHours(60)).toBe(1);
+  });
+
+  it("80 min (1h20) → 1h (excedente de 20 min, não passa de 30)", () => {
+    expect(roundBillableHours(80)).toBe(1);
+  });
+
+  it("90 min (1h30) → 1h (excedente de exactamente 30 min — ainda não passou)", () => {
+    expect(roundBillableHours(90)).toBe(1);
+  });
+
+  it("91 min (1h31) → 2h (excedente de 31 min > 30 — mais próximo de 2h)", () => {
+    expect(roundBillableHours(91)).toBe(2);
+  });
+
+  it("120 min → 2h (exacto)", () => {
+    expect(roundBillableHours(120)).toBe(2);
+  });
+
+  it("150 min (2h30) → 2h (fronteira dos 30 min)", () => {
+    expect(roundBillableHours(150)).toBe(2);
+  });
+
+  it("151 min (2h31) → 3h", () => {
+    expect(roundBillableHours(151)).toBe(3);
+  });
+
+  it("20 min → 1h (mínimo facturável)", () => {
+    expect(roundBillableHours(20)).toBe(1);
+  });
+
+  it("0 min → 0h", () => {
+    expect(roundBillableHours(0)).toBe(0);
+  });
+});
+
+// ─────────────────────────────────────────────
+// calcPrice — nova fórmula horária com arredondamento (15.000 Kz/h)
+// ─────────────────────────────────────────────
+describe("calcPrice — facturação horária com arredondamento de 30 min", () => {
+  const planSemPricePerHour: PlanPricing = {
+    pricePerHour:     0, // plano sem tarifa própria → usa ROOM_HOURLY_RATE_KZ
+    halfDayPrice:     0,
+    fullDayPrice:     0,
+    weekendPrice:     0,
+    coffeeBreakPrice: 0,
+  };
+
+  it("usa 15.000 Kz/h por defeito quando o plano não tem pricePerHour", () => {
+    const r = calcPrice({ plan: planSemPricePerHour, totalHours: 1, totalMinutes: 60, coffeeBreak: false, discount: 0, ivaPercent: 0 });
+    expect(r.baseAmount).toBe(ROOM_HOURLY_RATE_KZ);
+  });
+
+  it("1h20 (80 min) cobra 1h = 15.000 Kz (não passa dos 30 min de excedente)", () => {
+    const r = calcPrice({ plan: planSemPricePerHour, totalHours: 80 / 60, totalMinutes: 80, coffeeBreak: false, discount: 0, ivaPercent: 0 });
+    expect(r.baseAmount).toBe(15000);
+  });
+
+  it("1h31 (91 min) cobra 2h = 30.000 Kz (passa dos 30 min de excedente)", () => {
+    const r = calcPrice({ plan: planSemPricePerHour, totalHours: 91 / 60, totalMinutes: 91, coffeeBreak: false, discount: 0, ivaPercent: 0 });
+    expect(r.baseAmount).toBe(30000);
+  });
+
+  it("2h exactas cobram 30.000 Kz", () => {
+    const r = calcPrice({ plan: planSemPricePerHour, totalHours: 2, totalMinutes: 120, coffeeBreak: false, discount: 0, ivaPercent: 0 });
+    expect(r.baseAmount).toBe(30000);
+  });
+
+  it("respeita pricePerHour do plano quando definido (não usa os 15.000 por defeito)", () => {
+    const planCom20k = { ...planSemPricePerHour, pricePerHour: 20000 };
+    const r = calcPrice({ plan: planCom20k, totalHours: 1, totalMinutes: 60, coffeeBreak: false, discount: 0, ivaPercent: 0 });
+    expect(r.baseAmount).toBe(20000);
   });
 });
 
