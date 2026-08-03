@@ -9,6 +9,7 @@
  */
 
 import { useEffect, useState } from "react";
+import AdminLayout from "@/components/admin/AdminLayout";
 
 type CashKpis = {
   currentBalance:   number;
@@ -46,7 +47,7 @@ function fmtDate(d: string): string {
   return new Date(d).toLocaleDateString("pt-PT", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Africa/Luanda" });
 }
 
-export default function FluxoCaixaPage() {
+function FluxoCaixaPageInner() {
   const [kpis, setKpis]               = useState<CashKpis | null>(null);
   const [movements, setMovements]     = useState<CashMovement[]>([]);
   const [projection, setProjection]   = useState<Projection[]>([]);
@@ -67,7 +68,7 @@ export default function FluxoCaixaPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-950 text-slate-200 p-6">
+    <div className="bg-gray-950 text-slate-200 p-6">
       {/* Cabeçalho */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-white">📈 Fluxo de Caixa</h1>
@@ -191,5 +192,14 @@ export default function FluxoCaixaPage() {
         </>
       )}
     </div>
+  );
+}
+
+// Navegação consistente: sidebar persistente à esquerda, conteúdo à direita
+export default function FluxoCaixaPage() {
+  return (
+    <AdminLayout>
+      <FluxoCaixaPageInner />
+    </AdminLayout>
   );
 }

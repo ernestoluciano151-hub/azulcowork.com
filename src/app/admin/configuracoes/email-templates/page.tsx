@@ -9,6 +9,7 @@
  */
 
 import { useEffect, useState, useCallback } from "react";
+import AdminLayout from "@/components/admin/AdminLayout";
 
 type EmailTemplate = {
   id:        string;
@@ -34,7 +35,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   financeiro: "bg-amber-500/20 text-amber-300",
 };
 
-export default function EmailTemplatesPage() {
+function EmailTemplatesPageInner() {
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [loading, setLoading]     = useState(true);
   const [editing, setEditing]     = useState<EmailTemplate | null>(null);
@@ -112,7 +113,7 @@ export default function EmailTemplatesPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+      <div className="bg-gray-950 flex items-center justify-center">
         <span className="text-slate-400">A carregar templates...</span>
       </div>
     );
@@ -121,7 +122,7 @@ export default function EmailTemplatesPage() {
   // ── Modo edição ───────────────────────────────────────────────────────────
   if (editing) {
     return (
-      <div className="min-h-screen bg-gray-950 text-slate-200 p-6">
+      <div className="bg-gray-950 text-slate-200 p-6">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-between mb-6">
             <div>
@@ -244,7 +245,7 @@ export default function EmailTemplatesPage() {
 
   // ── Lista ─────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-gray-950 text-slate-200 p-6">
+    <div className="bg-gray-950 text-slate-200 p-6">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-white">✉️ Templates de Email</h1>
         <p className="text-slate-400 text-sm mt-1">
@@ -299,5 +300,14 @@ export default function EmailTemplatesPage() {
         </div>
       ))}
     </div>
+  );
+}
+
+// Navegação consistente: sidebar persistente à esquerda, conteúdo à direita
+export default function EmailTemplatesPage() {
+  return (
+    <AdminLayout>
+      <EmailTemplatesPageInner />
+    </AdminLayout>
   );
 }

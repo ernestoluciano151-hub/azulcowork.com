@@ -9,6 +9,7 @@
  */
 
 import { useEffect, useState, useCallback } from "react";
+import AdminLayout from "@/components/admin/AdminLayout";
 
 type Invoice = {
   id:        string;
@@ -53,7 +54,7 @@ function fmtKz(n: number): string {
   return new Intl.NumberFormat("pt-AO", { style: "currency", currency: "AOA", maximumFractionDigits: 0 }).format(n);
 }
 
-export default function FaturasPage() {
+function FaturasPageInner() {
   const [invoices, setInvoices]     = useState<Invoice[]>([]);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 20, total: 0, pages: 1 });
   const [loading, setLoading]       = useState(true);
@@ -97,7 +98,7 @@ export default function FaturasPage() {
   }, { total: 0, iva: 0 });
 
   return (
-    <div className="min-h-screen bg-gray-950 text-slate-200 p-6">
+    <div className="bg-gray-950 text-slate-200 p-6">
       {/* Cabeçalho */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -228,5 +229,14 @@ export default function FaturasPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// Navegação consistente: sidebar persistente à esquerda, conteúdo à direita
+export default function FaturasPage() {
+  return (
+    <AdminLayout>
+      <FaturasPageInner />
+    </AdminLayout>
   );
 }

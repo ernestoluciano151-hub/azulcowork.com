@@ -13,6 +13,7 @@
  */
 
 import { useState } from "react";
+import AdminLayout from "@/components/admin/AdminLayout";
 
 function fmtKz(n: number): string {
   return new Intl.NumberFormat("pt-AO", { style: "currency", currency: "AOA", maximumFractionDigits: 0 }).format(n);
@@ -235,7 +236,7 @@ function ExportTab() {
 
 type ReportTab = "iva" | "reconciliacao" | "export";
 
-export default function RelatoriosPage() {
+function RelatoriosPageInner() {
   const [tab, setTab] = useState<ReportTab>("iva");
 
   const tabs: Array<{ key: ReportTab; label: string }> = [
@@ -245,7 +246,7 @@ export default function RelatoriosPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-950 text-slate-200 p-6">
+    <div className="bg-gray-950 text-slate-200 p-6">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-white">📑 Relatórios Fiscais</h1>
         <p className="text-slate-400 text-sm mt-1">Mapa IVA, Reconciliação e Export de dados contabilísticos.</p>
@@ -271,5 +272,14 @@ export default function RelatoriosPage() {
       {tab === "reconciliacao" && <ReconciliacaoTab />}
       {tab === "export"       && <ExportTab />}
     </div>
+  );
+}
+
+// Navegação consistente: sidebar persistente à esquerda, conteúdo à direita
+export default function RelatoriosPage() {
+  return (
+    <AdminLayout>
+      <RelatoriosPageInner />
+    </AdminLayout>
   );
 }

@@ -9,6 +9,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import AdminLayout from "@/components/admin/AdminLayout";
 
 type CommLog = {
   id:           string;
@@ -57,7 +58,7 @@ function fmtDate(d: string | null): string {
   });
 }
 
-export default function ComunicacaoPage() {
+function ComunicacaoPageInner() {
   const router = useRouter();
 
   const [logs, setLogs]           = useState<CommLog[]>([]);
@@ -111,7 +112,7 @@ export default function ComunicacaoPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 text-slate-200 p-6">
+    <div className="bg-gray-950 text-slate-200 p-6">
       {/* Cabeçalho */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -285,5 +286,14 @@ export default function ComunicacaoPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// Navegação consistente: sidebar persistente à esquerda, conteúdo à direita
+export default function ComunicacaoPage() {
+  return (
+    <AdminLayout>
+      <ComunicacaoPageInner />
+    </AdminLayout>
   );
 }

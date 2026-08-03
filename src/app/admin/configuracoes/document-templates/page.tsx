@@ -12,6 +12,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import AdminLayout from "@/components/admin/AdminLayout";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 type DocTemplate = {
@@ -64,7 +65,7 @@ function fmtDate(iso: string) {
 }
 
 // ─── Componente principal ─────────────────────────────────────────────────────
-export default function DocumentTemplatesPage() {
+function DocumentTemplatesPageInner() {
   const [templates, setTemplates] = useState<DocTemplate[]>([]);
   const [loading,   setLoading]   = useState(true);
   const [editing,   setEditing]   = useState<DocTemplateDetail | null>(null);
@@ -155,7 +156,7 @@ export default function DocumentTemplatesPage() {
   // ── Render: lista ───────────────────────────────────────────────────────────
   if (!editing) {
     return (
-      <div className="min-h-screen bg-ink p-6 text-paper">
+      <div className="bg-ink p-6 text-paper">
         <div className="mb-6">
           <h1 className="text-2xl font-bold">Templates de Documentos</h1>
           <p className="mt-1 text-sm text-mist">
@@ -228,7 +229,7 @@ export default function DocumentTemplatesPage() {
 
   // ── Render: editor ──────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-ink p-6 text-paper">
+    <div className="bg-ink p-6 text-paper">
       {/* Header editor */}
       <div className="mb-5 flex items-center justify-between">
         <div>
@@ -383,5 +384,14 @@ export default function DocumentTemplatesPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// Navegação consistente: sidebar persistente à esquerda, conteúdo à direita
+export default function DocumentTemplatesPage() {
+  return (
+    <AdminLayout>
+      <DocumentTemplatesPageInner />
+    </AdminLayout>
   );
 }

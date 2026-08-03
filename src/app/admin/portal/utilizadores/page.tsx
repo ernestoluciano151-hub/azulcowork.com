@@ -10,6 +10,7 @@
  */
 
 import { useEffect, useState, useCallback } from "react";
+import AdminLayout from "@/components/admin/AdminLayout";
 
 type PortalUser = {
   id:           string;
@@ -33,7 +34,7 @@ function fmtDate(d: string | null): string {
   return new Date(d).toLocaleDateString("pt-PT", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Africa/Luanda" });
 }
 
-export default function PortalUtilizadoresPage() {
+function PortalUtilizadoresPageInner() {
   const [users, setUsers]           = useState<PortalUser[]>([]);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 20, total: 0, pages: 1 });
   const [loading, setLoading]       = useState(true);
@@ -127,7 +128,7 @@ export default function PortalUtilizadoresPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 text-slate-200 p-6">
+    <div className="bg-gray-950 text-slate-200 p-6">
       {/* Cabeçalho */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -301,5 +302,14 @@ export default function PortalUtilizadoresPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// Navegação consistente: sidebar persistente à esquerda, conteúdo à direita
+export default function PortalUtilizadoresPage() {
+  return (
+    <AdminLayout>
+      <PortalUtilizadoresPageInner />
+    </AdminLayout>
   );
 }

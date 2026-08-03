@@ -13,6 +13,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import AdminLayout from "@/components/admin/AdminLayout";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 interface GeneratedDoc {
@@ -77,7 +78,7 @@ function fmtDate(iso: string) {
 }
 
 // ─── Componente principal ─────────────────────────────────────────────────────
-export default function DocumentosPage() {
+function DocumentosPageInner() {
   const [docs,       setDocs]       = useState<GeneratedDoc[]>([]);
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [loading,    setLoading]    = useState(true);
@@ -133,7 +134,7 @@ export default function DocumentosPage() {
   }
 
   return (
-    <div className="min-h-screen bg-ink p-6 text-paper">
+    <div className="bg-ink p-6 text-paper">
       {/* Cabeçalho */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold">Documentos Gerados</h1>
@@ -287,5 +288,14 @@ export default function DocumentosPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// Navegação consistente: sidebar persistente à esquerda, conteúdo à direita
+export default function DocumentosPage() {
+  return (
+    <AdminLayout>
+      <DocumentosPageInner />
+    </AdminLayout>
   );
 }
