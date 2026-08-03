@@ -12,9 +12,15 @@ import {
   setPortalSessionCookie,
 } from "@/lib/portal-auth-service";
 
-const PORTAL_BASE = process.env.NEXT_PUBLIC_APP_URL ?? "";
-
 export async function GET(req: NextRequest): Promise<NextResponse> {
+  // Base absoluto derivado do próprio pedido — NextResponse.redirect() exige
+  // um URL absoluto e lança excepção com um relativo. Antes dependia só de
+  // NEXT_PUBLIC_APP_URL; se essa var não estivesse definida em produção,
+  // PORTAL_BASE ficava "" e todo o fluxo (sucesso e erro) entrava em loop
+  // de excepções não tratadas — era isso que causava o ecrã preso em
+  // "a validar acesso".
+  const PORTAL_BASE = process.env.NEXT_PUBLIC_APP_URL || req.nextUrl.origin;
+
   try {
     const token = req.nextUrl.searchParams.get("token");
 

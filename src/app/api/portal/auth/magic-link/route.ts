@@ -35,8 +35,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     try {
       const { token, expiresAt } = await createMagicLink(email, { ipAddress });
 
-      // Construir URL do magic link
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+      // Construir URL do magic link — usa a origem do próprio pedido como
+      // fallback em vez de localhost, para nunca enviar um link inválido em
+      // produção se NEXT_PUBLIC_APP_URL não estiver definida.
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || req.nextUrl.origin;
       const magicLinkUrl = `${appUrl}/api/portal/auth/magic?token=${token}`;
       const expiresMinutes = Math.round(
         (expiresAt.getTime() - Date.now()) / 60_000
