@@ -50,6 +50,17 @@ const nextConfig = {
   // Correcção definitiva: npx @next/codemod next-async-request-api + remover este flag.
   typescript: { ignoreBuildErrors: true },
 
+  // 04 Ago 2026 (correcção crítica — piloto): sem isto, o webpack do Next.js
+  // empacota o @react-pdf/renderer (e as suas dependências nativas/wasm, ex.
+  // yoga-layout) junto com o "react" da aplicação. No build de produção isso
+  // duplica a instância de "react" vista pelo reconciliador interno do
+  // react-pdf, partindo a verificação $$typeof de elementos e rebentando
+  // TODOS os PDFs (facturas, recibos, contratos, propostas, relatório
+  // mensal) com "Minified React error #31". Listar aqui obriga o Next a
+  // fazer require() nativo destes pacotes em runtime Node, sem os reescrever
+  // — resolve a origem do erro em vez de mascará-lo.
+  serverExternalPackages: ["@react-pdf/renderer", "yoga-layout", "fontkit"],
+
   images: {
     // Restringir apenas a domínios conhecidos (evita SSRF via _next/image)
     remotePatterns: [
