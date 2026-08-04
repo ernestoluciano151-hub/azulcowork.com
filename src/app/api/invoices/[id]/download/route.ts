@@ -12,6 +12,7 @@ import { pt } from "date-fns/locale";
 import path from "path";
 import fs from "fs";
 import React from "react";
+import * as Sentry from "@sentry/nextjs";
 
 export async function GET(
   _req: NextRequest,
@@ -145,6 +146,12 @@ export async function GET(
 
   } catch (err) {
     console.error("[invoice/download]", err);
+    // Ver nota em invoices/[id]/receipt/route.ts — sem captureException explícito
+    // este erro nunca chega ao Sentry (é apanhado aqui, não propaga).
+    Sentry.captureException(err, {
+      tags:  { route: "invoices/[id]/download" },
+      extra: { invoiceId: params.id },
+    });
     return NextResponse.json(
       { error: "Erro ao gerar PDF", detail: String(err) },
       { status: 500 }

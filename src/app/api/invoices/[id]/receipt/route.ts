@@ -11,6 +11,7 @@ import { pt } from "date-fns/locale";
 import path from "path";
 import fs from "fs";
 import React from "react";
+import * as Sentry from "@sentry/nextjs";
 
 export async function GET(
   _req: NextRequest,
@@ -139,6 +140,16 @@ export async function GET(
 
   } catch (err) {
     console.error("[invoice/receipt]", err);
+    // Reportar ao Sentry explicitamente — este catch engole a excepção e devolve
+    // JSON 500, por isso a instrumentação automática do Sentry (que só apanha
+    // excepções não tratadas) nunca via este erro. Sem isto ficamos cegos:
+    // "detail: String(err)" só mostra a mensagem minificada do React, nunca a
+    // stack trace real com sourcemaps. Contexto extra ajuda a isolar se o
+    // problema é específico de facturas ligadas a reserva de sala.
+    Sentry.captureException(err, {
+      tags:  { route: "invoices/[id]/receipt" },
+      extra: { invoiceId: params.id },
+    });
     return NextResponse.json(
       { error: "Erro ao gerar recibo", detail: String(err) },
       { status: 500 }
