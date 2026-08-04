@@ -171,7 +171,7 @@ export function ReceiptDocument({ rec }: { rec: ReceiptData }) {
               VERSÃO DE NEGÓCIOS - COM. GERAL E PREST. SERV., LDA
             </Text>
             <Text style={{ fontSize: 7, color: C.grey1 }}>
-              NIF: 5417253208 · Luanda, Angola
+              NIF: 5002174308 · Luanda, Angola
             </Text>
           </View>
           <View style={S.headerRight}>
