@@ -11,6 +11,7 @@ import { requirePortalSession, requirePortalRole } from "@/lib/portal-auth-servi
 import { prisma } from "@/lib/prisma";
 import { PortalRole } from "@prisma/client";
 import { z } from "zod";
+import { calcPrice } from "@/lib/pricing-service";
 
 const VALID_STATUSES = ["CONFIRMADA","RESERVADO","PENDENTE_APROVACAO","CANCELADA","CONCLUIDA"] as const;
 
@@ -153,11 +154,32 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Calcular horas e valor
-    const totalHours = (endDatetime.getTime() - startDatetime.getTime()) / (1000 * 60 * 60);
-    const baseAmount = totalHours * plan.pricePerHour;
-    const coffeeBreakAmount = coffeeBreak ? plan.coffeeBreakPrice : 0;
-    const totalAmount = baseAmount + coffeeBreakAmount;
+    // Calcular horas e valor — usa o mesmo motor de preços do painel admin
+    // (calcPrice/roundBillableHours em src/lib/pricing-service.ts), SSoT único
+    // do cálculo. Antes desta correcção esta rota calculava
+    // `totalHours * pricePerHour` directamente (horas fraccionadas, sem a
+    // regra de arredondamento de 30 min, e sem fallback para os 15.000 Kz/h
+    // por defeito quando o plano tinha pricePerHour=0) — divergia do valor
+    // mostrado/cobrado nas reservas criadas pelo admin.
+    const totalMinutes = Math.round((endDatetime.getTime() - startDatetime.getTime()) / 60000);
+    const totalHours   = totalMinutes / 60;
+    const pricing = calcPrice({
+      plan: {
+        pricePerHour:     plan.pricePerHour,
+        halfDayPrice:     plan.halfDayPrice,
+        fullDayPrice:     plan.fullDayPrice,
+        weekendPrice:     plan.weekendPrice,
+        coffeeBreakPrice: plan.coffeeBreakPrice,
+      },
+      totalHours,
+      totalMinutes,
+      coffeeBreak,
+      discount:   0,
+      ivaPercent: 0,
+      startDate:  startDatetime,
+    });
+    const baseAmount  = pricing.baseAmount;
+    const totalAmount = pricing.totalAmount;
 
     // Buscar dados da empresa para a reserva
     const company = await prisma.company.findUnique({

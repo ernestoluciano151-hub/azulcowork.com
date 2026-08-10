@@ -12,6 +12,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import PortalLayout from "@/components/portal/PortalLayout";
 import Link from "next/link";
+import { roundBillableHours, ROOM_HOURLY_RATE_KZ } from "@/lib/pricing-service";
 
 interface Room {
   id:               string;
@@ -70,13 +71,19 @@ function NovaReservaContent() {
   useEffect(() => { void loadRooms(); }, [loadRooms]);
 
   const room         = rooms.find(r => r.id === selectedRoom);
-  const durationHrs  = room ? (() => {
+  const durationMinutes = room ? (() => {
     const [sh, sm] = startTime.split(":").map(Number);
     const [eh, em] = endTime.split(":").map(Number);
-    return Math.max(0, (eh * 60 + em - sh * 60 - sm) / 60);
+    return Math.max(0, eh * 60 + em - sh * 60 - sm);
   })() : 0;
-  const estimatedPrice = room
-    ? durationHrs * room.pricePerHour + (coffeeBreak ? room.coffeeBreakPrice : 0)
+  const durationHrs  = durationMinutes / 60;
+  // Mesma regra do painel admin (roundBillableHours): cobrança por hora
+  // completa, com tolerância de 30 min — evita mostrar uma estimativa
+  // fraccionada que depois não bate certo com o valor realmente cobrado
+  // pelo servidor (ver POST /api/portal/bookings).
+  const hourlyRate      = room && room.pricePerHour > 0 ? room.pricePerHour : ROOM_HOURLY_RATE_KZ;
+  const estimatedPrice = room && durationMinutes > 0
+    ? hourlyRate * roundBillableHours(durationMinutes) + (coffeeBreak ? room.coffeeBreakPrice : 0)
     : 0;
 
   async function handleSubmit(e: React.FormEvent) {
