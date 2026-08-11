@@ -44,6 +44,27 @@ describe("calcContractMonths", () => {
   it("contrato de 24 meses = 24", () => {
     expect(calcContractMonths(new Date("2025-01-01"), new Date("2026-12-31"))).toBe(24);
   });
+
+  // 11 Ago 2026 — ciclos rolantes (início != dia 1, fim != último dia do mês)
+  it("ciclo rolante exacto (início 06/08, fim 06/09) = 1 mês", () => {
+    expect(calcContractMonths(new Date("2026-08-06"), new Date("2026-09-06"))).toBe(1);
+  });
+
+  it("ciclo rolante com fracção (início 06/08, fim 20/09) = 2 meses (mês parcial cobrado)", () => {
+    expect(calcContractMonths(new Date("2026-08-06"), new Date("2026-09-20"))).toBe(2);
+  });
+
+  it("ciclo rolante de 3 meses exactos (início 06/08, fim 06/11) = 3 meses", () => {
+    expect(calcContractMonths(new Date("2026-08-06"), new Date("2026-11-06"))).toBe(3);
+  });
+
+  it("dados errados (fim ainda no mesmo mês do início, ex. fim de mês calendárico em vez de rolante) = 1 mês", () => {
+    // Caso real reportado: contractStart 06/08/2026, contractEnd gravado por engano como 31/08/2026
+    // (fim do mês calendárico) em vez de 06/09/2026 (1 mês rolante). O cálculo de meses não deve
+    // rebentar nem sobreestimar — continua a dar 1 mês, mas o valor de contractEnd em si precisa de
+    // correcção manual nos dados (fora do âmbito desta função pura).
+    expect(calcContractMonths(new Date("2026-08-06"), new Date("2026-08-31"))).toBe(1);
+  });
 });
 
 // ─────────────────────────────────────────────
