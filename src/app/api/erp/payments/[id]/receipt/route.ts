@@ -20,6 +20,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { AdminRole }                 from "@prisma/client";
 import { requireRole }               from "@/lib/auth";
 import { sendReceipt }               from "@/lib/erp-communication-service";
+import * as Sentry                   from "@sentry/nextjs";
 import "@/lib/bootstrap";
 
 export async function POST(
@@ -52,6 +53,13 @@ export async function POST(
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Erro ao gerar recibo.";
     const isConflict = msg.includes("receiptNumber") || msg.includes("email");
+    // Sem isto o erro nunca chega ao Sentry — ver nota em invoices/[id]/receipt.
+    if (!isConflict) {
+      Sentry.captureException(err, {
+        tags:  { route: "erp/payments/[id]/receipt" },
+        extra: { paymentId: params.id, skipEmail },
+      });
+    }
     return NextResponse.json({ error: msg }, { status: isConflict ? 409 : 500 });
   }
 }

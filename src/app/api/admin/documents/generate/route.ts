@@ -21,6 +21,7 @@ import { requireRole }               from "@/lib/rbac";
 import { isApiRateLimited }          from "@/lib/rateLimit";
 import { requireSession }            from "@/lib/auth";
 import { generateDocument }          from "@/lib/document-generation-service";
+import * as Sentry from "@sentry/nextjs";
 
 const VALID_ENTITY_TYPES = ["LEAD", "ERPCONTRACT", "COMPANY"] as const;
 type EntityType = typeof VALID_ENTITY_TYPES[number];
@@ -106,6 +107,12 @@ export async function POST(req: NextRequest) {
     }
 
     console.error("[POST /api/admin/documents/generate]", err);
+    // Sem isto o erro nunca chega ao Sentry — este catch devolve JSON 500
+    // em vez de deixar a excepção propagar (ver nota em invoices/[id]/receipt).
+    Sentry.captureException(err, {
+      tags:  { route: "admin/documents/generate" },
+      extra: { templateSlug, entityType, entityId },
+    });
     return NextResponse.json({ error: "Erro interno ao gerar documento" }, { status: 500 });
   }
 }
