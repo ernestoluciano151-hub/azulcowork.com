@@ -4,13 +4,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { AdminRole } from "@prisma/client";
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { renderToBuffer } from "@react-pdf/renderer";
-import { ReceiptDocument, type ReceiptData } from "@/lib/receipt-pdf";
+import { type ReceiptData } from "@/lib/receipt-pdf";
+import { renderPdfInWorker } from "@/lib/pdf-worker-client";
 import { format } from "date-fns";
 import { pt } from "date-fns/locale";
 import path from "path";
 import fs from "fs";
-import React from "react";
 import * as Sentry from "@sentry/nextjs";
 
 export async function GET(
@@ -122,10 +121,9 @@ export async function GET(
     };
 
     // ── gerar PDF ─────────────────────────────────────────────────────────
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const pdfBuffer = await renderToBuffer(
-      React.createElement(ReceiptDocument, { rec }) as any
-    );
+    // 05 Ago 2026: geração corre num processo Node isolado, fora do bundler
+    // do Next.js — ver src/lib/pdf-worker-client.ts.
+    const pdfBuffer = await renderPdfInWorker("receipt-download", rec);
 
     const safeName = clientName.replace(/[^a-zA-Z0-9]/g, "_");
     const filename  = `Recibo_${refNum}_${safeName}.pdf`;

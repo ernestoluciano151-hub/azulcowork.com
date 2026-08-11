@@ -19,8 +19,8 @@ import {
   Text,
   View,
   StyleSheet,
-  renderToBuffer,
 } from "@react-pdf/renderer";
+import { renderPdfInWorker } from "@/lib/pdf-worker-client";
 
 // ── Identidade Azul Coworking ──────────────────────────────────────────────────
 
@@ -123,7 +123,10 @@ export type ProposalData = {
   observacoes?:    string;
 };
 
-function ProposalPdfDocument({ d }: { d: ProposalData }) {
+// Exportado para uso exclusivo do worker isolado (pdf-workers/entry.tsx) —
+// ver nota em src/lib/pdf-worker-client.ts. Não importar directamente por
+// rotas Next.js (usar renderProposalPdf()).
+export function ProposalPdfDocument({ d }: { d: ProposalData }) {
   return (
     <Document title={`Proposta ${d.numeroDocumento}`} author={CO_BRAND} creator="VD Platform">
       <Page size="A4" style={S.page}>
@@ -227,9 +230,12 @@ function ProposalPdfDocument({ d }: { d: ProposalData }) {
 /**
  * Gera o buffer PDF de uma proposta comercial.
  * Sem escrita em disco — retorna Buffer directamente.
+ *
+ * 05 Ago 2026: delega para o processo Node isolado (pdf-workers/dist/entry.cjs),
+ * fora do bundler do Next.js. Ver src/lib/pdf-worker-client.ts.
  */
 export async function renderProposalPdf(data: ProposalData): Promise<Buffer> {
-  return renderToBuffer(<ProposalPdfDocument d={data} />);
+  return renderPdfInWorker("proposal", data);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -260,7 +266,10 @@ export type ContractData = {
   clausulasEspeciais?:  string;
 };
 
-function ContractPdfDocument({ d }: { d: ContractData }) {
+// Exportado para uso exclusivo do worker isolado (pdf-workers/entry.tsx) —
+// ver nota em src/lib/pdf-worker-client.ts. Não importar directamente por
+// rotas Next.js (usar renderContractPdf()).
+export function ContractPdfDocument({ d }: { d: ContractData }) {
   return (
     <Document title={`Contrato ${d.numeroContrato}`} author={CO_BRAND} creator="VD Platform">
       <Page size="A4" style={S.page}>
@@ -383,7 +392,10 @@ function ContractPdfDocument({ d }: { d: ContractData }) {
 /**
  * Gera o buffer PDF de um contrato de alocação.
  * Sem escrita em disco — retorna Buffer directamente.
+ *
+ * 05 Ago 2026: delega para o processo Node isolado (pdf-workers/dist/entry.cjs),
+ * fora do bundler do Next.js. Ver src/lib/pdf-worker-client.ts.
  */
 export async function renderContractPdf(data: ContractData): Promise<Buffer> {
-  return renderToBuffer(<ContractPdfDocument d={data} />);
+  return renderPdfInWorker("contract", data);
 }

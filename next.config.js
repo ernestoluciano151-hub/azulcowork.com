@@ -68,6 +68,20 @@ const nextConfig = {
   // PDF continua por resolver, mas sem voltar a partir o deploy inteiro.
   serverExternalPackages: ["@react-pdf/renderer", "yoga-layout", "fontkit"],
 
+  // 05 Ago 2026 (correcção crítica — piloto, isolamento definitivo do PDF):
+  // a geração de PDF deixou de correr dentro do processo Next.js — passou a
+  // correr num processo `node` filho, invocando directamente
+  // pdf-workers/dist/entry.cjs (ver src/lib/pdf-worker-client.ts). Como essa
+  // invocação usa child_process.spawn() com um caminho construído em
+  // runtime, o tracer de ficheiros do Vercel (@vercel/nft) NÃO o detecta
+  // estaticamente — sem isto, o ficheiro não seria incluído no bundle da
+  // função serverless e o worker falharia com "ENOENT" em produção, mesmo
+  // funcionando em desenvolvimento local. outputFileTracingIncludes obriga
+  // o Vercel a incluir explicitamente pdf-workers/dist/** em todas as rotas.
+  outputFileTracingIncludes: {
+    "/**": ["./pdf-workers/dist/**"],
+  },
+
   images: {
     // Restringir apenas a domínios conhecidos (evita SSRF via _next/image)
     remotePatterns: [

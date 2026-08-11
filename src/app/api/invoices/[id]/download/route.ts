@@ -4,14 +4,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { AdminRole } from "@prisma/client";
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { renderToBuffer } from "@react-pdf/renderer";
-import { InvoiceDocument, type InvoiceData } from "@/lib/invoice-pdf";
+import { type InvoiceData } from "@/lib/invoice-pdf";
+import { renderPdfInWorker } from "@/lib/pdf-worker-client";
 import { calcTotalContracted, calcContractMonths } from "@/lib/finance";
 import { format } from "date-fns";
 import { pt } from "date-fns/locale";
 import path from "path";
 import fs from "fs";
-import React from "react";
 import * as Sentry from "@sentry/nextjs";
 
 export async function GET(
@@ -124,10 +123,9 @@ export async function GET(
     };
 
     // ── gerar PDF ────────────────────────────────────────────────────────
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const pdfBuffer = await renderToBuffer(
-      React.createElement(InvoiceDocument, { inv }) as any
-    );
+    // 05 Ago 2026: geração corre num processo Node isolado, fora do bundler
+    // do Next.js — ver src/lib/pdf-worker-client.ts.
+    const pdfBuffer = await renderPdfInWorker("invoice-download", inv);
 
     // ── nome do ficheiro ─────────────────────────────────────────────────
     const safeName = (isSala

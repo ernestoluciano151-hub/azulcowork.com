@@ -21,8 +21,8 @@ import {
   Text,
   View,
   StyleSheet,
-  renderToBuffer,
 } from "@react-pdf/renderer";
+import { renderPdfInWorker } from "@/lib/pdf-worker-client";
 
 // ── Identidade da Empresa ──────────────────────────────────────────────────────
 
@@ -156,7 +156,10 @@ function HeaderBlock() {
 
 // ── Documento Factura ──────────────────────────────────────────────────────────
 
-function InvoiceDoc({ data }: { data: InvoicePdfData }) {
+// Exportado para uso exclusivo do worker isolado (pdf-workers/entry.tsx) —
+// ver nota no topo do ficheiro sobre o isolamento de 05 Ago 2026. Não deve
+// ser importado directamente por rotas Next.js (usar generateInvoicePdf()).
+export function InvoiceDoc({ data }: { data: InvoicePdfData }) {
   const taxPct = Math.round((data.taxRate ?? 0.14) * 100);
   return (
     <Document>
@@ -270,7 +273,10 @@ const METHOD_PT: Record<string, string> = {
   OTHER:         "Outro",
 };
 
-function ReceiptDoc({ data }: { data: ReceiptPdfData }) {
+// Exportado para uso exclusivo do worker isolado (pdf-workers/entry.tsx) —
+// ver nota no topo do ficheiro sobre o isolamento de 05 Ago 2026. Não deve
+// ser importado directamente por rotas Next.js (usar generateReceiptPdf()).
+export function ReceiptDoc({ data }: { data: ReceiptPdfData }) {
   return (
     <Document>
       <Page size="A4" style={S.page}>
@@ -357,14 +363,20 @@ function ReceiptDoc({ data }: { data: ReceiptPdfData }) {
 
 /**
  * Gera PDF de factura. Retorna Buffer para upload ao Cloudinary.
+ *
+ * 05 Ago 2026: a renderização em si já não acontece aqui — delega para o
+ * processo Node isolado (pdf-workers/dist/entry.cjs), fora do bundler do
+ * Next.js. Ver src/lib/pdf-worker-client.ts para o porquê.
  */
 export async function generateInvoicePdf(data: InvoicePdfData): Promise<Buffer> {
-  return renderToBuffer(<InvoiceDoc data={data} />);
+  return renderPdfInWorker("erp-invoice", data);
 }
 
 /**
  * Gera PDF de recibo. Retorna Buffer para upload ao Cloudinary.
+ *
+ * 05 Ago 2026: idem — delega para o worker isolado.
  */
 export async function generateReceiptPdf(data: ReceiptPdfData): Promise<Buffer> {
-  return renderToBuffer(<ReceiptDoc data={data} />);
+  return renderPdfInWorker("erp-receipt", data);
 }
