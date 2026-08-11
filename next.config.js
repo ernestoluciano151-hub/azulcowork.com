@@ -50,16 +50,37 @@ const nextConfig = {
   // Correcção definitiva: npx @next/codemod next-async-request-api + remover este flag.
   typescript: { ignoreBuildErrors: true },
 
-  // 04 Ago 2026 (correcção crítica — piloto): sem isto, o webpack do Next.js
-  // empacota o @react-pdf/renderer (e as suas dependências nativas/wasm, ex.
-  // yoga-layout) junto com o "react" da aplicação. No build de produção isso
-  // duplica a instância de "react" vista pelo reconciliador interno do
-  // react-pdf, partindo a verificação $$typeof de elementos e rebentando
-  // TODOS os PDFs (facturas, recibos, contratos, propostas, relatório
-  // mensal) com "Minified React error #31". Listar aqui obriga o Next a
-  // fazer require() nativo destes pacotes em runtime Node, sem os reescrever
-  // — resolve a origem do erro em vez de mascará-lo.
-  serverExternalPackages: ["@react-pdf/renderer", "yoga-layout", "fontkit"],
+  // 04 Ago 2026 (correcção crítica — piloto, tentativa 1): listar apenas
+  // "@react-pdf/renderer" aqui NÃO foi suficiente — confirmado pelo PO após
+  // deploy real, erro "Minified React error #31" manteve-se.
+  //
+  // 05 Ago 2026 (correcção crítica — piloto, tentativa 3, via stack trace real
+  // do Sentry: "Objects are not valid as a React child (found: object with
+  // keys {$$typeof, type, key, ref, props})"): esta assinatura de chaves é
+  // exactamente a forma interna de um elemento React — ou seja, o objecto
+  // problemático NÃO é um Decimal/Date/objecto de negócio, é um elemento
+  // React genuíno que o reconciler do react-pdf recusa como filho válido.
+  // Isto acontece quando o elemento é criado por uma cópia de "react"
+  // diferente da que o reconciler valida — mesmo com "@react-pdf/renderer"
+  // marcado como externo (tentativa 1), os NOSSOS próprios ficheiros
+  // (receipt-pdf.tsx, invoice-pdf.tsx, document-pdf-renderer.tsx) continuam
+  // a ser empacotados pelo webpack do Next.js, que no grafo de módulos de
+  // Route Handlers pode resolver "react/jsx-runtime" sob uma condição
+  // diferente da usada pelo require() nativo do pacote externo — produzindo
+  // elementos com identidade $$typeof que o reconciler (carregado nativamente)
+  // não reconhece. Corrigido acrescentando "react", "react-dom" e "scheduler"
+  // à lista de externos: obriga TODO o código server-side (incluindo os
+  // nossos próprios componentes React-PDF) a usar a mesma cópia nativa de
+  // "react" que o "@react-pdf/renderer" já usa, eliminando a divergência de
+  // identidade entre as duas árvores de elementos.
+  serverExternalPackages: [
+    "@react-pdf/renderer",
+    "yoga-layout",
+    "fontkit",
+    "react",
+    "react-dom",
+    "scheduler",
+  ],
 
   images: {
     // Restringir apenas a domínios conhecidos (evita SSRF via _next/image)
