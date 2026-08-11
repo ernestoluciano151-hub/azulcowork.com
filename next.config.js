@@ -54,33 +54,19 @@ const nextConfig = {
   // "@react-pdf/renderer" aqui NÃO foi suficiente — confirmado pelo PO após
   // deploy real, erro "Minified React error #31" manteve-se.
   //
-  // 05 Ago 2026 (correcção crítica — piloto, tentativa 3, via stack trace real
-  // do Sentry: "Objects are not valid as a React child (found: object with
-  // keys {$$typeof, type, key, ref, props})"): esta assinatura de chaves é
-  // exactamente a forma interna de um elemento React — ou seja, o objecto
-  // problemático NÃO é um Decimal/Date/objecto de negócio, é um elemento
-  // React genuíno que o reconciler do react-pdf recusa como filho válido.
-  // Isto acontece quando o elemento é criado por uma cópia de "react"
-  // diferente da que o reconciler valida — mesmo com "@react-pdf/renderer"
-  // marcado como externo (tentativa 1), os NOSSOS próprios ficheiros
-  // (receipt-pdf.tsx, invoice-pdf.tsx, document-pdf-renderer.tsx) continuam
-  // a ser empacotados pelo webpack do Next.js, que no grafo de módulos de
-  // Route Handlers pode resolver "react/jsx-runtime" sob uma condição
-  // diferente da usada pelo require() nativo do pacote externo — produzindo
-  // elementos com identidade $$typeof que o reconciler (carregado nativamente)
-  // não reconhece. Corrigido acrescentando "react", "react-dom" e "scheduler"
-  // à lista de externos: obriga TODO o código server-side (incluindo os
-  // nossos próprios componentes React-PDF) a usar a mesma cópia nativa de
-  // "react" que o "@react-pdf/renderer" já usa, eliminando a divergência de
-  // identidade entre as duas árvores de elementos.
-  serverExternalPackages: [
-    "@react-pdf/renderer",
-    "yoga-layout",
-    "fontkit",
-    "react",
-    "react-dom",
-    "scheduler",
-  ],
+  // 05 Ago 2026 (tentativa 3 — REVERTIDA): tentei acrescentar "react",
+  // "react-dom" e "scheduler" a esta lista, na teoria de que os nossos
+  // próprios componentes PDF (receipt-pdf.tsx, invoice-pdf.tsx) continuavam
+  // a ser empacotados pelo webpack com uma cópia de "react" diferente da
+  // usada pelo "@react-pdf/renderer" externo. ERRADO — partiu o build por
+  // completo: "Error: A React Element from an older version of React was
+  // rendered" ao pré-renderizar a própria página /_not-found do Next.js.
+  // Externalizar "react"/"react-dom" interfere com o próprio mecanismo
+  // interno de RSC do Next (que depende de uma cópia bundled específica de
+  // React para o boundary client/server), não é seguro fazê-lo a nível
+  // global do projecto. Revertido para a lista original — o problema do
+  // PDF continua por resolver, mas sem voltar a partir o deploy inteiro.
+  serverExternalPackages: ["@react-pdf/renderer", "yoga-layout", "fontkit"],
 
   images: {
     // Restringir apenas a domínios conhecidos (evita SSRF via _next/image)
