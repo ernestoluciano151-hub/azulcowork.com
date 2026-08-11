@@ -11,6 +11,21 @@ body {
   color: #F5F7FA;
 }
 
+/* 11 Ago 2026: Portal do Cliente — texto invisível em inputs/textareas/selects
+   (herdavam color:#F5F7FA do body via color:inherit do Tailwind preflight,
+   quase branco sobre os cartões brancos do portal). O admin fica inalterado
+   (continua a precisar de texto claro sobre fundo escuro); o portal ganha
+   .portal-light no layout raiz (src/app/portal/layout.tsx) e este reset. */
+.portal-light input,
+.portal-light textarea,
+.portal-light select {
+  color: #111827; /* gray-900 */
+}
+.portal-light input::placeholder,
+.portal-light textarea::placeholder {
+  color: #9ca3af; /* gray-400 */
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
