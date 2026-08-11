@@ -91,7 +91,17 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     );
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
+    // 11 Ago 2026: `String(err)` num erro não-Error (ex.: rejeição do SDK
+    // Cloudinary, que devolve um objecto simples) dava sempre "[object
+    // Object]", impedindo os `startsWith(...)` abaixo de reconhecerem
+    // CLOUDINARY_NOT_CONFIGURED etc. quando a causa vem de mais fundo —
+    // ver mesma correcção em erp-communication-service.ts.
+    const msg =
+      err instanceof Error
+        ? err.message
+        : err && typeof err === "object" && "message" in err
+          ? String((err as { message: unknown }).message)
+          : String(err);
 
     if (msg.startsWith("TEMPLATE_NOT_FOUND")) {
       return NextResponse.json({ error: "Template não encontrado" }, { status: 404 });

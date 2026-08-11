@@ -52,6 +52,25 @@ cloudinary.config({
   signature_algorithm: "sha256",
 });
 
+// 11 Ago 2026: `err instanceof Error ? err.message : String(err)` produzia
+// "Cloudinary upload falhou: [object Object]" nos warnings mostrados em
+// Atividades — o SDK cloudinary rejeita com um objecto simples (não
+// `instanceof Error`) contendo `{ message, http_code, name }`, e
+// `String()` num objecto plano dá sempre "[object Object]". Extrai
+// `.message` mesmo quando o valor rejeitado não é uma instância de Error,
+// com fallback para JSON.stringify para nunca perder o conteúdo real.
+function extractErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (err && typeof err === "object" && "message" in err) {
+    return String((err as { message: unknown }).message);
+  }
+  try {
+    return JSON.stringify(err);
+  } catch {
+    return String(err);
+  }
+}
+
 function isCloudinaryConfigured(): boolean {
   return !!(
     process.env.CLOUDINARY_CLOUD_NAME &&
@@ -170,7 +189,7 @@ export async function sendInvoice(
       pdfUrl = await uploadPdfToCloudinary(pdfBuffer, folder, publicId);
       result.pdfUrl = pdfUrl;
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = extractErrorMessage(err);
       result.warnings.push(`Cloudinary upload falhou: ${msg}`);
       console.warn("[erp-comm] Cloudinary upload falhou:", msg);
     }
@@ -284,8 +303,9 @@ export async function sendReceipt(
       pdfUrl = await uploadPdfToCloudinary(pdfBuffer, folder, publicId);
       result.pdfUrl = pdfUrl;
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = extractErrorMessage(err);
       result.warnings.push(`Cloudinary upload falhou: ${msg}`);
+      console.warn("[erp-comm] Cloudinary upload falhou:", msg);
     }
   } else {
     result.warnings.push("Cloudinary não configurado — PDF não armazenado.");
