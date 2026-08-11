@@ -41,10 +41,16 @@ import type {
 
 // ── Cloudinary config ──────────────────────────────────────────────────────────
 
+// 11 Ago 2026: "signature_algorithm: sha256" — sem isto o SDK assina uploads
+// com SHA-1 (default), mas a conta Cloudinary está configurada para exigir
+// SHA-256, produzindo sempre "Invalid Signature <hash-sha1>. String to
+// sign - ...". Só ficou visível agora porque este caminho (Gerar Documento)
+// nunca tinha chegado à chamada de upload antes (bloqueado pelo bug do PDF).
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key:    process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
+  signature_algorithm: "sha256",
 });
 
 // ── Tipos públicos ─────────────────────────────────────────────────────────────

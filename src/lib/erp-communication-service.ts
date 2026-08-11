@@ -43,10 +43,13 @@ import { differenceInDays }           from "date-fns";
 
 // ── Cloudinary config ─────────────────────────────────────────────────────────
 
+// 11 Ago 2026: ver nota em document-generation-service.ts — conta Cloudinary
+// exige SHA-256, SDK assina SHA-1 por omissão sem isto.
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key:    process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
+  signature_algorithm: "sha256",
 });
 
 function isCloudinaryConfigured(): boolean {
