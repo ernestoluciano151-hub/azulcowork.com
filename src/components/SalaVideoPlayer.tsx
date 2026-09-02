@@ -70,10 +70,17 @@ export default function SalaVideoPlayer() {
 
     if (window.YT && window.YT.Player) {
       createPlayer();
-    } else {
+    } else if (!document.getElementById("youtube-iframe-api")) {
+      // 02 Set 2026: faltava o guard por id (já existente em VSLVideo.tsx) —
+      // sem isto, navegação client-side de volta a /salas injectava outra
+      // <script src="youtube_api"> a cada montagem, sobrescrevendo
+      // window.onYouTubeIframeAPIReady em corrida com o carregamento anterior.
       const tag = document.createElement("script");
+      tag.id  = "youtube-iframe-api";
       tag.src = "https://www.youtube.com/iframe_api";
       document.head.appendChild(tag);
+      window.onYouTubeIframeAPIReady = createPlayer;
+    } else {
       window.onYouTubeIframeAPIReady = createPlayer;
     }
 

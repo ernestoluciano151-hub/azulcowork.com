@@ -10,8 +10,24 @@ const securityHeaders = [
   { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
   // Controla informação enviada no Referer
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  // Desactiva acesso a funcionalidades sensíveis do browser
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+  // Desactiva acesso a funcionalidades sensíveis do browser.
+  //
+  // 02 Set 2026 (correcção crítica — piloto): "autoplay" não estava listado
+  // aqui, o que por omissão restringe autoplay a "self" — ou seja, qualquer
+  // <iframe> de origem diferente (ex.: o embed do YouTube usado por
+  // VSLVideo.tsx e SalaVideoPlayer.tsx) fica IMPEDIDO de autoplay pelo
+  // próprio Permissions-Policy do topo do documento, independentemente do
+  // atributo `allow="autoplay"` que a API do YouTube já adiciona sozinha ao
+  // iframe — a política do documento de topo tem sempre precedência sobre o
+  // que o iframe pede. Isto explica o autoplay a falhar em ambos os players
+  // (homepage e /salas) apesar de `playerVars: { autoplay: 1, mute: 1 }`
+  // estar correcto em ambos os componentes. Corrigido delegando autoplay
+  // explicitamente para "self" + as duas origens do YouTube usadas no
+  // frame-src do CSP abaixo.
+  {
+    key: "Permissions-Policy",
+    value: 'camera=(), microphone=(), geolocation=(), autoplay=(self "https://www.youtube.com" "https://www.youtube-nocookie.com")',
+  },
   // Content Security Policy
   {
     key: "Content-Security-Policy",
