@@ -18,18 +18,21 @@ import { useEffect, useRef, useState } from "react";
 const VIDEO_ID = "Sx9iC6HRKdE";
 const CTA_AT_SECONDS = 120;
 
+interface YTPlayerInstance {
+  getCurrentTime: () => number;
+  unMute: () => void;
+  mute: () => void;
+  isMuted: () => boolean;
+  playVideo: () => void;
+}
+
 declare global {
   interface Window {
     YT?: {
       Player: new (
         el: HTMLElement | string,
         opts: Record<string, unknown>
-      ) => {
-        getCurrentTime: () => number;
-        unMute: () => void;
-        mute: () => void;
-        isMuted: () => boolean;
-      };
+      ) => YTPlayerInstance;
     };
     onYouTubeIframeAPIReady?: () => void;
   }
@@ -37,7 +40,7 @@ declare global {
 
 export default function VSLVideo() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const playerRef     = useRef<ReturnType<NonNullable<Window["YT"]>["Player"]> | null>(null);
+  const playerRef     = useRef<YTPlayerInstance | null>(null);
   const pollRef        = useRef<ReturnType<typeof setInterval> | null>(null);
   const [showCta, setShowCta] = useState(false);
   const [muted, setMuted]     = useState(true);
@@ -56,7 +59,16 @@ export default function VSLVideo() {
           modestbranding: 1,
         },
         events: {
-          onReady: () => {
+          // 02 Set 2026: `autoplay:1` em playerVars nem sempre é suficiente
+          // quando o player é criado via JS API (em vez de um embed estático
+          // já presente no HTML) — comportamento inconsistente e conhecido
+          // entre browsers. Forçar mute()+playVideo() aqui garante o
+          // autoplay mesmo quando o parâmetro sozinho falha.
+          onReady: (e: { target: YTPlayerInstance }) => {
+            try {
+              e.target.mute();
+              e.target.playVideo();
+            } catch { /* no-op — playerVars.autoplay ainda cobre este caso */ }
             pollRef.current = setInterval(() => {
               const t = playerRef.current?.getCurrentTime?.() ?? 0;
               if (t >= CTA_AT_SECONDS) {
@@ -69,19 +81,43 @@ export default function VSLVideo() {
       });
     }
 
-    if (window.YT && window.YT.Player) {
-      createPlayer();
-    } else if (!document.getElementById("youtube-iframe-api")) {
+    // 02 Set 2026: se o script da IFrame API do YouTube falhar a carregar
+    // (rede instável, bloqueio pontual externo, etc.), `window.YT` nunca
+    // fica definido e o vídeo nunca aparece — sem qualquer nova tentativa.
+    // Adicionado retry: se `window.YT.Player` não estiver pronto dentro de
+    // 6s, remove o script preso e tenta novamente (até 2 vezes).
+    let attempts = 0;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    function loadApiScript() {
+      const existing = document.getElementById("youtube-iframe-api");
+      if (existing) existing.remove();
       const tag = document.createElement("script");
       tag.id  = "youtube-iframe-api";
       tag.src = "https://www.youtube.com/iframe_api";
       document.head.appendChild(tag);
       window.onYouTubeIframeAPIReady = createPlayer;
-    } else {
-      window.onYouTubeIframeAPIReady = createPlayer;
     }
 
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+    function ensurePlayer() {
+      if (window.YT && window.YT.Player) {
+        createPlayer();
+        return;
+      }
+      loadApiScript();
+      retryTimer = setTimeout(() => {
+        if (window.YT && window.YT.Player) return;
+        attempts += 1;
+        if (attempts <= 2) ensurePlayer();
+      }, 6000);
+    }
+
+    ensurePlayer();
+
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      if (retryTimer) clearTimeout(retryTimer);
+    };
   }, []);
 
   function toggleSound() {

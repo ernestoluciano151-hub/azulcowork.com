@@ -17,18 +17,21 @@ import { useEffect, useRef, useState } from "react";
 const VIDEO_ID = "s0d7qDC7mck";
 const CTA_AT_SECONDS = 50;
 
+interface YTPlayerInstance {
+  getCurrentTime: () => number;
+  unMute: () => void;
+  mute: () => void;
+  isMuted: () => boolean;
+  playVideo: () => void;
+}
+
 declare global {
   interface Window {
     YT?: {
       Player: new (
         el: HTMLElement | string,
         opts: Record<string, unknown>
-      ) => {
-        getCurrentTime: () => number;
-        unMute: () => void;
-        mute: () => void;
-        isMuted: () => boolean;
-      };
+      ) => YTPlayerInstance;
     };
     onYouTubeIframeAPIReady?: () => void;
   }
@@ -36,7 +39,7 @@ declare global {
 
 export default function SalaVideoPlayer() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const playerRef     = useRef<ReturnType<NonNullable<Window["YT"]>["Player"]> | null>(null);
+  const playerRef     = useRef<YTPlayerInstance | null>(null);
   const pollRef        = useRef<ReturnType<typeof setInterval> | null>(null);
   const [showCta, setShowCta] = useState(false);
   const [muted, setMuted]     = useState(true);
@@ -55,7 +58,15 @@ export default function SalaVideoPlayer() {
           modestbranding: 1,
         },
         events: {
-          onReady: () => {
+          // 02 Set 2026: `autoplay:1` em playerVars nem sempre é suficiente
+          // quando o player é criado via JS API — forçar mute()+playVideo()
+          // aqui garante o autoplay mesmo quando o parâmetro sozinho falha
+          // (mesma correcção aplicada em VSLVideo.tsx).
+          onReady: (e: { target: YTPlayerInstance }) => {
+            try {
+              e.target.mute();
+              e.target.playVideo();
+            } catch { /* no-op — playerVars.autoplay ainda cobre este caso */ }
             pollRef.current = setInterval(() => {
               const t = playerRef.current?.getCurrentTime?.() ?? 0;
               if (t >= CTA_AT_SECONDS) {
@@ -68,23 +79,41 @@ export default function SalaVideoPlayer() {
       });
     }
 
-    if (window.YT && window.YT.Player) {
-      createPlayer();
-    } else if (!document.getElementById("youtube-iframe-api")) {
-      // 02 Set 2026: faltava o guard por id (já existente em VSLVideo.tsx) —
-      // sem isto, navegação client-side de volta a /salas injectava outra
-      // <script src="youtube_api"> a cada montagem, sobrescrevendo
-      // window.onYouTubeIframeAPIReady em corrida com o carregamento anterior.
+    // 02 Set 2026: retry se o script da IFrame API falhar a carregar (mesma
+    // correcção aplicada em VSLVideo.tsx) — sem isto, uma falha pontual de
+    // rede deixa `window.YT` por definir para sempre e o vídeo nunca aparece.
+    let attempts = 0;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    function loadApiScript() {
+      const existing = document.getElementById("youtube-iframe-api");
+      if (existing) existing.remove();
       const tag = document.createElement("script");
       tag.id  = "youtube-iframe-api";
       tag.src = "https://www.youtube.com/iframe_api";
       document.head.appendChild(tag);
       window.onYouTubeIframeAPIReady = createPlayer;
-    } else {
-      window.onYouTubeIframeAPIReady = createPlayer;
     }
 
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+    function ensurePlayer() {
+      if (window.YT && window.YT.Player) {
+        createPlayer();
+        return;
+      }
+      loadApiScript();
+      retryTimer = setTimeout(() => {
+        if (window.YT && window.YT.Player) return;
+        attempts += 1;
+        if (attempts <= 2) ensurePlayer();
+      }, 6000);
+    }
+
+    ensurePlayer();
+
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      if (retryTimer) clearTimeout(retryTimer);
+    };
   }, []);
 
   function toggleSound() {
