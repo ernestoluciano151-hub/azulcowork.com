@@ -37,8 +37,9 @@ const securityHeaders = [
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://scripts.converteai.net https://cdn.converteai.net https://www.youtube.com https://s.ytimg.com",
       // Estilos: próprio domínio + inline (Tailwind)
       "style-src 'self' 'unsafe-inline'",
-      // Imagens: próprio domínio + Cloudinary + dados inline
-      "img-src 'self' data: blob: https://res.cloudinary.com",
+      // Imagens: próprio domínio + Cloudinary + thumbnail YouTube (capa do
+      // VSL/SalaVideoPlayer enquanto a API carrega — 02 Set 2026) + dados inline
+      "img-src 'self' data: blob: https://res.cloudinary.com https://i.ytimg.com",
       // Media (vídeos VSL)
       "media-src 'self' https://cdn.converteai.net https://scripts.converteai.net blob:",
       // Frames (player Vturb + YouTube embed na página /salas)

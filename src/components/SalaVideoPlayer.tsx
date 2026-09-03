@@ -43,6 +43,11 @@ export default function SalaVideoPlayer() {
   const pollRef        = useRef<ReturnType<typeof setInterval> | null>(null);
   const [showCta, setShowCta] = useState(false);
   const [muted, setMuted]     = useState(true);
+  // 02 Set 2026: capa (thumbnail real) visível até o player montar — mesma
+  // correcção de percepção aplicada em VSLVideo.tsx (sem isto, o espaço
+  // fica vazio sobre fundo escuro enquanto a API do YouTube carrega,
+  // indistinguível de "não está a funcionar").
+  const [playerReady, setPlayerReady] = useState(false);
 
   useEffect(() => {
     function createPlayer() {
@@ -63,6 +68,7 @@ export default function SalaVideoPlayer() {
           // aqui garante o autoplay mesmo quando o parâmetro sozinho falha
           // (mesma correcção aplicada em VSLVideo.tsx).
           onReady: (e: { target: YTPlayerInstance }) => {
+            setPlayerReady(true);
             try {
               e.target.mute();
               e.target.playVideo();
@@ -128,7 +134,15 @@ export default function SalaVideoPlayer() {
   }
 
   return (
-    <div className="relative w-full overflow-hidden rounded-2xl border border-white/10" style={{ paddingTop: "56.25%" }}>
+    <div className="relative w-full overflow-hidden rounded-2xl border border-white/10 bg-black" style={{ paddingTop: "56.25%" }}>
+      {!playerReady && (
+        <div
+          aria-hidden
+          className="absolute inset-0 h-full w-full animate-pulse bg-cover bg-center"
+          style={{ backgroundImage: `url(https://i.ytimg.com/vi/${VIDEO_ID}/maxresdefault.jpg)` }}
+        />
+      )}
+
       <div ref={containerRef} className="absolute inset-0 h-full w-full" />
 
       {/* Botão de som (autoplay começa mudo por exigência dos browsers) */}

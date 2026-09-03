@@ -44,6 +44,13 @@ export default function VSLVideo() {
   const pollRef        = useRef<ReturnType<typeof setInterval> | null>(null);
   const [showCta, setShowCta] = useState(false);
   const [muted, setMuted]     = useState(true);
+  // 02 Set 2026: a API do YouTube pode demorar vários segundos a ficar
+  // pronta (ou precisar de uma tentativa extra — ver retry abaixo). Até lá,
+  // o container ficava um rectângulo vazio sobre fundo escuro, indistinguível
+  // de "não está a funcionar" — reportado directamente pelo PO. `playerReady`
+  // controla uma imagem de capa (thumbnail real do YouTube) visível até o
+  // iframe estar de facto montado, para nunca parecer quebrado enquanto carrega.
+  const [playerReady, setPlayerReady] = useState(false);
 
   useEffect(() => {
     function createPlayer() {
@@ -65,6 +72,7 @@ export default function VSLVideo() {
           // entre browsers. Forçar mute()+playVideo() aqui garante o
           // autoplay mesmo quando o parâmetro sozinho falha.
           onReady: (e: { target: YTPlayerInstance }) => {
+            setPlayerReady(true);
             try {
               e.target.mute();
               e.target.playVideo();
@@ -135,9 +143,19 @@ export default function VSLVideo() {
     <div>
       <div className="relative rounded-2xl border border-white/10 bg-black/40 p-2 shadow-glow md:p-3">
         <div
-          className="relative w-full overflow-hidden rounded-xl"
+          className="relative w-full overflow-hidden rounded-xl bg-black"
           style={{ aspectRatio: "16 / 9" }}
         >
+          {/* Capa (thumbnail real do YouTube) — visível até o player montar,
+              para nunca parecer um espaço vazio/quebrado durante o carregamento */}
+          {!playerReady && (
+            <div
+              aria-hidden
+              className="absolute inset-0 h-full w-full animate-pulse bg-cover bg-center"
+              style={{ backgroundImage: `url(https://i.ytimg.com/vi/${VIDEO_ID}/maxresdefault.jpg)` }}
+            />
+          )}
+
           <div ref={containerRef} className="absolute inset-0 h-full w-full" />
 
           {/* Botão de som (autoplay começa mudo por exigência dos browsers) */}
