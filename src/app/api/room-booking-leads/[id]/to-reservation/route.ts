@@ -4,6 +4,7 @@ import { AdminRole, Prisma } from "@prisma/client";
 import { requireRole } from "@/lib/auth";
 import { addTimeline } from "@/lib/timeline";
 import { nextDocumentNumber } from "@/lib/document-numbering";
+import * as Sentry from "@sentry/nextjs";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +34,18 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2034") {
       return NextResponse.json({ error: "Conflito de concorrência. Tente novamente." }, { status: 409 });
     }
-    throw e;
+    // 15 Set 2026: antes, qualquer outro erro (ex.: a violação de FK
+    // corrigida abaixo em addTimeline) propagava sem tratamento —
+    // Next.js devolvia um 500 sem JSON estruturado, o frontend caía no
+    // fallback genérico, e sem Sentry.captureException o erro real nunca
+    // era visível. Ver mesma correcção em .../convert/route.ts.
+    console.error("[POST /api/room-booking-leads/[id]/to-reservation]", e);
+    Sentry.captureException(e, {
+      tags:  { route: "room-booking-leads/[id]/to-reservation" },
+      extra: { leadId: params.id },
+    });
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: `Erro ao criar reserva: ${msg}` }, { status: 500 });
   }
 
   async function runTx() {
@@ -85,11 +97,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       });
 
       await addTimeline(tx, {
-        type:          "RESERVA_CRIADA",
-        title:         `Reserva criada — ${reservation.reservationNumber}`,
+        type:        "RESERVA_CRIADA",
+        title:       `Reserva criada — ${reservation.reservationNumber}`,
+        // 15 Set 2026: NÃO passar `leadId: lead.id` — `lead` é um
+        // RoomBookingLead, mas `Timeline.leadId` tem FK real para a tabela
+        // `Lead` (CRM), não `RoomBookingLead`. Mesmo bug e mesma correcção
+        // que em .../convert/route.ts (ver comentário lá para detalhe).
         description:   `${plan.name} | ${totalHours.toFixed(1)}h | ${formatDate(start)}`,
         companyId:     lead.companyId || null,
-        leadId:        lead.id,
         referenceId:   reservation.id,
         referenceType: "Reservation",
         createdBy:     session.name || session.email,
