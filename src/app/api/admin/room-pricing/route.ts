@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { AdminRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
+import * as Sentry from "@sentry/nextjs";
 
 export const dynamic = "force-dynamic";
 
@@ -60,32 +61,41 @@ export async function PUT(req: NextRequest) {
 
   if (!Array.isArray(tiers)) return NextResponse.json({ error: "tiers deve ser um array." }, { status: 400 });
 
-  // Upsert each tier inside a transaction
-  const result = await prisma.$transaction(
-    tiers.map((t, i) =>
-      t.id
-        ? prisma.roomPricing.update({
-            where: { id: t.id },
-            data: {
-              label:           t.label,
-              durationMinutes: Number(t.durationMinutes),
-              price:           Number(t.price),
-              active:          t.active ?? true,
-              sortOrder:       t.sortOrder ?? i,
-            },
-          })
-        : prisma.roomPricing.create({
-            data: {
-              roomId,
-              label:           t.label,
-              durationMinutes: Number(t.durationMinutes),
-              price:           Number(t.price),
-              active:          t.active ?? true,
-              sortOrder:       t.sortOrder ?? i,
-            },
-          })
-    )
-  );
+  try {
+    // Upsert each tier inside a transaction
+    const result = await prisma.$transaction(
+      tiers.map((t, i) =>
+        t.id
+          ? prisma.roomPricing.update({
+              where: { id: t.id },
+              data: {
+                label:           t.label,
+                durationMinutes: Number(t.durationMinutes),
+                price:           Number(t.price),
+                active:          t.active ?? true,
+                sortOrder:       t.sortOrder ?? i,
+              },
+            })
+          : prisma.roomPricing.create({
+              data: {
+                roomId,
+                label:           t.label,
+                durationMinutes: Number(t.durationMinutes),
+                price:           Number(t.price),
+                active:          t.active ?? true,
+                sortOrder:       t.sortOrder ?? i,
+              },
+            })
+      )
+    );
 
-  return NextResponse.json({ tiers: result });
+    return NextResponse.json({ tiers: result });
+  } catch (err) {
+    // 22 Set 2026 (auditoria geral): mesma classe de bug do
+    // room-booking-leads/convert (15 Set 2026) — $transaction sem try/catch.
+    console.error("[PUT /api/admin/room-pricing]", err);
+    Sentry.captureException(err, { tags: { route: "admin/room-pricing" }, extra: { roomId } });
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: `Erro ao guardar preçário: ${msg}` }, { status: 500 });
+  }
 }

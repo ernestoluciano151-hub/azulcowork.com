@@ -4,6 +4,7 @@ import { AdminRole } from "@prisma/client";
 import { requireRole } from "@/lib/auth";
 import { nextDocumentNumber } from "@/lib/document-numbering";
 import { isApiRateLimited } from "@/lib/rateLimit";
+import * as Sentry from "@sentry/nextjs";
 
 export const dynamic = "force-dynamic";
 
@@ -69,28 +70,37 @@ export async function POST(req: NextRequest) {
   const afterDiscount = amountNum - discountNum;
   const totalAmount   = afterDiscount + (afterDiscount * ivaNum / 100);
 
-  // Numeração atómica: FT-CWORK-YYYY-NNNNNN (DT-014)
-  const invoice = await prisma.$transaction(async (tx) => {
-    const invoiceNumber = await nextDocumentNumber(tx, "FT-CWORK");
+  try {
+    // Numeração atómica: FT-CWORK-YYYY-NNNNNN (DT-014)
+    const invoice = await prisma.$transaction(async (tx) => {
+      const invoiceNumber = await nextDocumentNumber(tx, "FT-CWORK");
 
-    return tx.invoice.create({
-      data: {
-        invoiceNumber,
-        companyId,
-        serviceType,
-        amount:        amountNum,
-        discount:      discountNum,
-        iva:           ivaNum,
-        totalAmount,
-        balance:       totalAmount,
-        issueDate:     issueDate ? new Date(issueDate) : new Date(),
-        dueDate:       new Date(dueDate),
-        paymentMethod: paymentMethod || null,
-        notes:         notes || null,
-      },
-      include: { company: { select: { id: true, name: true } } },
+      return tx.invoice.create({
+        data: {
+          invoiceNumber,
+          companyId,
+          serviceType,
+          amount:        amountNum,
+          discount:      discountNum,
+          iva:           ivaNum,
+          totalAmount,
+          balance:       totalAmount,
+          issueDate:     issueDate ? new Date(issueDate) : new Date(),
+          dueDate:       new Date(dueDate),
+          paymentMethod: paymentMethod || null,
+          notes:         notes || null,
+        },
+        include: { company: { select: { id: true, name: true } } },
+      });
     });
-  });
 
-  return NextResponse.json(invoice, { status: 201 });
+    return NextResponse.json(invoice, { status: 201 });
+  } catch (err) {
+    // 22 Set 2026 (auditoria geral): mesma classe de bug do
+    // room-booking-leads/convert (15 Set 2026) — $transaction sem try/catch.
+    console.error("[POST /api/invoices]", err);
+    Sentry.captureException(err, { tags: { route: "invoices" }, extra: { companyId } });
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: `Erro ao criar factura: ${msg}` }, { status: 500 });
+  }
 }

@@ -6,6 +6,7 @@ import { recordFinancialHistory } from "@/lib/finance";
 import { nextDocumentNumber } from "@/lib/document-numbering";
 import { isApiRateLimited } from "@/lib/rateLimit";
 import { recordAudit, actorFromSession } from "@/lib/audit-service";
+import * as Sentry from "@sentry/nextjs";
 
 export const dynamic = "force-dynamic";
 
@@ -77,74 +78,85 @@ export async function POST(req: NextRequest) {
   const isPago    = (status || "PENDENTE") === "PAGO";
   const amountNum = Number(amount);
 
-  // ── auto-gerar número de recibo ──────────────────────────────────────────
-  // ── saldo anterior calculado ANTES da transacção (representa estado pré-pagamento) ──
-  const company = await prisma.company.findUnique({ where: { id: companyId } });
-  let previousBalance: number | null = null;
-  if (company) {
-    const paidAgg = await prisma.payment.aggregate({
-      where: { companyId, status: "PAGO" },
-      _sum: { amount: true },
-    });
-    const { calcTotalContracted } = await import("@/lib/finance");
-    const totalContracted = calcTotalContracted(company.rentAmount, company.contractStart, company.contractEnd);
-    previousBalance = totalContracted - (paidAgg._sum.amount ?? 0);
-  }
-
-  // ── payment.create + recordFinancialHistory atómicos ────────────────────
-  const payment = await prisma.$transaction(async (tx) => {
-    const receiptNumber = await nextDocumentNumber(tx, "REC");
-
-    const created = await tx.payment.create({
-      data: {
-        companyId,
-        amount:          amountNum,
-        dueDate:         new Date(dueDate),
-        paidDate:        isPago ? (paidDate ? new Date(paidDate) : new Date()) : null,
-        paymentMethod:   paymentMethod || null,
-        notes:           notes || null,
-        status:          status || "PENDENTE",
-        category:        category || null,
-        receiptUrl:      receiptUrl || null,
-        doc2Url:         doc2Url || null,
-        operationRef:    operationRef || null,
-        receiptNumber,
-        previousBalance,
-      },
-      include: { company: { select: { id: true, name: true } } },
-    });
-
-    if (isPago && companyId) {
-      await recordFinancialHistory(tx, {
-        companyId,
-        type:        "PAGAMENTO",
-        description: `${receiptNumber} — ${created.company?.name ?? "empresa"}`,
-        amount:      amountNum,
-        method:      paymentMethod || undefined,
-        reference:   created.id,
-        createdBy:   session.name || session.email,
+  try {
+    // ── auto-gerar número de recibo ──────────────────────────────────────────
+    // ── saldo anterior calculado ANTES da transacção (representa estado pré-pagamento) ──
+    const company = await prisma.company.findUnique({ where: { id: companyId } });
+    let previousBalance: number | null = null;
+    if (company) {
+      const paidAgg = await prisma.payment.aggregate({
+        where: { companyId, status: "PAGO" },
+        _sum: { amount: true },
       });
+      const { calcTotalContracted } = await import("@/lib/finance");
+      const totalContracted = calcTotalContracted(company.rentAmount, company.contractStart, company.contractEnd);
+      previousBalance = totalContracted - (paidAgg._sum.amount ?? 0);
     }
 
-    return created;
-  });
+    // ── payment.create + recordFinancialHistory atómicos ────────────────────
+    const payment = await prisma.$transaction(async (tx) => {
+      const receiptNumber = await nextDocumentNumber(tx, "REC");
 
-  // Audit: PAYMENT_CREATED — post-commit, nunca bloqueia resposta
-  recordAudit({
-    actor:     actorFromSession(session),
-    action:    "PAYMENT_CREATED",
-    entity:    "Payment",
-    entityId:  payment.id,
-    entityRef: payment.receiptNumber ?? undefined,
-    ipAddress: ip,
-    after: {
-      amount:        payment.amount,
-      status:        payment.status,
-      companyId:     payment.companyId,
-      receiptNumber: payment.receiptNumber,
-      dueDate:       payment.dueDate,
-    },
-  }).catch(err => console.error("[Audit] PAYMENT_CREATED:", err));
+      const created = await tx.payment.create({
+        data: {
+          companyId,
+          amount:          amountNum,
+          dueDate:         new Date(dueDate),
+          paidDate:        isPago ? (paidDate ? new Date(paidDate) : new Date()) : null,
+          paymentMethod:   paymentMethod || null,
+          notes:           notes || null,
+          status:          status || "PENDENTE",
+          category:        category || null,
+          receiptUrl:      receiptUrl || null,
+          doc2Url:         doc2Url || null,
+          operationRef:    operationRef || null,
+          receiptNumber,
+          previousBalance,
+        },
+        include: { company: { select: { id: true, name: true } } },
+      });
 
-  return NextResponse.json(payment, { status: 201 });
+      if (isPago && companyId) {
+        await recordFinancialHistory(tx, {
+          companyId,
+          type:        "PAGAMENTO",
+          description: `${receiptNumber} — ${created.company?.name ?? "empresa"}`,
+          amount:      amountNum,
+          method:      paymentMethod || undefined,
+          reference:   created.id,
+          createdBy:   session.name || session.email,
+        });
+      }
+
+      return created;
+    });
+
+    // Audit: PAYMENT_CREATED — post-commit, nunca bloqueia resposta
+    recordAudit({
+      actor:     actorFromSession(session),
+      action:    "PAYMENT_CREATED",
+      entity:    "Payment",
+      entityId:  payment.id,
+      entityRef: payment.receiptNumber ?? undefined,
+      ipAddress: ip,
+      after: {
+        amount:        payment.amount,
+        status:        payment.status,
+        companyId:     payment.companyId,
+        receiptNumber: payment.receiptNumber,
+        dueDate:       payment.dueDate,
+      },
+    }).catch(err => console.error("[Audit] PAYMENT_CREATED:", err));
+
+    return NextResponse.json(payment, { status: 201 });
+  } catch (err) {
+    // 22 Set 2026 (auditoria geral): mesma classe de bug do
+    // room-booking-leads/convert (15 Set 2026) — $transaction sem try/catch
+    // propagava qualquer erro (ex.: violação de constraint) como 500 sem
+    // JSON estruturado e sem chegar ao Sentry.
+    console.error("[POST /api/payments]", err);
+    Sentry.captureException(err, { tags: { route: "payments" }, extra: { companyId } });
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: `Erro ao criar pagamento: ${msg}` }, { status: 500 });
+  }
 }
