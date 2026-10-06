@@ -67,6 +67,10 @@ type FinanceSummary = {
   totalPaid: number;
   balance: number;
   financialStatus: string;
+  creditAmount: number;
+  prepaidMonths: number;
+  monthsCovered: number;
+  paidThrough: string;
   company: {
     id: string; name: string; nif: string | null; email: string;
     whatsapp: string; responsible: string; roomNumber: string;
@@ -96,7 +100,10 @@ export default function CompanyFinancePage() {
   const [loading, setLoading]       = useState(true);
   const [showModal, setShowModal]   = useState(false);
   const [showDocModal, setShowDocModal] = useState(false);
-  const [form, setForm] = useState({ amount: "", paymentMethod: "Transferência Bancária", notes: "", dueDate: new Date().toISOString().split("T")[0] });
+  // data local (Luanda UTC+1) — toISOString() devolveria o dia anterior entre 00h e 01h
+  const todayIso = format(new Date(), "yyyy-MM-dd");
+  const emptyForm = { amount: "", paymentMethod: "Transferência Bancária", notes: "", dueDate: todayIso, paidDate: todayIso };
+  const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
@@ -122,16 +129,35 @@ export default function CompanyFinancePage() {
     setTimeout(() => setToast(null), 4000);
   }
 
+  // Abre o modal com valores sugeridos. Se o contrato já está liquidado (ou
+  // pago à frente), sugere a renda do PRÓXIMO período não coberto — pagamento
+  // antecipado — com o vencimento nessa data futura.
+  function openPaymentModal() {
+    if (data) {
+      const { balance: bal, company: co, paidThrough } = data;
+      const advance = bal <= 0;
+      setForm({
+        ...emptyForm,
+        amount:  advance ? String(co.rentAmount) : String(Math.round(bal * 100) / 100),
+        dueDate: advance ? format(new Date(paidThrough), "yyyy-MM-dd") : todayIso,
+      });
+    }
+    setShowModal(true);
+  }
+
   async function addPayment() {
-    if (!form.amount) return;
+    const amountNum = Number(form.amount);
+    if (!form.amount || !(amountNum > 0)) { showToast("Indique um valor válido.", false); return; }
+    if (form.paidDate > todayIso) { showToast("A data do pagamento não pode ser futura — use o vencimento para o período futuro.", false); return; }
     setSaving(true);
     const res = await fetch("/api/payments", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         companyId: id,
-        amount: Number(form.amount),
+        amount: amountNum,
         dueDate: form.dueDate,
+        paidDate: form.paidDate,
         paymentMethod: form.paymentMethod,
         notes: form.notes,
         status: "PAGO",
@@ -141,10 +167,11 @@ export default function CompanyFinancePage() {
     if (res.ok) {
       showToast("Pagamento registado com sucesso.", true);
       setShowModal(false);
-      setForm({ amount: "", paymentMethod: "Transferência Bancária", notes: "", dueDate: new Date().toISOString().split("T")[0] });
+      setForm(emptyForm);
       fetchData();
     } else {
-      showToast("Erro ao registar pagamento.", false);
+      const d = await res.json().catch(() => ({}));
+      showToast(d.error || "Erro ao registar pagamento.", false);
     }
   }
 
@@ -160,8 +187,10 @@ export default function CompanyFinancePage() {
   </AdminLayout>
   );
 
-  const { company, months, totalContracted, totalPaid, balance, financialStatus } = data;
+  const { company, months, totalContracted, totalPaid, balance, financialStatus, creditAmount, prepaidMonths, paidThrough } = data;
   const pct = totalContracted > 0 ? Math.min(100, (totalPaid / totalContracted) * 100) : 0;
+  const isPrepaid = creditAmount > 0.01 && prepaidMonths > 0;
+  const paidThroughLabel = format(new Date(paidThrough), "dd/MM/yyyy");
 
   return (
     <AdminLayout>
@@ -192,7 +221,7 @@ export default function CompanyFinancePage() {
               📃 Gerar Contrato
             </button>
             <button
-              onClick={() => setShowModal(true)}
+              onClick={openPaymentModal}
               className="rounded-xl bg-[#2F6FED] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#1E4FB8] transition-colors"
             >
               + Registar Pagamento
@@ -214,16 +243,19 @@ export default function CompanyFinancePage() {
           </div>
           <div className={`rounded-xl border p-5 ${balance <= 0 ? "border-emerald-500/20 bg-emerald-500/5" : "border-red-500/20 bg-red-500/5"}`}>
             <p className={`text-xs font-semibold uppercase tracking-wider ${balance <= 0 ? "text-emerald-400" : "text-red-400"}`}>
-              {balance <= 0 ? "Liquidado" : "Saldo em Dívida"}
+              {balance > 0 ? "Saldo em Dívida" : creditAmount > 0.01 ? "Crédito (pago à frente)" : "Liquidado"}
             </p>
             <p className={`mt-2 text-2xl font-bold ${balance <= 0 ? "text-emerald-300" : "text-red-300"}`}>
-              {formatKz(Math.abs(balance))}
+              {formatKz(balance > 0 ? balance : creditAmount)}
             </p>
+            {balance <= 0 && (
+              <p className="mt-1 text-xs text-[#94A3B8]">Renda paga até {paidThroughLabel}</p>
+            )}
           </div>
           <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
             <p className="text-xs font-semibold uppercase tracking-wider text-[#94A3B8]">Estado Financeiro</p>
             <span className={`mt-3 inline-block rounded-full px-3 py-1 text-xs font-bold ${STATUS_COLORS[financialStatus] || "bg-white/10 text-[#94A3B8]"}`}>
-              {STATUS_LABELS[financialStatus] || financialStatus}
+              {isPrepaid ? `✅ LIQUIDADO · +${prepaidMonths} mês(es) antecipado(s)` : (STATUS_LABELS[financialStatus] || financialStatus)}
             </span>
           </div>
         </div>
@@ -422,12 +454,20 @@ export default function CompanyFinancePage() {
                   <span className="text-[#94A3B8]">Saldo em falta</span>
                   <span className={`font-bold ${balance > 0 ? "text-red-300" : "text-emerald-300"}`}>{formatKz(Math.abs(balance))}</span>
                 </div>
+                {balance <= 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-[#94A3B8]">Renda paga até</span>
+                    <span className="font-bold text-emerald-300">{paidThroughLabel}</span>
+                  </div>
+                )}
                 {form.amount && Number(form.amount) > 0 && (
                   <div className="flex justify-between border-t border-white/10 pt-1">
-                    <span className="text-[#94A3B8]">Saldo após este pagamento</span>
+                    <span className="text-[#94A3B8]">
+                      {balance - Number(form.amount) < -0.01 ? "Crédito após este pagamento" : "Saldo após este pagamento"}
+                    </span>
                     <span className={`font-bold ${balance - Number(form.amount) > 0 ? "text-amber-300" : "text-emerald-300"}`}>
                       {formatKz(Math.abs(balance - Number(form.amount)))}
-                      {balance - Number(form.amount) <= 0 ? " ✅ LIQUIDADO" : " em dívida"}
+                      {balance - Number(form.amount) > 0 ? " em dívida" : balance - Number(form.amount) < -0.01 ? " ✅ pago à frente" : " ✅ LIQUIDADO"}
                     </span>
                   </div>
                 )}
@@ -440,13 +480,37 @@ export default function CompanyFinancePage() {
                     type="number"
                     value={form.amount}
                     onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                    placeholder={formatKz(balance)}
+                    placeholder={formatKz(company.rentAmount)}
                     className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2.5 text-sm text-[#F5F7FA] focus:border-[#2F6FED] focus:outline-none"
                   />
+                  {company.rentAmount > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {[1, 2, 3, 6].map((n) => (
+                        <button
+                          key={n}
+                          type="button"
+                          onClick={() => setForm({ ...form, amount: String(Math.round(company.rentAmount * n * 100) / 100) })}
+                          className="rounded-full border border-white/10 px-3 py-1 text-xs text-[#94A3B8] hover:bg-white/5"
+                        >
+                          {n} mês{n > 1 ? "es" : ""} ({formatKz(company.rentAmount * n)})
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-[#94A3B8] mb-1">Data do Pagamento</label>
+                    <label className="block text-xs font-medium text-[#94A3B8] mb-1">Data do Pagamento (recebido)</label>
+                    <input
+                      type="date"
+                      value={form.paidDate}
+                      max={todayIso}
+                      onChange={(e) => setForm({ ...form, paidDate: e.target.value })}
+                      className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2.5 text-sm text-[#F5F7FA] focus:border-[#2F6FED] focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-[#94A3B8] mb-1">Período / Vencimento (pode ser futuro)</label>
                     <input
                       type="date"
                       value={form.dueDate}

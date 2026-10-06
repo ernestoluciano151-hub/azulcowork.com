@@ -13,6 +13,7 @@
 import { describe, it, expect, vi } from "vitest";
 import {
   calcContractMonths,
+  calcAdvanceInfo,
   calcTotalContracted,
   calcFinancialStatus,
   fmtAOA,
@@ -70,6 +71,27 @@ describe("calcContractMonths", () => {
 // ─────────────────────────────────────────────
 // calcTotalContracted
 // ─────────────────────────────────────────────
+describe("calcAdvanceInfo", () => {
+  const start = new Date("2026-09-21T00:00:00Z");
+  it("pago exacto: 1 mês coberto, sem crédito antecipado", () => {
+    const r = calcAdvanceInfo(79900, start, 79900, 79900, 1);
+    expect(r.monthsCovered).toBe(1);
+    expect(r.prepaidMonths).toBe(0);
+    expect(r.creditAmount).toBe(0);
+  });
+  it("2 meses pagos num contrato de 1: 1 mês antecipado", () => {
+    const r = calcAdvanceInfo(79900, start, 79900, 159800, 1);
+    expect(r.monthsCovered).toBe(2);
+    expect(r.prepaidMonths).toBe(1);
+    expect(r.creditAmount).toBe(79900);
+  });
+  it("renda 0 não divide por zero", () => {
+    const r = calcAdvanceInfo(0, start, 0, 500, 1);
+    expect(r.monthsCovered).toBe(0);
+    expect(r.creditAmount).toBe(500);
+  });
+});
+
 describe("calcTotalContracted", () => {
   it("150.000 AOA × 12 meses = 1.800.000 AOA", () => {
     expect(calcTotalContracted(150000, new Date("2026-01-01"), new Date("2026-12-31")))

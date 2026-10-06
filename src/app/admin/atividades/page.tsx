@@ -112,6 +112,29 @@ export default function AtividadesPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  const [promotingId, setPromotingId] = useState<string | null>(null);
+
+  async function handlePromote(c: ExcludedCompany) {
+    if (!confirm(`Passar "${c.name}" para Sala Privada? Passa a ter taxa de condomínio e benefícios mensais.`)) return;
+    setPromotingId(c.id);
+    try {
+      const res = await fetch("/api/atividades/promover", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId: c.id }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) { setSyncMsg({ ok: false, msg: d.error ?? "Erro ao promover empresa." }); return; }
+      await load();
+      setSyncMsg({
+        ok: true,
+        msg: `"${c.name}" é agora Sala Privada e já aparece em Atividades.${d.needsRent ? " Defina a renda e o plano em Empresas → Editar." : ""}`,
+      });
+    } finally {
+      setPromotingId(null);
+    }
+  }
+
   async function handleSync() {
     setSyncing(true); setSyncMsg(null);
     const before = new Set(data.map(c => c.id));
@@ -273,14 +296,37 @@ export default function AtividadesPage() {
           <div className={`rounded-xl border p-4 text-sm ${syncMsg.ok ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-300" : "border-red-500/30 bg-red-500/5 text-red-300"}`}>
             {syncMsg.msg}
             {excluded.length > 0 && (
-              <div className="mt-2 text-xs text-mist">
-                {excluded.length} empresa(s) registada(s) em{" "}
-                <a href="/admin/empresas" className="underline text-blue-400">Empresas</a>{" "}
-                não aparecem aqui (sala de reunião sem contrato ou contrato encerrado):{" "}
-                {excluded.slice(0, 8).map(c =>
-                  `${c.name} (${c.contractStatus === "ENCERRADO" ? "encerrado" : "sala de reunião"})`
-                ).join(", ")}
-                {excluded.length > 8 ? "…" : ""}
+              <div className="mt-3 text-xs text-mist">
+                <p>
+                  {excluded.length} empresa(s) registada(s) em{" "}
+                  <a href="/admin/empresas" className="underline text-blue-400">Empresas</a>{" "}
+                  não aparecem aqui (sala de reunião sem contrato ou contrato encerrado):
+                </p>
+                <ul className="mt-2 space-y-1">
+                  {excluded.slice(0, 15).map(c => {
+                    const canPromote = c.category === "SALA_REUNIAO" && c.contractStatus !== "ENCERRADO";
+                    return (
+                      <li key={c.id} className="flex items-center justify-between gap-3 rounded-lg bg-white/5 px-3 py-1.5">
+                        <span>
+                          {c.name}{" "}
+                          <span className="text-mist/70">
+                            ({c.contractStatus === "ENCERRADO" ? "encerrado" : "sala de reunião"})
+                          </span>
+                        </span>
+                        {canPromote && (
+                          <button
+                            onClick={() => handlePromote(c)}
+                            disabled={promotingId === c.id}
+                            className="rounded-md bg-blue-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-blue-500 disabled:opacity-60"
+                          >
+                            {promotingId === c.id ? "A passar…" : "Passar para Sala Privada"}
+                          </button>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+                {excluded.length > 15 && <p className="mt-1">… e mais {excluded.length - 15}.</p>}
               </div>
             )}
           </div>

@@ -43,6 +43,32 @@ export function calcTotalContracted(rentAmount: number, start: Date, end: Date):
   return Math.round(rentAmount * calcContractMonths(start, end) * 100) / 100;
 }
 
+// ── pagamentos antecipados (6 Out 2026) ──────────────────────────────────────
+//
+// Um pagamento "antecipado" é um pagamento PAGO cujo período (dueDate) ainda
+// não começou. A caixa (paidDate) entra no mês real do recebimento; aqui só
+// se calcula até que data a renda está coberta e quanto é crédito.
+//   monthsCovered  = meses inteiros de renda cobertos pelo total pago
+//   paidThrough    = data (exclusiva) até à qual a renda está paga
+//   creditAmount   = total pago acima do valor contratado (crédito)
+//   prepaidMonths  = meses cobertos para além do fim do contrato actual
+export function calcAdvanceInfo(
+  rentAmount: number,
+  start: Date,
+  totalContracted: number,
+  totalPaid: number,
+  contractMonths: number
+) {
+  const creditAmount = Math.max(0, Math.round((totalPaid - totalContracted) * 100) / 100);
+  if (rentAmount <= 0) {
+    return { monthsCovered: 0, prepaidMonths: 0, creditAmount, paidThrough: start };
+  }
+  // tolerância de 0,01 Kz para arredondamentos
+  const monthsCovered = Math.max(0, Math.floor((totalPaid + 0.01) / rentAmount));
+  const prepaidMonths = Math.max(0, monthsCovered - contractMonths);
+  return { monthsCovered, prepaidMonths, creditAmount, paidThrough: addMonths(start, monthsCovered) };
+}
+
 // ── estado financeiro automático ─────────────────────────────────────────────
 export function calcFinancialStatus(
   totalContracted: number,
@@ -114,6 +140,7 @@ export async function getCompanyFinanceSummary(
     (p) => p.status !== "PAGO" && new Date(p.dueDate) < now
   );
   const financialStatus = calcFinancialStatus(totalContracted, totalPaid, isOverdue);
+  const advance = calcAdvanceInfo(company.rentAmount, company.contractStart, totalContracted, totalPaid, months);
 
   return {
     company,
@@ -122,6 +149,11 @@ export async function getCompanyFinanceSummary(
     totalPaid,
     totalSala,
     balance,
+    // pagamentos antecipados / crédito (6 Out 2026)
+    creditAmount:  advance.creditAmount,
+    prepaidMonths: advance.prepaidMonths,
+    monthsCovered: advance.monthsCovered,
+    paidThrough:   advance.paidThrough,
     financialStatus,
     coworkPayments,
     salaPayments,
@@ -152,7 +184,13 @@ export async function recordFinancialHistory(
   );
   // Apenas pagamentos de coworking afectam o saldo do contrato (RFT-009)
   const paidAgg = await prisma.payment.aggregate({
-    where: { companyId: params.companyId, status: "PAGO", category: { not: "SALA_REUNIAO" } },
+    // `category` é nullable: em SQL `<> 'X'` exclui NULL, o que fazia com que
+    // pagamentos sem categoria (a maioria) ficassem fora do saldo acumulado.
+    where: {
+      companyId: params.companyId,
+      status: "PAGO",
+      OR: [{ category: null }, { category: { not: "SALA_REUNIAO" } }],
+    },
     _sum: { amount: true },
   });
   const totalPaid       = paidAgg._sum.amount || 0;

@@ -22,6 +22,7 @@ export async function GET() {
     receitaAnualAgg,
     totalRecebidoAgg,
     totalPendenteAgg,
+    paidByCompany,
     totalAtrasadoAgg,
     mrrAgg,
     empresasEmAtrasoGroupBy,
@@ -43,6 +44,12 @@ export async function GET() {
     prisma.payment.aggregate({ where: { status: "PAGO", paidDate: { gte: startOfYear  } }, _sum: { amount: true } }),
     prisma.payment.aggregate({ where: { status: "PAGO"     }, _sum: { amount: true } }),
     prisma.payment.aggregate({ where: { status: "PENDENTE" }, _sum: { amount: true } }),
+    // Pago de coworking por empresa — dívida calculada empresa a empresa
+    prisma.payment.groupBy({
+      by: ["companyId"],
+      where: { status: "PAGO", OR: [{ category: null }, { category: { not: "SALA_REUNIAO" } }] },
+      _sum: { amount: true },
+    }),
     prisma.payment.aggregate({ where: { status: "ATRASADO" }, _sum: { amount: true } }),
     prisma.company.aggregate({ where: { contractStatus: "ATIVO", category: "SALA_PRIVADA" }, _sum: { rentAmount: true } }),
     prisma.payment.groupBy({ by: ["companyId"], where: { status: "ATRASADO" }, _count: { id: true } }),
@@ -68,7 +75,7 @@ export async function GET() {
     // Companies — exclui SALA_REUNIAO (sem contrato/mensalidade real)
     prisma.company.findMany({
       where: { contractStatus: { not: "ENCERRADO" }, category: "SALA_PRIVADA" },
-      select: { rentAmount: true, contractStart: true, contractEnd: true },
+      select: { id: true, rentAmount: true, contractStart: true, contractEnd: true },
     }),
     // Monthly aggregates — fetch all at once, group in memory
     prisma.payment.findMany({
@@ -129,7 +136,13 @@ export async function GET() {
     (s, c) => s + calcTotalContracted(c.rentAmount, c.contractStart, c.contractEnd), 0
   );
   const totalPagoGeral     = totalRecebidoAgg._sum.amount || 0;
-  const totalEmDivida      = Math.max(0, totalContratado - totalPagoGeral);
+  // Dívida empresa a empresa: o crédito/pagamento antecipado de uma empresa
+  // nunca abate a dívida de outra (antes: max(0, contratado_total - pago_total)).
+  const paidMap = new Map(paidByCompany.map(p => [p.companyId, p._sum.amount || 0]));
+  const totalEmDivida = activeCompanies.reduce((s, c) => {
+    const contracted = calcTotalContracted(c.rentAmount, c.contractStart, c.contractEnd);
+    return s + Math.max(0, contracted - (paidMap.get(c.id) || 0));
+  }, 0);
   const salaReceitaMesVal  = salaReceitaMesAgg._sum.totalAmount  || 0;
   const salaReceitaAnualVal= salaReceitaAnualAgg._sum.totalAmount || 0;
   const salaPendenteVal    = salaPendenteAgg._sum.totalAmount    || 0;

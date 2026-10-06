@@ -25,9 +25,10 @@ export async function GET(
   });
 
   // serialise dates
-  const { company, ...rest } = summary;
+  const { company, paidThrough, ...rest } = summary;
   return NextResponse.json({
     ...rest,
+    paidThrough: paidThrough.toISOString(),
     company: {
       ...company,
       contractStart: company.contractStart.toISOString(),
