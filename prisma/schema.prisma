@@ -426,11 +426,19 @@ model Expense {
   status      String   @default("PAGO")
   receiptUrl  String?
   notes       String?
+  // 06 Out 2026 — gestão de despesas (PENDENTE → PAGO / CANCELADO)
+  paidDate      DateTime?
+  paymentMethod String?
+  reference     String?
+  createdBy     String?
+  paidBy        String?
+  cancelledAt   DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@index([category])
   @@index([expenseDate])
+  @@index([status, paidDate])
 }
 
 model RevenueCategory {

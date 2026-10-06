@@ -79,6 +79,11 @@ type Expense = {
   status: string;
   receiptUrl?: string | null;
   notes?: string | null;
+  paidDate?: string | null;
+  paymentMethod?: string | null;
+  reference?: string | null;
+  createdBy?: string | null;
+  paidBy?: string | null;
 };
 
 type Company = { id: string; name: string };
@@ -613,21 +618,42 @@ function FaturasTab() {
 }
 
 /* ─────────────────────────────────────────
-   TAB 4 — Despesas
+   TAB 4 — Despesas (gestão: criar, editar, notas, confirmar pagamento, cancelar)
 ───────────────────────────────────────── */
+const EXPENSE_STATUS_STYLE: Record<string, string> = {
+  PAGO: "bg-emerald-500/15 text-emerald-300",
+  PENDENTE: "bg-amber-500/15 text-amber-300",
+  CANCELADO: "bg-red-500/15 text-red-300",
+};
+
+const EMPTY_EXPENSE_FORM = {
+  category: "", description: "", amount: "", expenseDate: "",
+  supplier: "", status: "PENDENTE", notes: "", paymentMethod: "", reference: "", receiptUrl: "",
+};
+
+function isPdfUrl(url: string) {
+  return /\.pdf($|\?)/i.test(url) || url.includes("/raw/");
+}
+
 function DespesasTab() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [summary, setSummary] = useState({ totalMes: 0, totalAnual: 0 });
+  const [summary, setSummary] = useState({ totalMes: 0, totalAnual: 0, totalPendente: 0, countPendente: 0, totalVencido: 0, countVencido: 0 });
   const [loading, setLoading] = useState(true);
   const [categoryFilter, setCategoryFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [month, setMonth] = useState("");
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({
-    category: "", description: "", amount: "", expenseDate: "",
-    supplier: "", status: "PAGO", notes: "",
-  });
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState(EMPTY_EXPENSE_FORM);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [formError, setFormError] = useState("");
+  const [detail, setDetail] = useState<Expense | null>(null);
+  const [payTarget, setPayTarget] = useState<Expense | null>(null);
+  const [payForm, setPayForm] = useState({ paidDate: "", paymentMethod: "", reference: "" });
+  const [actionError, setActionError] = useState("");
+
+  const todayIso = format(new Date(), "yyyy-MM-dd");
 
   const fetchExpenses = useCallback(async () => {
     setLoading(true);
@@ -640,78 +666,164 @@ function DespesasTab() {
       const data = await res.json();
       setExpenses(data.expenses);
       setSummary(data.summary);
+      setDetail((d) => (d ? data.expenses.find((x: Expense) => x.id === d.id) ?? null : d));
     }
     setLoading(false);
   }, [categoryFilter, statusFilter, month]);
 
   useEffect(() => { fetchExpenses(); }, [fetchExpenses]);
 
+  function openNew() {
+    setEditingId(null);
+    setForm({ ...EMPTY_EXPENSE_FORM, expenseDate: todayIso });
+    setFormError("");
+    setShowModal(true);
+  }
+
+  function openEdit(e: Expense) {
+    setEditingId(e.id);
+    setForm({
+      category: e.category, description: e.description, amount: String(e.amount),
+      expenseDate: format(new Date(e.expenseDate), "yyyy-MM-dd"),
+      supplier: e.supplier ?? "", status: e.status, notes: e.notes ?? "",
+      paymentMethod: e.paymentMethod ?? "", reference: e.reference ?? "", receiptUrl: e.receiptUrl ?? "",
+    });
+    setFormError("");
+    setShowModal(true);
+  }
+
+  async function uploadReceipt(file: File) {
+    setUploading(true);
+    setFormError("");
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("folder", "azul-cowork/despesas");
+      const res = await fetch("/api/upload", { method: "POST", body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Falha no upload.");
+      setForm((f) => ({ ...f, receiptUrl: data.url }));
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Falha no upload.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
   async function saveExpense() {
+    setFormError("");
+    if (!form.category || !form.description.trim() || !form.expenseDate || !(Number(form.amount) > 0)) {
+      setFormError("Preencha categoria, descrição, valor (> 0) e data.");
+      return;
+    }
     setSaving(true);
-    const res = await fetch("/api/expenses", {
-      method: "POST",
+    const res = await fetch(editingId ? `/api/expenses/${editingId}` : "/api/expenses", {
+      method: editingId ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
     });
     setSaving(false);
     if (res.ok) {
       setShowModal(false);
-      setForm({ category: "", description: "", amount: "", expenseDate: "", supplier: "", status: "PAGO", notes: "" });
       fetchExpenses();
+    } else {
+      const d = await res.json().catch(() => ({}));
+      setFormError(d.error || "Erro ao guardar despesa.");
     }
   }
 
-  async function deleteExpense(id: string) {
-    if (!confirm("Eliminar despesa?")) return;
-    await fetch(`/api/expenses/${id}`, { method: "DELETE" });
+  function openPay(e: Expense) {
+    setPayTarget(e);
+    setPayForm({ paidDate: todayIso, paymentMethod: e.paymentMethod ?? "", reference: e.reference ?? "" });
+    setActionError("");
+  }
+
+  async function confirmPay() {
+    if (!payTarget) return;
+    setSaving(true);
+    setActionError("");
+    const res = await fetch(`/api/expenses/${payTarget.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "pay", ...payForm }),
+    });
+    setSaving(false);
+    if (res.ok) {
+      setPayTarget(null);
+      fetchExpenses();
+    } else {
+      const d = await res.json().catch(() => ({}));
+      setActionError(d.error || "Erro ao confirmar pagamento.");
+    }
+  }
+
+  async function doAction(id: string, action: "cancel" | "reopen", msg: string) {
+    if (!confirm(msg)) return;
+    const res = await fetch(`/api/expenses/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      alert(d.error || "Erro.");
+    }
     fetchExpenses();
   }
+
+  async function deleteExpense(id: string) {
+    if (!confirm("Eliminar despesa definitivamente?")) return;
+    const res = await fetch(`/api/expenses/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      alert(d.error || "Erro ao eliminar.");
+    }
+    setDetail(null);
+    fetchExpenses();
+  }
+
+  const inputCls = "w-full rounded-lg border border-white/10 bg-[#101a2e] px-3 py-2 text-sm text-[#F5F7FA] focus:outline-none focus:ring-1 focus:ring-[#2F6FED]";
+  const filterCls = "rounded-lg border border-white/10 bg-[#0B1220] px-3 py-2 text-sm text-[#F5F7FA] focus:outline-none focus:ring-1 focus:ring-[#2F6FED]";
+  const isOverdue = (e: Expense) => e.status === "PENDENTE" && format(new Date(e.expenseDate), "yyyy-MM-dd") < todayIso;
 
   return (
     <div>
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-3">
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="rounded-lg border border-white/10 bg-[#0B1220] px-3 py-2 text-sm text-[#F5F7FA] focus:outline-none focus:ring-1 focus:ring-[#2F6FED]"
-          >
+          <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className={filterCls}>
             <option value="ALL">Todas as categorias</option>
             {EXPENSE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="rounded-lg border border-white/10 bg-[#0B1220] px-3 py-2 text-sm text-[#F5F7FA] focus:outline-none focus:ring-1 focus:ring-[#2F6FED]"
-          >
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={filterCls}>
             <option value="ALL">Todos os estados</option>
             <option value="PAGO">Pago</option>
             <option value="PENDENTE">Pendente</option>
+            <option value="CANCELADO">Cancelado</option>
           </select>
-          <input
-            type="month"
-            value={month}
-            onChange={(e) => setMonth(e.target.value)}
-            className="rounded-lg border border-white/10 bg-[#0B1220] px-3 py-2 text-sm text-[#F5F7FA] focus:outline-none focus:ring-1 focus:ring-[#2F6FED]"
-          />
+          <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className={filterCls} />
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="rounded-lg bg-[#2F6FED] px-4 py-2 text-sm font-medium text-white hover:bg-[#1E4FB8] transition-colors"
-        >
+        <button onClick={openNew} className="rounded-lg bg-[#2F6FED] px-4 py-2 text-sm font-medium text-white hover:bg-[#1E4FB8] transition-colors">
           + Nova Despesa
         </button>
       </div>
 
-      {/* Summary */}
-      <div className="mb-5 grid grid-cols-2 gap-4">
+      {/* KPIs */}
+      <div className="mb-5 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-orange-400">Despesas do Mês</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-orange-400">Pago no Mês</p>
           <p className="mt-1 text-xl font-bold text-orange-300">{formatKz(summary.totalMes)}</p>
         </div>
         <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-red-400">Despesas Anuais</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-red-400">Pago no Ano</p>
           <p className="mt-1 text-xl font-bold text-red-300">{formatKz(summary.totalAnual)}</p>
+        </div>
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-amber-400">Pendente ({summary.countPendente})</p>
+          <p className="mt-1 text-xl font-bold text-amber-300">{formatKz(summary.totalPendente)}</p>
+        </div>
+        <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-rose-400">Vencido ({summary.countVencido})</p>
+          <p className="mt-1 text-xl font-bold text-rose-300">{formatKz(summary.totalVencido)}</p>
         </div>
       </div>
 
@@ -723,43 +835,47 @@ function DespesasTab() {
               <th className="px-4 py-3 font-medium">Descrição</th>
               <th className="px-4 py-3 font-medium">Fornecedor</th>
               <th className="px-4 py-3 font-medium">Valor</th>
-              <th className="px-4 py-3 font-medium">Data</th>
+              <th className="px-4 py-3 font-medium">Data / Venc.</th>
               <th className="px-4 py-3 font-medium">Estado</th>
-              <th className="px-4 py-3 font-medium">Notas</th>
+              <th className="px-4 py-3 font-medium">Nota</th>
               <th className="px-4 py-3 font-medium">Acções</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5">
-            {loading && (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-[#94A3B8]">A carregar...</td></tr>
-            )}
-            {!loading && expenses.length === 0 && (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-[#94A3B8]">Nenhuma despesa encontrada.</td></tr>
-            )}
+            {loading && <tr><td colSpan={8} className="px-4 py-8 text-center text-[#94A3B8]">A carregar...</td></tr>}
+            {!loading && expenses.length === 0 && <tr><td colSpan={8} className="px-4 py-8 text-center text-[#94A3B8]">Nenhuma despesa encontrada.</td></tr>}
             {expenses.map((e) => (
-              <tr key={e.id} className="text-[#F5F7FA] hover:bg-white/[0.02]">
+              <tr key={e.id} className={`text-[#F5F7FA] hover:bg-white/[0.02] ${e.status === "CANCELADO" ? "opacity-50" : ""}`}>
                 <td className="px-4 py-3">
-                  <span className="rounded-full bg-[#2F6FED]/15 px-2.5 py-0.5 text-xs font-medium text-[#5C8FFF]">
-                    {e.category}
-                  </span>
+                  <span className="rounded-full bg-[#2F6FED]/15 px-2.5 py-0.5 text-xs font-medium text-[#5C8FFF]">{e.category}</span>
                 </td>
-                <td className="px-4 py-3 max-w-[200px] truncate">{e.description}</td>
+                <td className="px-4 py-3 max-w-[200px] truncate">
+                  <button onClick={() => setDetail(e)} className="text-left hover:text-[#5C8FFF] hover:underline">{e.description}</button>
+                </td>
                 <td className="px-4 py-3 text-[#94A3B8]">{e.supplier || "—"}</td>
                 <td className="px-4 py-3 font-medium">{formatKz(e.amount)}</td>
-                <td className="px-4 py-3 text-[#94A3B8]">{format(new Date(e.expenseDate), "dd/MM/yyyy")}</td>
-                <td className="px-4 py-3">
-                  <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${e.status === "PAGO" ? "bg-emerald-500/15 text-emerald-300" : "bg-amber-500/15 text-amber-300"}`}>
-                    {e.status}
-                  </span>
+                <td className="px-4 py-3 text-[#94A3B8]">
+                  {format(new Date(e.expenseDate), "dd/MM/yyyy")}
+                  {isOverdue(e) && <span className="ml-1 text-xs text-rose-400">vencida</span>}
                 </td>
-                <td className="px-4 py-3 max-w-[150px] truncate text-xs text-[#94A3B8]">{e.notes || "—"}</td>
                 <td className="px-4 py-3">
-                  <button
-                    onClick={() => deleteExpense(e.id)}
-                    className="rounded-lg border border-red-500/20 px-2 py-1 text-xs text-red-400 hover:bg-red-500/10"
-                  >
-                    🗑️
-                  </button>
+                  <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${EXPENSE_STATUS_STYLE[e.status] ?? ""}`}>{e.status}</span>
+                </td>
+                <td className="px-4 py-3">
+                  {e.receiptUrl
+                    ? <button onClick={() => setDetail(e)} className="text-xs text-[#5C8FFF] hover:underline">📎 Ver nota</button>
+                    : <span className="text-xs text-[#94A3B8]">—</span>}
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex flex-wrap gap-1.5">
+                    <button onClick={() => setDetail(e)} className="rounded-lg border border-white/10 px-2 py-1 text-xs text-[#94A3B8] hover:text-[#F5F7FA]">Ver</button>
+                    {e.status === "PENDENTE" && (
+                      <button onClick={() => openPay(e)} className="rounded-lg border border-emerald-500/30 px-2 py-1 text-xs text-emerald-300 hover:bg-emerald-500/10">✓ Pagar</button>
+                    )}
+                    {e.status !== "CANCELADO" && (
+                      <button onClick={() => openEdit(e)} className="rounded-lg border border-white/10 px-2 py-1 text-xs text-[#94A3B8] hover:text-[#F5F7FA]">✏️</button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -767,86 +883,183 @@ function DespesasTab() {
         </table>
       </div>
 
+      {/* Detalhe + pré-visualização da nota */}
+      {detail && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/60" onClick={() => setDetail(null)}>
+          <div className="h-full w-full max-w-xl overflow-y-auto border-l border-white/10 bg-[#101a2e] shadow-2xl" onClick={(ev) => ev.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+              <h2 className="font-semibold text-[#F5F7FA]">Detalhe da Despesa</h2>
+              <button onClick={() => setDetail(null)} className="text-[#94A3B8] hover:text-[#F5F7FA]">✕</button>
+            </div>
+            <div className="space-y-4 p-5 text-sm text-[#F5F7FA]">
+              <div className="flex items-center justify-between">
+                <p className="text-2xl font-bold">{formatKz(detail.amount)}</p>
+                <span className={`rounded-full px-3 py-1 text-xs font-medium ${EXPENSE_STATUS_STYLE[detail.status] ?? ""}`}>{detail.status}</span>
+              </div>
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
+                <div><dt className="text-[#94A3B8]">Categoria</dt><dd>{detail.category}</dd></div>
+                <div><dt className="text-[#94A3B8]">Fornecedor</dt><dd>{detail.supplier || "—"}</dd></div>
+                <div className="col-span-2"><dt className="text-[#94A3B8]">Descrição</dt><dd>{detail.description}</dd></div>
+                <div><dt className="text-[#94A3B8]">Data / Vencimento</dt><dd>{format(new Date(detail.expenseDate), "dd/MM/yyyy")}</dd></div>
+                <div><dt className="text-[#94A3B8]">Data de pagamento</dt><dd>{detail.paidDate ? format(new Date(detail.paidDate), "dd/MM/yyyy") : "—"}</dd></div>
+                <div><dt className="text-[#94A3B8]">Método</dt><dd>{detail.paymentMethod || "—"}</dd></div>
+                <div><dt className="text-[#94A3B8]">Referência</dt><dd>{detail.reference || "—"}</dd></div>
+                <div><dt className="text-[#94A3B8]">Registada por</dt><dd>{detail.createdBy || "—"}</dd></div>
+                <div><dt className="text-[#94A3B8]">Paga por</dt><dd>{detail.paidBy || "—"}</dd></div>
+                <div className="col-span-2"><dt className="text-[#94A3B8]">Notas</dt><dd className="whitespace-pre-wrap">{detail.notes || "—"}</dd></div>
+              </dl>
+
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#94A3B8]">Nota / Comprovativo</p>
+                {detail.receiptUrl ? (
+                  <div className="space-y-2">
+                    {isPdfUrl(detail.receiptUrl) ? (
+                      <iframe src={detail.receiptUrl} title="Nota" className="h-96 w-full rounded-lg border border-white/10 bg-white" />
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={detail.receiptUrl} alt="Nota da despesa" className="max-h-96 w-full rounded-lg border border-white/10 bg-white object-contain" />
+                    )}
+                    <a href={detail.receiptUrl} target="_blank" rel="noreferrer" className="text-xs text-[#5C8FFF] hover:underline">Abrir em novo separador ↗</a>
+                  </div>
+                ) : (
+                  <p className="rounded-lg border border-dashed border-white/10 p-4 text-center text-xs text-[#94A3B8]">
+                    Sem nota anexada. Use ✏️ Editar para anexar.
+                  </p>
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-2 border-t border-white/10 pt-4">
+                {detail.status === "PENDENTE" && (
+                  <button onClick={() => openPay(detail)} className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-medium text-white hover:bg-emerald-500">✓ Confirmar pagamento</button>
+                )}
+                {detail.status !== "CANCELADO" && (
+                  <button onClick={() => openEdit(detail)} className="rounded-lg border border-white/10 px-4 py-2 text-xs text-[#F5F7FA] hover:bg-white/5">✏️ Editar</button>
+                )}
+                {detail.status === "PENDENTE" && (
+                  <button onClick={() => doAction(detail.id, "cancel", "Cancelar esta despesa?")} className="rounded-lg border border-amber-500/30 px-4 py-2 text-xs text-amber-300 hover:bg-amber-500/10">Cancelar</button>
+                )}
+                {detail.status === "PAGO" && (
+                  <button onClick={() => doAction(detail.id, "reopen", "Reabrir (voltar a pendente)? Só ADMIN.")} className="rounded-lg border border-white/10 px-4 py-2 text-xs text-[#94A3B8] hover:bg-white/5">Reabrir</button>
+                )}
+                {detail.status !== "PAGO" && (
+                  <button onClick={() => deleteExpense(detail.id)} className="rounded-lg border border-red-500/20 px-4 py-2 text-xs text-red-400 hover:bg-red-500/10">🗑️ Eliminar</button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmar pagamento */}
+      {payTarget && (
+        <Modal title="Confirmar pagamento da despesa" onClose={() => setPayTarget(null)}>
+          <div className="space-y-3">
+            <p className="text-sm text-[#F5F7FA]">{payTarget.description} — <strong>{formatKz(payTarget.amount)}</strong></p>
+            <div>
+              <label className="mb-1 block text-xs text-[#94A3B8]">Data do pagamento *</label>
+              <SmartDatePicker value={payForm.paidDate} onChange={(v) => setPayForm({ ...payForm, paidDate: v })} required />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-[#94A3B8]">Método</label>
+              <select value={payForm.paymentMethod} onChange={(e) => setPayForm({ ...payForm, paymentMethod: e.target.value })} className={inputCls}>
+                <option value="">Seleccionar...</option>
+                {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-[#94A3B8]">Referência (nº transferência / talão)</label>
+              <input value={payForm.reference} onChange={(e) => setPayForm({ ...payForm, reference: e.target.value })} className={inputCls} />
+            </div>
+            {actionError && <p className="text-xs text-red-400">{actionError}</p>}
+            <div className="flex justify-end gap-3 pt-2">
+              <button onClick={() => setPayTarget(null)} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-[#94A3B8] hover:text-[#F5F7FA]">Cancelar</button>
+              <button onClick={confirmPay} disabled={saving} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50">
+                {saving ? "A confirmar..." : "Confirmar pago"}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Criar / Editar */}
       {showModal && (
-        <Modal title="Nova Despesa" onClose={() => setShowModal(false)}>
+        <Modal title={editingId ? "Editar Despesa" : "Nova Despesa"} onClose={() => setShowModal(false)}>
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="mb-1 block text-xs text-[#94A3B8]">Categoria *</label>
-                <select
-                  value={form.category}
-                  onChange={(e) => setForm({ ...form, category: e.target.value })}
-                  className="w-full rounded-lg border border-white/10 bg-[#101a2e] px-3 py-2 text-sm text-[#F5F7FA] focus:outline-none focus:ring-1 focus:ring-[#2F6FED]"
-                >
+                <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className={inputCls}>
                   <option value="">Seleccionar...</option>
                   {EXPENSE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div>
                 <label className="mb-1 block text-xs text-[#94A3B8]">Estado</label>
-                <select
-                  value={form.status}
-                  onChange={(e) => setForm({ ...form, status: e.target.value })}
-                  className="w-full rounded-lg border border-white/10 bg-[#101a2e] px-3 py-2 text-sm text-[#F5F7FA] focus:outline-none focus:ring-1 focus:ring-[#2F6FED]"
-                >
-                  <option value="PAGO">Pago</option>
-                  <option value="PENDENTE">Pendente</option>
-                </select>
+                {editingId ? (
+                  <p className={`rounded-lg px-3 py-2 text-sm ${EXPENSE_STATUS_STYLE[form.status] ?? ""}`}>{form.status}</p>
+                ) : (
+                  <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className={inputCls}>
+                    <option value="PENDENTE">Pendente (a pagar)</option>
+                    <option value="PAGO">Pago</option>
+                  </select>
+                )}
               </div>
             </div>
             <div>
               <label className="mb-1 block text-xs text-[#94A3B8]">Descrição *</label>
-              <input
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-                className="w-full rounded-lg border border-white/10 bg-[#101a2e] px-3 py-2 text-sm text-[#F5F7FA] focus:outline-none focus:ring-1 focus:ring-[#2F6FED]"
-              />
+              <input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className={inputCls} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="mb-1 block text-xs text-[#94A3B8]">Valor (AOA) *</label>
-                <input
-                  type="number"
-                  value={form.amount}
-                  onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                  className="w-full rounded-lg border border-white/10 bg-[#101a2e] px-3 py-2 text-sm text-[#F5F7FA] focus:outline-none focus:ring-1 focus:ring-[#2F6FED]"
-                />
+                <input type="number" min="0" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} className={inputCls} />
               </div>
               <div>
-                <label className="mb-1 block text-xs text-[#94A3B8]">Data *</label>
-                <SmartDatePicker
-                  value={form.expenseDate}
-                  onChange={(v) => setForm({ ...form, expenseDate: v })}
-                  required
-                />
+                <label className="mb-1 block text-xs text-[#94A3B8]">Data / Vencimento *</label>
+                <SmartDatePicker value={form.expenseDate} onChange={(v) => setForm({ ...form, expenseDate: v })} required />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-xs text-[#94A3B8]">Fornecedor</label>
+                <input value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })} className={inputCls} />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-[#94A3B8]">Método de pagamento</label>
+                <select value={form.paymentMethod} onChange={(e) => setForm({ ...form, paymentMethod: e.target.value })} className={inputCls}>
+                  <option value="">—</option>
+                  {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
+                </select>
               </div>
             </div>
             <div>
-              <label className="mb-1 block text-xs text-[#94A3B8]">Fornecedor</label>
+              <label className="mb-1 block text-xs text-[#94A3B8]">Referência / nº da nota</label>
+              <input value={form.reference} onChange={(e) => setForm({ ...form, reference: e.target.value })} className={inputCls} />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-[#94A3B8]">Nota / Comprovativo (PDF, PNG ou JPG, máx. 10 MB)</label>
               <input
-                value={form.supplier}
-                onChange={(e) => setForm({ ...form, supplier: e.target.value })}
-                className="w-full rounded-lg border border-white/10 bg-[#101a2e] px-3 py-2 text-sm text-[#F5F7FA] focus:outline-none focus:ring-1 focus:ring-[#2F6FED]"
+                type="file"
+                accept="application/pdf,image/png,image/jpeg"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadReceipt(f); }}
+                className="block w-full text-xs text-[#94A3B8] file:mr-3 file:rounded-lg file:border-0 file:bg-[#2F6FED]/20 file:px-3 file:py-1.5 file:text-xs file:text-[#5C8FFF]"
               />
+              {uploading && <p className="mt-1 text-xs text-[#94A3B8]">A enviar...</p>}
+              {form.receiptUrl && !uploading && (
+                <p className="mt-1 text-xs text-emerald-300">
+                  ✓ Anexado — <a href={form.receiptUrl} target="_blank" rel="noreferrer" className="underline">pré-visualizar</a>
+                  {" · "}<button type="button" onClick={() => setForm({ ...form, receiptUrl: "" })} className="text-red-400 underline">remover</button>
+                </p>
+              )}
             </div>
             <div>
               <label className="mb-1 block text-xs text-[#94A3B8]">Notas</label>
-              <textarea
-                value={form.notes}
-                onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                rows={2}
-                className="w-full rounded-lg border border-white/10 bg-[#101a2e] px-3 py-2 text-sm text-[#F5F7FA] focus:outline-none focus:ring-1 focus:ring-[#2F6FED]"
-              />
+              <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} className={inputCls} />
             </div>
+            {formError && <p className="text-xs text-red-400">{formError}</p>}
             <div className="flex justify-end gap-3 pt-2">
-              <button onClick={() => setShowModal(false)} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-[#94A3B8] hover:text-[#F5F7FA]">
-                Cancelar
-              </button>
-              <button
-                onClick={saveExpense}
-                disabled={saving}
-                className="rounded-lg bg-[#2F6FED] px-4 py-2 text-sm font-medium text-white hover:bg-[#1E4FB8] disabled:opacity-50"
-              >
+              <button onClick={() => setShowModal(false)} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-[#94A3B8] hover:text-[#F5F7FA]">Cancelar</button>
+              <button onClick={saveExpense} disabled={saving || uploading} className="rounded-lg bg-[#2F6FED] px-4 py-2 text-sm font-medium text-white hover:bg-[#1E4FB8] disabled:opacity-50">
                 {saving ? "A guardar..." : "Guardar"}
               </button>
             </div>

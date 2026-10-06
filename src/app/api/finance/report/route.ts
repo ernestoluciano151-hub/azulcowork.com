@@ -113,7 +113,7 @@ export async function GET(req: NextRequest) {
       const [rec, sala, desp] = await Promise.all([
         prisma.payment.aggregate({ where: { status: "PAGO", paidDate: { gte: from, lt: to } }, _sum: { amount: true } }),
         prisma.reservation.aggregate({ where: { paymentStatus: "PAGO", startDatetime: { gte: from, lt: to } }, _sum: { totalAmount: true } }),
-        prisma.expense.aggregate({ where: { expenseDate: { gte: from, lt: to } }, _sum: { amount: true } }),
+        prisma.expense.aggregate({ where: { status: "PAGO", OR: [{ paidDate: { gte: from, lt: to } }, { paidDate: null, expenseDate: { gte: from, lt: to } }] }, _sum: { amount: true } }),
       ]);
       const receita = (rec._sum.amount || 0) + (sala._sum.totalAmount || 0);
       const despesa = desp._sum.amount || 0;
@@ -126,7 +126,7 @@ export async function GET(req: NextRequest) {
   } else if (type === "despesas") {
     filename = `despesas-${now.getFullYear()}.xlsx`;
     const expenses = await prisma.expense.findMany({
-      where: { expenseDate: { gte: startOfYear } },
+      where: { status: { not: "CANCELADO" }, expenseDate: { gte: startOfYear } },
       orderBy: { expenseDate: "desc" },
     });
     const ws = wb.addWorksheet("Despesas");

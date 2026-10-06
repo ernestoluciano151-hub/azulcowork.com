@@ -53,7 +53,7 @@ export async function GET() {
     prisma.payment.aggregate({ where: { status: "ATRASADO" }, _sum: { amount: true } }),
     prisma.company.aggregate({ where: { contractStatus: "ATIVO", category: "SALA_PRIVADA" }, _sum: { rentAmount: true } }),
     prisma.payment.groupBy({ by: ["companyId"], where: { status: "ATRASADO" }, _count: { id: true } }),
-    prisma.expense.aggregate({ where: { status: "PAGO", expenseDate: { gte: startOfYear } }, _sum: { amount: true } }),
+    prisma.expense.aggregate({ where: { status: "PAGO", OR: [{ paidDate: { gte: startOfYear } }, { paidDate: null, expenseDate: { gte: startOfYear } }] }, _sum: { amount: true } }),
     prisma.expense.groupBy({
       by: ["category"],
       where: { status: "PAGO" },
@@ -83,8 +83,8 @@ export async function GET() {
       select: { paidDate: true, amount: true },
     }),
     prisma.expense.findMany({
-      where: { status: "PAGO", expenseDate: { gte: new Date(now.getFullYear(), now.getMonth() - 11, 1) } },
-      select: { expenseDate: true, amount: true },
+      where: { status: "PAGO", OR: [{ paidDate: { gte: new Date(now.getFullYear(), now.getMonth() - 11, 1) } }, { paidDate: null, expenseDate: { gte: new Date(now.getFullYear(), now.getMonth() - 11, 1) } }] },
+      select: { expenseDate: true, paidDate: true, amount: true },
     }),
     // Sala monthly
     prisma.reservation.findMany({
@@ -117,7 +117,7 @@ export async function GET() {
       .reduce((s, p) => s + p.amount, 0);
 
     const desp = expensesLast12m
-      .filter(e => e.expenseDate >= d && e.expenseDate < nextD)
+      .filter(e => { const dt = e.paidDate ?? e.expenseDate; return dt >= d && dt < nextD; })
       .reduce((s, e) => s + e.amount, 0);
 
     const sala = salaLast12m
