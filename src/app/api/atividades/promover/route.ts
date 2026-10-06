@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { AdminRole, CompanyCategory } from "@prisma/client";
 import { requireRole } from "@/lib/auth";
 import { addTimeline } from "@/lib/timeline";
+import { getPlanMonthlyPrice } from "@/lib/plan-prices";
 import * as Sentry from "@sentry/nextjs";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +28,7 @@ export async function POST(req: NextRequest) {
 
     const company = await prisma.company.findUnique({
       where: { id: companyId },
-      select: { id: true, name: true, category: true, contractStatus: true, rentAmount: true },
+      select: { id: true, name: true, category: true, contractStatus: true, rentAmount: true, planType: true },
     });
     if (!company) return NextResponse.json({ error: "Empresa não encontrada." }, { status: 404 });
     if (company.category === CompanyCategory.SALA_PRIVADA) {
@@ -37,10 +38,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Contrato encerrado — reactive a empresa antes de a promover." }, { status: 400 });
     }
 
+    // Sem renda definida → usa o preço do plano configurado em Configurações.
+    const planPrice = company.rentAmount > 0 ? null : await getPlanMonthlyPrice(company.planType);
+
     await prisma.$transaction(async (tx) => {
       await tx.company.update({
         where: { id: company.id },
-        data:  { category: CompanyCategory.SALA_PRIVADA },
+        data:  {
+          category: CompanyCategory.SALA_PRIVADA,
+          ...(planPrice != null ? { rentAmount: planPrice } : {}),
+        },
       });
       await addTimeline(tx, {
         type:          "NOTA",
@@ -55,7 +62,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      needsRent: company.rentAmount <= 0,
+      needsRent: company.rentAmount <= 0 && planPrice == null,
+      rentSetTo: planPrice,
     });
   } catch (err) {
     console.error("[POST /api/atividades/promover]", err);

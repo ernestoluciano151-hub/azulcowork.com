@@ -94,6 +94,29 @@ export default function CompanyModal({ company, onClose, onSaved }: Props) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState("");
 
+  // Preços por plano (Configurações → Sala de Reunião) — a renda é sugerida
+  // automaticamente ao escolher o plano; continua editável.
+  const [planPrices, setPlanPrices] = useState<Record<string, number>>({});
+  useEffect(() => {
+    fetch("/api/admin/plan-prices")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d?.prices) return;
+        const map: Record<string, number> = {};
+        for (const p of d.prices as { planType: string; monthlyPrice: number }[]) map[p.planType] = p.monthlyPrice;
+        setPlanPrices(map);
+        // nova empresa sem renda ainda: sugere a do plano por omissão
+        if (isCreate && !rentAmount && map[planType] != null) setRentAmount(String(map[planType]));
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function handlePlanChange(v: string) {
+    setPlanType(v);
+    if (planPrices[v] != null) setRentAmount(String(planPrices[v]));
+  }
+
   async function save() {
     setError("");
     const isRoomLead = isCreate && category === "SALA_REUNIAO";
@@ -193,7 +216,7 @@ export default function CompanyModal({ company, onClose, onSaved }: Props) {
                 isCreate, category, setCategory,
                 name, setName, nif, setNif, responsible, setResponsible,
                 email, setEmail, whatsapp, setWhatsapp, roomNumber, setRoomNumber,
-                numEmployees, setNumEmployees, planType, setPlanType,
+                numEmployees, setNumEmployees, planType, setPlanType: handlePlanChange,
                 contractStart, setContractStart, contractEnd, setContractEnd,
                 rentAmount, setRentAmount, contractStatus, setContractStatus,
                 paymentStatus, setPaymentStatus, contractFileUrl, setContractFileUrl,

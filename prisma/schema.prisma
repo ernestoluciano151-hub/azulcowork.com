@@ -557,6 +557,19 @@ model RoomPricing {
   @@index([active])
 }
 
+/// Preço mensal (e diário, quando aplicável) por tipo de plano de coworking.
+/// Editável em Configurações → Sala de Reunião. Usado para sugerir a renda
+/// ao criar/editar empresas e ao passar uma empresa para Sala Privada.
+model CoworkingPlanPrice {
+  id           String   @id @default(cuid())
+  planType     String   @unique   // "Hot Desk" | "Sala Privada" | "Sala Dedicada" | "Virtual Office"
+  monthlyPrice Float
+  dailyPrice   Float?
+  sortOrder    Int      @default(0)
+  updatedAt    DateTime @updatedAt
+  updatedBy    String?
+}
+
 model RoomSettings {
   id                  String   @id @default(cuid())
   defaultPricePerHour Float    @default(15000)

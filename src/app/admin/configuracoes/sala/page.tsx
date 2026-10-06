@@ -22,7 +22,40 @@ type Settings = {
 const inp = "w-full rounded-lg border border-white/10 bg-[#0B1220] px-3 py-2.5 text-sm text-[#F5F7FA] focus:border-[#2F6FED] focus:outline-none placeholder:text-[#4b5a77]";
 const lbl = "block text-xs font-medium text-[#94A3B8] mb-1.5";
 
+type PlanPrice = { planType: string; monthlyPrice: number | string; dailyPrice: number | string | null };
+
 export default function SalaSettingsPage() {
+  // Preços dos planos de coworking (Hot Desk, Sala Privada, ...)
+  const [planPrices, setPlanPrices] = useState<PlanPrice[]>([]);
+  const [savingPlans, setSavingPlans] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/admin/plan-prices")
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d?.prices) setPlanPrices(d.prices); });
+  }, []);
+
+  function setPlan(planType: string, key: "monthlyPrice" | "dailyPrice", val: string) {
+    setPlanPrices(list => list.map(p => (p.planType === planType ? { ...p, [key]: val } : p)));
+  }
+
+  async function savePlans() {
+    setSavingPlans(true);
+    const res = await fetch("/api/admin/plan-prices", {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prices: planPrices }),
+    });
+    setSavingPlans(false);
+    if (res.ok) {
+      const d = await res.json(); setPlanPrices(d.prices);
+      setToast({ type: "ok", msg: "Preços dos planos guardados. Novas empresas e promoções usam estes valores." });
+    } else {
+      const d = await res.json().catch(() => ({}));
+      setToast({ type: "err", msg: d.error || "Erro ao guardar preços dos planos." });
+    }
+    setTimeout(() => setToast(null), 4000);
+  }
+
   const [form, setForm] = useState<Partial<Settings>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -109,6 +142,38 @@ export default function SalaSettingsPage() {
           <p>2. Se a duração ≥ 6h e houver preço dia inteiro → usa esse valor (mais barato)</p>
           <p>3. Se a duração ≥ 3h e o preço meio dia for inferior ao horário × hora → usa preço meio dia</p>
           <p>4. Caso contrário → duração × preço por hora</p>
+        </div>
+      </section>
+
+      {/* Preços dos planos de coworking */}
+      <section className="rounded-2xl border border-white/10 bg-[#0d1829] p-6 space-y-5">
+        <div>
+          <h2 className="text-base font-bold text-[#F5F7FA]">🏢 Preços — Planos de Coworking</h2>
+          <p className="text-xs text-[#94A3B8] mt-0.5">
+            Renda mensal por tipo de plano. É sugerida automaticamente ao registar ou editar uma empresa
+            e ao passá-la para Sala Privada. Contratos já existentes não são alterados.
+          </p>
+        </div>
+        <div className="space-y-3">
+          {planPrices.map(p => (
+            <div key={p.planType} className="grid grid-cols-[1fr_1fr_1fr] items-end gap-4">
+              <div className="text-sm font-medium text-[#F5F7FA] pb-2.5">{p.planType}</div>
+              <div>
+                <label className={lbl}>Preço Mensal (AOA)</label>
+                <input type="number" min="0" value={p.monthlyPrice} onChange={e => setPlan(p.planType, "monthlyPrice", e.target.value)} className={inp} />
+              </div>
+              <div>
+                <label className={lbl}>Preço Diário (AOA, opcional)</label>
+                <input type="number" min="0" value={p.dailyPrice ?? ""} onChange={e => setPlan(p.planType, "dailyPrice", e.target.value)} className={inp} placeholder="—" />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="flex justify-end">
+          <button onClick={savePlans} disabled={savingPlans || planPrices.length === 0}
+            className="rounded-xl bg-[#2F6FED] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#1E4FB8] disabled:opacity-50">
+            {savingPlans ? "A guardar..." : "Guardar preços dos planos"}
+          </button>
         </div>
       </section>
 
