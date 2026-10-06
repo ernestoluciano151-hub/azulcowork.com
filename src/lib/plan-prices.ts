@@ -9,12 +9,13 @@ export const DEFAULT_PLAN_PRICES: { planType: string; monthlyPrice: number; dail
   { planType: "Hot Desk",            monthlyPrice: 69000,  dailyPrice: 9900, sortOrder: 0 },
   { planType: "Sala Privada",        monthlyPrice: 119900, dailyPrice: null, sortOrder: 1 },
   { planType: "Sala Privada Grande", monthlyPrice: 285500, dailyPrice: null, sortOrder: 2 },
-  { planType: "Virtual Office",      monthlyPrice: 19900,  dailyPrice: null, sortOrder: 3 },
+  { planType: "Sala Executiva",      monthlyPrice: 299900, dailyPrice: null, sortOrder: 3 },
+  { planType: "Virtual Office",      monthlyPrice: 19900,  dailyPrice: null, sortOrder: 4 },
 ];
 
-/** Planos sem preço próprio: usam o de outro plano (Sala Dedicada = Sala Privada). */
+/** Nomes antigos de planos: usam o preço do plano que os substituiu (Sala Dedicada → Sala Executiva). */
 export const PLAN_PRICE_ALIASES: Record<string, string> = {
-  "Sala Dedicada": "Sala Privada",
+  "Sala Dedicada": "Sala Executiva",
 };
 
 /** Devolve todos os preços, criando os que ainda não existem (idempotente). */

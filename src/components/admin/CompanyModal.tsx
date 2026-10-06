@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { formatKz } from "@/lib/currency";
 
-const PLAN_TYPES = ["Hot Desk", "Sala Privada", "Sala Privada Grande", "Sala Dedicada", "Virtual Office", "Outro"];
+const PLAN_TYPES = ["Hot Desk", "Sala Privada", "Sala Privada Grande", "Sala Executiva", "Sala Dedicada", "Virtual Office", "Outro"];
 const CONTRACT_STATUSES = ["ATIVO", "PRESTES_EXPIRAR", "RENOVADO", "ENCERRADO"];
 const PAYMENT_STATUSES = ["EM_DIA", "A_VENCER", "EM_ATRASO"];
 
@@ -104,7 +104,7 @@ export default function CompanyModal({ company, onClose, onSaved }: Props) {
         if (!d?.prices) return;
         const map: Record<string, number> = {};
         for (const p of d.prices as { planType: string; monthlyPrice: number }[]) map[p.planType] = p.monthlyPrice;
-        map["Sala Dedicada"] = map["Sala Privada"]; // Sala Dedicada = mesmo preço da Sala Privada
+        map["Sala Dedicada"] = map["Sala Executiva"]; // nome antigo → Sala Executiva
         setPlanPrices(map);
         // nova empresa sem renda ainda: sugere a do plano por omissão
         if (isCreate && !rentAmount && map[planType] != null) setRentAmount(String(map[planType]));
