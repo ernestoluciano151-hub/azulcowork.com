@@ -38,6 +38,9 @@ export async function GET() {
     salaReceitaMesAgg,
     salaReceitaAnualAgg,
     salaPendenteAgg,
+    despesaMesAgg,
+    despesaPendenteAgg,
+    despesaVencidaAgg,
   ] = await Promise.all([
     // KPIs
     prisma.payment.aggregate({ where: { status: "PAGO", paidDate: { gte: startOfMonth } }, _sum: { amount: true } }),
@@ -104,6 +107,10 @@ export async function GET() {
       where: { paymentStatus: "PENDENTE", status: { notIn: ["CANCELADA"] } },
       _sum: { totalAmount: true },
     }),
+    // Despesas (CRM) — pago pela data de pagamento; pendentes/vencidas = compromissos em aberto
+    prisma.expense.aggregate({ where: { status: "PAGO", OR: [{ paidDate: { gte: startOfMonth } }, { paidDate: null, expenseDate: { gte: startOfMonth } }] }, _sum: { amount: true } }),
+    prisma.expense.aggregate({ where: { status: "PENDENTE" }, _sum: { amount: true }, _count: { id: true } }),
+    prisma.expense.aggregate({ where: { status: "PENDENTE", expenseDate: { lt: new Date(now.getFullYear(), now.getMonth(), now.getDate()) } }, _sum: { amount: true }, _count: { id: true } }),
   ]);
 
   // ── Build monthly chart data in memory ────────────────────────────────────
@@ -168,6 +175,11 @@ export async function GET() {
     empresasEmAtraso:  empresasEmAtrasoGroupBy.length,
     caixaAtual:       (receitaAnualAgg._sum.amount || 0) + salaReceitaAnualVal - (caixaAnnualAgg._sum.amount || 0),
     totalDespesasAnual: caixaAnnualAgg._sum.amount || 0,
+    despesaMes:         despesaMesAgg._sum.amount || 0,
+    despesasPendentes:  despesaPendenteAgg._sum.amount || 0,
+    despesasPendentesCount: despesaPendenteAgg._count.id,
+    despesasVencidas:   despesaVencidaAgg._sum.amount || 0,
+    despesasVencidasCount:  despesaVencidaAgg._count.id,
     totalContratado,
     totalEmDivida,
     receitaMensal:     monthlyData,

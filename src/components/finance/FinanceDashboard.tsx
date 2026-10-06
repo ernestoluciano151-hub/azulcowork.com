@@ -19,6 +19,11 @@ type SummaryData = {
   empresasEmAtraso: number;
   caixaAtual: number;
   totalDespesasAnual: number;
+  despesaMes: number;
+  despesasPendentes: number;
+  despesasPendentesCount: number;
+  despesasVencidas: number;
+  despesasVencidasCount: number;
   totalContratado: number;
   totalEmDivida: number;
   receitaMensal: { month: string; receita: number; despesa: number }[];
@@ -173,10 +178,32 @@ export default function FinanceDashboard() {
           labelClass="text-red-400"
         />
         <KpiCard
-          label="Caixa Actual (ano)"
-          value={formatKz(data.caixaAtual)}
-          colorClass={data.caixaAtual >= 0 ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-300" : "border-red-500/20 bg-red-500/5 text-red-300"}
-          labelClass={data.caixaAtual >= 0 ? "text-emerald-400" : "text-red-400"}
+          label="Despesas (ano)"
+          value={formatKz(data.totalDespesasAnual)}
+          colorClass="border-orange-500/20 bg-orange-500/5 text-orange-300"
+          labelClass="text-orange-400"
+        />
+      </div>
+
+      {/* Row 5 — Despesas (sincronizado com Pagamentos → Despesas) */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <KpiCard
+          label="Despesas do Mês (pagas)"
+          value={formatKz(data.despesaMes)}
+          colorClass="border-orange-500/20 bg-orange-500/5 text-orange-300"
+          labelClass="text-orange-400"
+        />
+        <KpiCard
+          label={`Despesas Pendentes (${data.despesasPendentesCount})`}
+          value={formatKz(data.despesasPendentes)}
+          colorClass="border-amber-500/20 bg-amber-500/5 text-amber-300"
+          labelClass="text-amber-400"
+        />
+        <KpiCard
+          label={`Despesas Vencidas (${data.despesasVencidasCount})`}
+          value={formatKz(data.despesasVencidas)}
+          colorClass={data.despesasVencidas > 0 ? "border-red-500/20 bg-red-500/5 text-red-300" : "border-emerald-500/20 bg-emerald-500/5 text-emerald-300"}
+          labelClass={data.despesasVencidas > 0 ? "text-red-400" : "text-emerald-400"}
         />
       </div>
 
