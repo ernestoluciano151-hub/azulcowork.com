@@ -35,8 +35,19 @@ export async function GET(req: NextRequest) {
     orderBy: { name: "asc" },
   });
 
+  // Empresas registadas na página Empresas que NÃO aparecem em Atividades
+  // (clientes de sala de reunião ou contratos encerrados) — usado pelo botão
+  // "Sincronizar empresas" para o admin perceber porque uma empresa recém
+  // registada não está na lista.
+  const excluded = await prisma.company.findMany({
+    where: { OR: [{ contractStatus: "ENCERRADO" }, { category: { not: "SALA_PRIVADA" } }] },
+    select: { id: true, name: true, category: true, contractStatus: true, createdAt: true },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+  });
+
   if (companies.length === 0) {
-    return NextResponse.json({ data: [], month: `${year}-${String(month).padStart(2, "0")}` });
+    return NextResponse.json({ data: [], excluded, month: `${year}-${String(month).padStart(2, "0")}` });
   }
 
   const ids = companies.map(c => c.id);
@@ -112,7 +123,7 @@ export async function GET(req: NextRequest) {
     };
   });
 
-  return NextResponse.json({ data, month: monthKey });
+  return NextResponse.json({ data, excluded, month: monthKey });
 }
 
 export async function POST(req: NextRequest) {

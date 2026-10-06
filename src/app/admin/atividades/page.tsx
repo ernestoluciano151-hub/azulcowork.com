@@ -23,6 +23,13 @@ interface CompanyActivity {
 
 type ModalType = "sala" | "prints" | null;
 
+interface ExcludedCompany {
+  id:             string;
+  name:           string;
+  category:       string;
+  contractStatus: string;
+}
+
 const PAYMENT_METHODS: { value: string; label: string }[] = [
   { value: "BANK_TRANSFER", label: "Transferência bancária" },
   { value: "CASH",          label: "Dinheiro" },
@@ -82,17 +89,40 @@ export default function AtividadesPage() {
   const [sendingReceipt, setSendingReceipt] = useState(false);
   const [receiptStatus, setReceiptStatus]   = useState<{ ok: boolean; msg: string } | null>(null);
 
-  const load = useCallback(async () => {
+  // Sincronização com a página Empresas
+  const [excluded, setExcluded] = useState<ExcludedCompany[]>([]);
+  const [syncing, setSyncing]   = useState(false);
+  const [syncMsg, setSyncMsg]   = useState<{ ok: boolean; msg: string } | null>(null);
+
+  const load = useCallback(async (): Promise<CompanyActivity[] | null> => {
     setLoading(true);
     try {
       const res = await fetch(`/api/atividades?month=${month}`);
-      if (res.ok) setData((await res.json()).data);
+      if (res.ok) {
+        const json = await res.json();
+        setData(json.data);
+        setExcluded(json.excluded ?? []);
+        return json.data as CompanyActivity[];
+      }
+      return null;
     } finally {
       setLoading(false);
     }
   }, [month]);
 
   useEffect(() => { load(); }, [load]);
+
+  async function handleSync() {
+    setSyncing(true); setSyncMsg(null);
+    const before = new Set(data.map(c => c.id));
+    const fresh = await load();
+    setSyncing(false);
+    if (!fresh) { setSyncMsg({ ok: false, msg: "Erro ao sincronizar. Tente novamente." }); return; }
+    const added = fresh.filter(c => !before.has(c.id));
+    setSyncMsg(added.length > 0
+      ? { ok: true,  msg: `${added.length} nova(s) empresa(s) adicionada(s): ${added.map(c => c.name).join(", ")}.` }
+      : { ok: true,  msg: "Sem novas empresas registadas desde a última actualização." });
+  }
 
   function openSala(c: CompanyActivity) {
     setSelCompany(c); setHours("0"); setMinutes("30"); setNotes(""); setModal("sala");
@@ -221,13 +251,40 @@ export default function AtividadesPage() {
               mais a taxa de condomínio ({formatKz(9500)}/mês). Renova automaticamente no início de cada mês.
             </p>
           </div>
-          <input
-            type="month"
-            value={month}
-            onChange={e => setMonth(e.target.value)}
-            className="focus-ring h-9 rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-paper"
-          />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleSync}
+              disabled={syncing}
+              className="focus-ring h-9 rounded-lg bg-blue-600 px-3 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-60"
+            >
+              {syncing ? "A sincronizar…" : "+ Sincronizar empresas"}
+            </button>
+            <input
+              type="month"
+              value={month}
+              onChange={e => setMonth(e.target.value)}
+              className="focus-ring h-9 rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-paper"
+            />
+          </div>
         </div>
+
+        {/* Resultado da sincronização com a página Empresas */}
+        {syncMsg && (
+          <div className={`rounded-xl border p-4 text-sm ${syncMsg.ok ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-300" : "border-red-500/30 bg-red-500/5 text-red-300"}`}>
+            {syncMsg.msg}
+            {excluded.length > 0 && (
+              <div className="mt-2 text-xs text-mist">
+                {excluded.length} empresa(s) registada(s) em{" "}
+                <a href="/admin/empresas" className="underline text-blue-400">Empresas</a>{" "}
+                não aparecem aqui (sala de reunião sem contrato ou contrato encerrado):{" "}
+                {excluded.slice(0, 8).map(c =>
+                  `${c.name} (${c.contractStatus === "ENCERRADO" ? "encerrado" : "sala de reunião"})`
+                ).join(", ")}
+                {excluded.length > 8 ? "…" : ""}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Alertas */}
         {alerts.length > 0 && (
