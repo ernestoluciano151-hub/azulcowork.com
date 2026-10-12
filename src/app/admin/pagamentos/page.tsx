@@ -155,7 +155,8 @@ function PagamentosTab() {
   const [summary, setSummary] = useState({ pago: 0, pendente: 0, atrasado: 0 });
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("ALL");
-  const [month, setMonth] = useState("");
+  // Por omissão: mês actual (antes ficava vazio → "---- de ----" e totais globais).
+  const [month, setMonth] = useState(() => format(new Date(), "yyyy-MM"));
   const [q, setQ] = useState("");
   const [markingId, setMarkingId] = useState<string | null>(null);
   const [deleteModal, setDeleteModal] = useState<{ id: string; label: string } | null>(null);
@@ -220,6 +221,21 @@ function PagamentosTab() {
             onChange={(e) => setMonth(e.target.value)}
             className="rounded-lg border border-white/10 bg-[#0B1220] px-3 py-2 text-sm text-[#F5F7FA] focus:outline-none focus:ring-1 focus:ring-[#2F6FED]"
           />
+          {month ? (
+            <button
+              onClick={() => setMonth("")}
+              className="rounded-lg border border-white/10 px-3 py-2 text-xs text-[#94A3B8] hover:text-[#F5F7FA]"
+            >
+              Ver todos os meses
+            </button>
+          ) : (
+            <button
+              onClick={() => setMonth(format(new Date(), "yyyy-MM"))}
+              className="rounded-lg border border-white/10 px-3 py-2 text-xs text-[#94A3B8] hover:text-[#F5F7FA]"
+            >
+              Mês actual
+            </button>
+          )}
         </div>
         <button
           onClick={() => setShowModal(true)}
@@ -232,15 +248,15 @@ function PagamentosTab() {
       {/* Summary cards */}
       <div className="mb-5 grid grid-cols-3 gap-4">
         <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-emerald-400">Total recebido</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-emerald-400">Total recebido{month ? " (mês)" : " (geral)"}</p>
           <p className="mt-1 text-xl font-bold text-emerald-300">{formatKz(summary.pago)}</p>
         </div>
         <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-amber-400">Total pendente</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-amber-400">Total pendente{month ? " (mês)" : " (geral)"}</p>
           <p className="mt-1 text-xl font-bold text-amber-300">{formatKz(summary.pendente)}</p>
         </div>
         <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-red-400">Total em atraso</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-red-400">Total em atraso{month ? " (mês)" : " (geral)"}</p>
           <p className="mt-1 text-xl font-bold text-red-300">{formatKz(summary.atrasado)}</p>
         </div>
       </div>
@@ -253,6 +269,7 @@ function PagamentosTab() {
               <th className="px-4 py-3 font-medium">Empresa</th>
               <th className="px-4 py-3 font-medium">Valor</th>
               <th className="px-4 py-3 font-medium">Estado</th>
+              <th className="px-4 py-3 font-medium">Período / Venc.</th>
               <th className="px-4 py-3 font-medium">Data Pagamento</th>
               <th className="px-4 py-3 font-medium">Método</th>
               <th className="px-4 py-3 font-medium">Docs</th>
@@ -261,14 +278,14 @@ function PagamentosTab() {
           </thead>
           <tbody className="divide-y divide-white/5">
             {loading && (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-[#94A3B8]">A carregar...</td></tr>
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-[#94A3B8]">A carregar...</td></tr>
             )}
             {!loading && payments.length === 0 && (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-[#94A3B8]">Nenhum pagamento encontrado.</td></tr>
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-[#94A3B8]">Nenhum pagamento encontrado.</td></tr>
             )}
             {payments.map((p) => (
               <tr key={p.id} className="text-[#F5F7FA] hover:bg-white/[0.02]">
-                <td className="px-4 py-3 font-mono text-xs text-[#5C8FFF]">{p.receiptNumber || "—"}</td>
+                <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-[#5C8FFF]">{p.receiptNumber || "—"}</td>
                 <td className="px-4 py-3 font-medium">{p.company?.name ?? <span className="text-[#94A3B8] italic text-xs">Sem empresa</span>}</td>
                 <td className="px-4 py-3 font-semibold">{formatKz(p.amount)}</td>
                 <td className="px-4 py-3">
@@ -276,7 +293,10 @@ function PagamentosTab() {
                     {p.status}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-[#94A3B8]">
+                <td className="whitespace-nowrap px-4 py-3 text-[#94A3B8]">
+                  {format(new Date(p.dueDate), "dd/MM/yyyy")}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 text-[#94A3B8]">
                   {p.paidDate ? format(new Date(p.paidDate), "dd/MM/yyyy") : "—"}
                 </td>
                 <td className="px-4 py-3 text-[#94A3B8] text-xs">{p.paymentMethod || "—"}</td>

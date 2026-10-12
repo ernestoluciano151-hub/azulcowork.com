@@ -20,29 +20,40 @@ export async function GET(req: NextRequest) {
   const q         = searchParams.get("q");
   const companyId = searchParams.get("companyId");
 
-  const where: Record<string, unknown> = {};
-  if (status && status !== "ALL") where.status = status;
-  if (month) {
+  // Filtro de período (06/12 Out 2026): pagamentos PAGO contam pelo mês em que o
+  // dinheiro entrou (paidDate — caixa); pendentes/atrasados pelo vencimento (dueDate).
+  // Os cartões de totais usam o MESMO filtro da tabela (antes eram sempre globais).
+  const and: Record<string, unknown>[] = [];
+  if (month && /^\d{4}-\d{2}$/.test(month)) {
     const [y, m] = month.split("-").map(Number);
-    where.dueDate = { gte: new Date(y, m - 1, 1), lt: new Date(y, m, 1) };
+    const range = { gte: new Date(y, m - 1, 1), lt: new Date(y, m, 1) };
+    and.push({ OR: [
+      { status: "PAGO", paidDate: range },
+      { status: "PAGO", paidDate: null, dueDate: range },
+      { status: { not: "PAGO" }, dueDate: range },
+    ] });
   }
-  if (q)         where.OR = [
+  if (q) and.push({ OR: [
     { company: { name: { contains: q, mode: "insensitive" } } },
     { notes:   { contains: q, mode: "insensitive" } },
-  ];
-  if (companyId) where.companyId = companyId;
+  ] });
+  if (companyId) and.push({ companyId });
+
+  const baseWhere = and.length ? { AND: and } : {};
+  const where: Record<string, unknown> = { ...baseWhere };
+  if (status && status !== "ALL") where.status = status;
 
   const payments = await prisma.payment.findMany({
     where,
     include: { company: { select: { id: true, name: true } } },
-    orderBy: { dueDate: "desc" },
-    take: 200,
+    orderBy: [{ paidDate: { sort: "desc", nulls: "last" } }, { dueDate: "desc" }],
+    take: 500,
   });
 
   const [sumPago, sumPendente, sumAtrasado] = await Promise.all([
-    prisma.payment.aggregate({ where: { status: "PAGO"     }, _sum: { amount: true } }),
-    prisma.payment.aggregate({ where: { status: "PENDENTE" }, _sum: { amount: true } }),
-    prisma.payment.aggregate({ where: { status: "ATRASADO" }, _sum: { amount: true } }),
+    prisma.payment.aggregate({ where: { ...baseWhere, status: "PAGO"     }, _sum: { amount: true } }),
+    prisma.payment.aggregate({ where: { ...baseWhere, status: "PENDENTE" }, _sum: { amount: true } }),
+    prisma.payment.aggregate({ where: { ...baseWhere, status: "ATRASADO" }, _sum: { amount: true } }),
   ]);
 
   return NextResponse.json({
