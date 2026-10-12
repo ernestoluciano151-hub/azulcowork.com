@@ -89,7 +89,7 @@ type Expense = {
 
 type Company = { id: string; name: string };
 
-const TABS = ["Dashboard", "Pagamentos", "Faturas", "Despesas", "Relatórios"] as const;
+const TABS = ["Dashboard", "Pagamentos", "Faturas", "Despesas", "Consistência", "Relatórios"] as const;
 type Tab = (typeof TABS)[number];
 
 export default function PagamentosPage() {
@@ -136,6 +136,7 @@ export default function PagamentosPage() {
         {activeTab === "Pagamentos" && <PagamentosTab />}
         {activeTab === "Faturas" && <FaturasTab />}
         {activeTab === "Despesas" && <DespesasTab />}
+        {activeTab === "Consistência" && <ConsistenciaTab />}
         {activeTab === "Relatórios" && <RelatoriosTab />}
     </AdminLayout>
   );
@@ -1114,6 +1115,101 @@ function DespesasTab() {
           </div>
         </Modal>
       )}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────
+   TAB — Consistência CRM ↔ ERP (só leitura)
+───────────────────────────────────────── */
+const FLAG_LABEL: Record<string, string> = {
+  SEM_CONTRATO_ERP: "Sem contrato ERP",
+  VARIOS_CONTRATOS_ERP: "Vários contratos ERP",
+  RENDA_DIFERENTE: "Renda diferente",
+  PAGAMENTOS_DIFERENTES: "Pagamentos diferentes",
+};
+
+type ConsistencyData = {
+  resumo: { empresas: number; semContratoErp: number; variosContratosErp: number; rendaDiferente: number; pagamentosDiferentes: number; totalPagoCrm: number; totalPagoErp: number };
+  despesas: { pagasCrm: { total: number; n: number }; pagasErp: { total: number; n: number }; porSincronizar: { total: number; n: number } };
+  empresas: { companyId: string; name: string; planType: string | null; rendaCrm: number; rendaErp: number | null; pagoCrm: number; pagoErp: number; flags: string[] }[];
+};
+
+function ConsistenciaTab() {
+  const [data, setData] = useState<ConsistencyData | null>(null);
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    fetch("/api/admin/finance/consistency")
+      .then(async (r) => {
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(d.error || "Erro ao carregar.");
+        setData(d);
+      })
+      .catch((e) => setErr(e.message));
+  }, []);
+
+  if (err) return <p className="text-sm text-red-400">{err}</p>;
+  if (!data) return <p className="text-sm text-[#94A3B8]">A analisar CRM vs ERP...</p>;
+  const { resumo: r, despesas: d } = data;
+  const card = "rounded-xl border border-white/10 bg-white/[0.03] p-4";
+
+  return (
+    <div className="space-y-5">
+      <p className="text-sm text-[#94A3B8]">
+        Comparação só de leitura entre o CRM (empresas, pagamentos, despesas) e o ERP (contratos, pagamentos ERP, livro de contas). Serve para medir divergências antes de unificar.
+      </p>
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className={card}><p className="text-xs text-[#94A3B8]">Empresas (Sala Privada)</p><p className="mt-1 text-xl font-bold text-[#F5F7FA]">{r.empresas}</p></div>
+        <div className={card}><p className="text-xs text-[#94A3B8]">Sem contrato no ERP</p><p className="mt-1 text-xl font-bold text-amber-300">{r.semContratoErp}</p></div>
+        <div className={card}><p className="text-xs text-[#94A3B8]">Renda diferente</p><p className="mt-1 text-xl font-bold text-amber-300">{r.rendaDiferente}</p></div>
+        <div className={card}><p className="text-xs text-[#94A3B8]">Pagamentos diferentes</p><p className="mt-1 text-xl font-bold text-red-300">{r.pagamentosDiferentes}</p></div>
+      </div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className={card}>
+          <p className="text-xs font-semibold uppercase tracking-wider text-[#94A3B8]">Receitas pagas</p>
+          <p className="mt-2 text-sm text-[#F5F7FA]">CRM: <strong>{formatKz(r.totalPagoCrm)}</strong></p>
+          <p className="text-sm text-[#F5F7FA]">ERP: <strong>{formatKz(r.totalPagoErp)}</strong></p>
+          <p className="mt-1 text-xs text-[#94A3B8]">Diferença: {formatKz(r.totalPagoCrm - r.totalPagoErp)}</p>
+        </div>
+        <div className={card}>
+          <p className="text-xs font-semibold uppercase tracking-wider text-[#94A3B8]">Despesas pagas</p>
+          <p className="mt-2 text-sm text-[#F5F7FA]">CRM: <strong>{formatKz(d.pagasCrm.total)}</strong> ({d.pagasCrm.n})</p>
+          <p className="text-sm text-[#F5F7FA]">ERP: <strong>{formatKz(d.pagasErp.total)}</strong> ({d.pagasErp.n})</p>
+          <p className="mt-1 text-xs text-[#94A3B8]">Por sincronizar: {formatKz(d.porSincronizar.total)} ({d.porSincronizar.n})</p>
+        </div>
+      </div>
+      <div className="overflow-x-auto rounded-xl border border-white/10">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-white/[0.03] text-[#94A3B8]">
+            <tr>
+              <th className="px-4 py-3 font-medium">Empresa</th>
+              <th className="px-4 py-3 font-medium">Renda CRM</th>
+              <th className="px-4 py-3 font-medium">Renda ERP</th>
+              <th className="px-4 py-3 font-medium">Pago CRM</th>
+              <th className="px-4 py-3 font-medium">Pago ERP</th>
+              <th className="px-4 py-3 font-medium">Divergências</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/5 text-[#F5F7FA]">
+            {data.empresas.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-[#94A3B8]">Sem divergências.</td></tr>}
+            {data.empresas.map((e) => (
+              <tr key={e.companyId}>
+                <td className="px-4 py-3">{e.name}</td>
+                <td className="px-4 py-3">{formatKz(e.rendaCrm)}</td>
+                <td className="px-4 py-3">{e.rendaErp == null ? "—" : formatKz(e.rendaErp)}</td>
+                <td className="px-4 py-3">{formatKz(e.pagoCrm)}</td>
+                <td className="px-4 py-3">{formatKz(e.pagoErp)}</td>
+                <td className="px-4 py-3">
+                  <div className="flex flex-wrap gap-1">
+                    {e.flags.map((f) => <span key={f} className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs text-amber-300">{FLAG_LABEL[f] ?? f}</span>)}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
