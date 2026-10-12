@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { AdminRole } from "@prisma/client";
 import { requireRole } from "@/lib/auth";
 import * as Sentry from "@sentry/nextjs";
+import { syncExpenseToErp } from "@/lib/expense-erp-bridge";
 
 export const dynamic = "force-dynamic";
 
@@ -41,11 +42,12 @@ export async function GET(req: NextRequest) {
       status: "PAGO",
       OR: [{ paidDate: { gte: from } }, { paidDate: null, expenseDate: { gte: from } }],
     });
-    const [totalMes, totalAnual, pendente, vencido] = await Promise.all([
+    const [totalMes, totalAnual, pendente, vencido, naoSincronizadas] = await Promise.all([
       prisma.expense.aggregate({ where: paidWhere(startOfMonth), _sum: { amount: true } }),
       prisma.expense.aggregate({ where: paidWhere(startOfYear), _sum: { amount: true } }),
       prisma.expense.aggregate({ where: { status: "PENDENTE" }, _sum: { amount: true }, _count: { id: true } }),
       prisma.expense.aggregate({ where: { status: "PENDENTE", expenseDate: { lt: new Date(now.getFullYear(), now.getMonth(), now.getDate()) } }, _sum: { amount: true }, _count: { id: true } }),
+      prisma.expense.count({ where: { status: "PAGO", erpExpenseId: null } }),
     ]);
 
     return NextResponse.json({
@@ -57,6 +59,7 @@ export async function GET(req: NextRequest) {
         countPendente: pendente._count.id,
         totalVencido: vencido._sum.amount || 0,
         countVencido: vencido._count.id,
+        naoSincronizadas,
       },
     });
   } catch (err) {
@@ -100,7 +103,13 @@ export async function POST(req: NextRequest) {
         ...(st === "PAGO" ? { paidDate: paidDate ? new Date(paidDate) : new Date(expenseDate), paidBy: actor } : {}),
       },
     });
-    return NextResponse.json(expense, { status: 201 });
+    let erpSync: { ok: boolean; error?: string } | undefined;
+    if (expense.status === "PAGO") {
+      const r = await syncExpenseToErp(expense.id, session.sub);
+      erpSync = r.ok ? { ok: true } : { ok: false, error: r.error };
+      if (!r.ok) Sentry.captureMessage(`Ponte despesa→ERP falhou: ${r.error}`, { level: "error", extra: { expenseId: expense.id } });
+    }
+    return NextResponse.json({ ...expense, erpSync }, { status: 201 });
   } catch (err) {
     console.error("[POST /api/expenses]", err);
     Sentry.captureException(err, { tags: { route: "expenses" } });

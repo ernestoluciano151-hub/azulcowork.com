@@ -433,6 +433,9 @@ model Expense {
   createdBy     String?
   paidBy        String?
   cancelledAt   DateTime?
+  // Ponte para o ERP (lançamentos contabilísticos): preenchido quando a despesa PAGA foi
+  // registada no ErpExpense/FinancialLedger/CashMovement
+  erpExpenseId  String?   @unique
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

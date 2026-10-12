@@ -84,6 +84,7 @@ type Expense = {
   reference?: string | null;
   createdBy?: string | null;
   paidBy?: string | null;
+  erpExpenseId?: string | null;
 };
 
 type Company = { id: string; name: string };
@@ -657,7 +658,7 @@ function isPdfUrl(url: string) {
 
 function DespesasTab() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [summary, setSummary] = useState({ totalMes: 0, totalAnual: 0, totalPendente: 0, countPendente: 0, totalVencido: 0, countVencido: 0 });
+  const [summary, setSummary] = useState({ totalMes: 0, totalAnual: 0, totalPendente: 0, countPendente: 0, totalVencido: 0, countVencido: 0, naoSincronizadas: 0 });
   const [loading, setLoading] = useState(true);
   const [categoryFilter, setCategoryFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -674,6 +675,20 @@ function DespesasTab() {
   const [actionError, setActionError] = useState("");
 
   const todayIso = format(new Date(), "yyyy-MM-dd");
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState("");
+
+  async function syncErp() {
+    setSyncing(true);
+    setSyncMsg("");
+    const res = await fetch("/api/admin/expenses/sync-erp", { method: "POST" });
+    const d = await res.json().catch(() => ({}));
+    setSyncing(false);
+    setSyncMsg(res.ok
+      ? `${d.sincronizadas} sincronizada(s)${d.falhas?.length ? `, ${d.falhas.length} falha(s): ${d.falhas[0].error}` : ""}${d.restantes ? ` — restam ${d.restantes}, clique de novo.` : "."}`
+      : (d.error || "Sem permissão (apenas ADMIN)."));
+    fetchExpenses();
+  }
 
   const fetchExpenses = useCallback(async () => {
     setLoading(true);
@@ -827,6 +842,18 @@ function DespesasTab() {
         </button>
       </div>
 
+      {summary.naoSincronizadas > 0 && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm text-amber-200">
+          <span>{summary.naoSincronizadas} despesa(s) paga(s) ainda não contabilizada(s) no ERP (livro de contas / fluxo de caixa ERP).</span>
+          <div className="flex items-center gap-3">
+            {syncMsg && <span className="text-xs text-[#94A3B8]">{syncMsg}</span>}
+            <button onClick={syncErp} disabled={syncing} className="rounded-lg bg-amber-500/20 px-3 py-1.5 text-xs font-medium text-amber-100 hover:bg-amber-500/30 disabled:opacity-50">
+              {syncing ? "A sincronizar..." : "Sincronizar com ERP"}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* KPIs */}
       <div className="mb-5 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 p-4">
@@ -926,6 +953,7 @@ function DespesasTab() {
                 <div><dt className="text-[#94A3B8]">Referência</dt><dd>{detail.reference || "—"}</dd></div>
                 <div><dt className="text-[#94A3B8]">Registada por</dt><dd>{detail.createdBy || "—"}</dd></div>
                 <div><dt className="text-[#94A3B8]">Paga por</dt><dd>{detail.paidBy || "—"}</dd></div>
+                <div><dt className="text-[#94A3B8]">ERP</dt><dd>{detail.erpExpenseId ? "✓ Contabilizada" : detail.status === "PAGO" ? "Pendente de sincronização" : "—"}</dd></div>
                 <div className="col-span-2"><dt className="text-[#94A3B8]">Notas</dt><dd className="whitespace-pre-wrap">{detail.notes || "—"}</dd></div>
               </dl>
 
@@ -958,7 +986,7 @@ function DespesasTab() {
                 {detail.status === "PENDENTE" && (
                   <button onClick={() => doAction(detail.id, "cancel", "Cancelar esta despesa?")} className="rounded-lg border border-amber-500/30 px-4 py-2 text-xs text-amber-300 hover:bg-amber-500/10">Cancelar</button>
                 )}
-                {detail.status === "PAGO" && (
+                {detail.status === "PAGO" && !detail.erpExpenseId && (
                   <button onClick={() => doAction(detail.id, "reopen", "Reabrir (voltar a pendente)? Só ADMIN.")} className="rounded-lg border border-white/10 px-4 py-2 text-xs text-[#94A3B8] hover:bg-white/5">Reabrir</button>
                 )}
                 {detail.status !== "PAGO" && (

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { AdminRole } from "@prisma/client";
 import { requireRole } from "@/lib/auth";
 import * as Sentry from "@sentry/nextjs";
+import { syncExpenseToErp } from "@/lib/expense-erp-bridge";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +43,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           receiptUrl: body.receiptUrl || current.receiptUrl,
         },
       });
-      return NextResponse.json(updated);
+      const r = await syncExpenseToErp(updated.id, session.sub);
+      if (!r.ok) Sentry.captureMessage(`Ponte despesa→ERP falhou: ${r.error}`, { level: "error", extra: { expenseId: updated.id } });
+      return NextResponse.json({ ...updated, erpSync: r.ok ? { ok: true } : { ok: false, error: r.error } });
     }
 
     if (body.action === "cancel") {
@@ -63,6 +66,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       if (current.status !== "PAGO") {
         return NextResponse.json({ error: "Só despesas pagas podem ser reabertas." }, { status: 400 });
       }
+      if (current.erpExpenseId) {
+        return NextResponse.json({ error: "Despesa já contabilizada no ERP (livro imutável) — não pode ser reaberta." }, { status: 400 });
+      }
       const updated = await prisma.expense.update({
         where: { id: params.id },
         data: { status: "PENDENTE", paidDate: null, paidBy: null },
@@ -73,6 +79,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     // Edição (lista branca). Despesas canceladas são só de leitura.
     if (current.status === "CANCELADO") {
       return NextResponse.json({ error: "Despesa cancelada não pode ser editada." }, { status: 400 });
+    }
+    const locked = Boolean(current.erpExpenseId);
+    if (locked && (body.category !== undefined || body.amount !== undefined || body.expenseDate !== undefined)) {
+      return NextResponse.json({ error: "Despesa já contabilizada no ERP — valor, data e categoria não podem ser alterados." }, { status: 400 });
     }
     const data: Record<string, unknown> = {};
     if (body.category !== undefined) data.category = String(body.category);
