@@ -24,7 +24,8 @@ const PAYMENT_STATUS_COLORS: Record<string, string> = {
 export default function EmpresasPage() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
-  const [contractStatus, setContractStatus] = useState("ALL");
+  // "ACTIVAS" = tudo menos ENCERRADO (empresas arquivadas ficam só na base de dados)
+  const [contractStatus, setContractStatus] = useState("ACTIVAS");
   const [paymentStatus, setPaymentStatus] = useState("ALL");
   const [q, setQ] = useState("");
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
@@ -34,7 +35,8 @@ export default function EmpresasPage() {
   const fetchCompanies = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams();
-    if (contractStatus !== "ALL") params.set("contractStatus", contractStatus);
+    if (contractStatus === "ACTIVAS") params.set("excludeStatus", "ENCERRADO");
+    else if (contractStatus !== "ALL") params.set("contractStatus", contractStatus);
     if (paymentStatus !== "ALL") params.set("paymentStatus", paymentStatus);
     if (q) params.set("q", q);
 
@@ -49,6 +51,31 @@ export default function EmpresasPage() {
   useEffect(() => {
     fetchCompanies();
   }, [fetchCompanies]);
+
+  async function archiveCompany(c: Company, force = false) {
+    if (!force && !confirm(`Arquivar "${c.name}"?\n\nO contrato fica ENCERRADO e a empresa sai de Atividades e das métricas activas. Pagamentos, faturas, recibos e histórico ficam guardados na base de dados.`)) return;
+    const res = await fetch(`/api/companies/${c.id}/arquivar`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason: "Contrato não renovado", force }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (res.status === 409 && d.needsConfirm) {
+      if (confirm(`Atenção: ${d.openPayments} pagamento(s) pendente(s)/em atraso (${formatKz(d.openAmount)}).\nArquivar na mesma? Ficam registados no histórico.`)) return archiveCompany(c, true);
+      return;
+    }
+    if (!res.ok) { alert(d.error || "Erro ao arquivar."); return; }
+    if (d.erpWarnings?.length) alert(`Arquivada, mas com avisos no contrato ERP: ${d.erpWarnings.join("; ")}`);
+    fetchCompanies();
+  }
+
+  async function reactivateCompany(c: Company) {
+    if (!confirm(`Reactivar "${c.name}"? Depois ajuste as datas do contrato em Editar.`)) return;
+    const res = await fetch(`/api/companies/${c.id}/reativar`, { method: "POST" });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) { alert(d.error || "Erro ao reactivar."); return; }
+    fetchCompanies();
+  }
 
   return (
     <AdminLayout>
@@ -78,11 +105,12 @@ export default function EmpresasPage() {
             onChange={(e) => setContractStatus(e.target.value)}
             className="focus-ring rounded-lg border border-white/10 bg-ink px-3 py-2 text-sm text-paper"
           >
-            <option value="ALL">Estado do contrato</option>
+            <option value="ACTIVAS">Activas (sem arquivadas)</option>
+            <option value="ALL">Todas (incl. arquivadas)</option>
             <option value="ATIVO">Ativo</option>
             <option value="PRESTES_EXPIRAR">Prestes a expirar</option>
             <option value="RENOVADO">Renovado</option>
-            <option value="ENCERRADO">Encerrado</option>
+            <option value="ENCERRADO">Arquivadas (encerradas)</option>
           </select>
           <select
             value={paymentStatus}
@@ -171,6 +199,23 @@ export default function EmpresasPage() {
                       >
                         Editar
                       </button>
+                      {c.contractStatus === "ENCERRADO" ? (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); reactivateCompany(c); }}
+                          className="focus-ring rounded-lg border border-emerald-500/30 px-3 py-1.5 text-xs text-emerald-300 hover:bg-emerald-500/10"
+                          title="Reactivar empresa arquivada"
+                        >
+                          ♻️ Reactivar
+                        </button>
+                      ) : (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); archiveCompany(c); }}
+                          className="focus-ring rounded-lg border border-amber-500/30 px-3 py-1.5 text-xs text-amber-300 hover:bg-amber-500/10"
+                          title="Arquivar (contrato não renovado) — mantém o histórico"
+                        >
+                          📦 Arquivar
+                        </button>
+                      )}
                       <button
                         onClick={(e) => { e.stopPropagation(); setDeleteModal({ id: c.id, label: c.name }); }}
                         className="rounded-lg border border-red-500/20 px-2 py-1.5 text-xs text-red-400 hover:bg-red-500/10"

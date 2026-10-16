@@ -135,6 +135,23 @@ export default function AtividadesPage() {
     }
   }
 
+  async function handleArchive(c: { id: string; name: string }, force = false) {
+    if (!force && !confirm(`Arquivar "${c.name}" (contrato não renovado)?\n\nSai de Atividades; pagamentos, faturas e histórico ficam guardados na base de dados.`)) return;
+    const res = await fetch(`/api/companies/${c.id}/arquivar`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason: "Contrato não renovado", force }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (res.status === 409 && d.needsConfirm) {
+      if (confirm(`Atenção: ${d.openPayments} pagamento(s) pendente(s)/em atraso (${formatKz(d.openAmount)}).\nArquivar na mesma? Ficam registados no histórico.`)) return handleArchive(c, true);
+      return;
+    }
+    if (!res.ok) { setSyncMsg({ ok: false, msg: d.error ?? "Erro ao arquivar empresa." }); return; }
+    await load();
+    setSyncMsg({ ok: true, msg: `"${c.name}" foi arquivada — o histórico mantém-se na base de dados (reactive em Empresas → Arquivadas).` });
+  }
+
   async function handleSync() {
     setSyncing(true); setSyncMsg(null);
     const before = new Set(data.map(c => c.id));
@@ -387,6 +404,13 @@ export default function AtividadesPage() {
                       <td className="px-5 py-4">
                         <div className="font-medium text-paper">{c.name}</div>
                         <div className="text-xs text-mist/60 mt-0.5">{c.contractStatus}</div>
+                        <button
+                          onClick={() => handleArchive({ id: c.id, name: c.name })}
+                          className="mt-1 text-[11px] text-amber-300/80 hover:text-amber-200 hover:underline"
+                          title="Contrato não renovado — arquivar mantendo o histórico"
+                        >
+                          📦 Arquivar
+                        </button>
                       </td>
                       <td className="px-5 py-4 text-mist text-xs">{c.plan || "—"}</td>
 

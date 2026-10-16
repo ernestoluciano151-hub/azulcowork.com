@@ -35,7 +35,9 @@ export async function GET(req: NextRequest) {
   const q = searchParams.get("q")?.trim();
 
   const where: any = {};
+  const excludeStatus = searchParams.get("excludeStatus");
   if (contractStatus && contractStatus !== "ALL") where.contractStatus = contractStatus;
+  else if (excludeStatus) where.contractStatus = { not: excludeStatus };
   if (paymentStatus && paymentStatus !== "ALL") where.paymentStatus = paymentStatus;
   if (q) {
     where.OR = [
