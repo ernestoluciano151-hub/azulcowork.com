@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
+import { isOwnerEmail } from "./lib/owner";
+import { canAccessPath } from "./lib/rbac-menu";
 
 const SESSION_COOKIE        = "vd_admin_session";
 const PORTAL_SESSION_COOKIE = "portal-session";
@@ -34,8 +36,10 @@ function getPortalJwtSecret(): Uint8Array {
 const ADMIN_ONLY_PATHS = [
   "/admin/delete-requests",
   "/admin/configuracoes",
-  "/admin/settings",
 ];
+
+// Rotas exclusivas do proprietário (Ernesto) — aprovações/eliminações
+const OWNER_ONLY_PATHS = ["/admin/delete-requests"];
 
 // Rotas do portal que não requerem autenticação
 const PORTAL_PUBLIC_PATHS = [
@@ -79,6 +83,16 @@ export async function middleware(req: NextRequest) {
     // RBAC: páginas admin-only apenas para ADMIN
     const requiresAdmin = ADMIN_ONLY_PATHS.some(p => pathname.startsWith(p));
     if (requiresAdmin && payload.role !== "ADMIN") {
+      return NextResponse.redirect(new URL("/admin/dashboard", req.url));
+    }
+
+    // Aprovações: só o proprietário
+    if (OWNER_ONLY_PATHS.some(p => pathname.startsWith(p)) && !isOwnerEmail(payload.email as string | undefined)) {
+      return NextResponse.redirect(new URL("/admin/dashboard", req.url));
+    }
+
+    // Papéis restritos: só os módulos permitidos (menu + acesso directo por URL)
+    if (!canAccessPath(payload.role as string | undefined, pathname)) {
       return NextResponse.redirect(new URL("/admin/dashboard", req.url));
     }
 

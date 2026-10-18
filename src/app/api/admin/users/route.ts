@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AdminRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/auth";
+import { requireRole, requireOwner } from "@/lib/auth";
 import bcrypt from "bcryptjs";
 import { isApiRateLimited } from "@/lib/rateLimit";
 import { recordAudit, actorFromSession } from "@/lib/audit-service";
+import { isOwnerEmail } from "@/lib/owner";
 
 const VALID_ROLES: AdminRole[] = [AdminRole.ADMIN, AdminRole.COMERCIAL, AdminRole.FINANCEIRO, AdminRole.VIEWER];
 
@@ -18,7 +19,7 @@ export async function GET() {
     select: { id: true, email: true, name: true, role: true, active: true, createdAt: true },
     orderBy: { createdAt: "asc" },
   });
-  return NextResponse.json({ users });
+  return NextResponse.json({ users: users.map((u) => ({ ...u, isOwner: isOwnerEmail(u.email) })) });
 }
 
 export async function POST(req: NextRequest) {
@@ -27,7 +28,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Demasiados pedidos. Aguarde um momento." }, { status: 429 });
   }
 
-  const { session, error } = await requireRole(AdminRole.ADMIN);
+  const { session, error } = await requireOwner();
   if (error) return error;
 
   const count = await prisma.adminUser.count();

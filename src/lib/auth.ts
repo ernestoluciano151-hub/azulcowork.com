@@ -1,3 +1,4 @@
+import { isOwnerEmail } from "@/lib/owner";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { AdminRole } from "@prisma/client";
@@ -191,6 +192,24 @@ export async function requireRole(...roles: AdminRole[]): Promise<AuthResult> {
   }
   if (!session.role || !roles.includes(session.role)) {
     return { session: null, error: NextResponse.json({ error: "Sem permissão." }, { status: 403 }) };
+  }
+  return { session, error: null };
+}
+
+/**
+ * Só o proprietário da plataforma (ver src/lib/owner.ts) — aprovações, eliminações e
+ * gestão de utilizadores. Exige papel ADMIN E email do proprietário.
+ */
+export async function requireOwner(): Promise<AuthResult> {
+  const session = await getSession();
+  if (!session) {
+    return { session: null, error: NextResponse.json({ error: "Não autorizado." }, { status: 401 }) };
+  }
+  if (session.role !== "ADMIN" || !isOwnerEmail(session.email)) {
+    return {
+      session: null,
+      error: NextResponse.json({ error: "Apenas o proprietário (Ernesto) pode realizar esta acção." }, { status: 403 }),
+    };
   }
   return { session, error: null };
 }

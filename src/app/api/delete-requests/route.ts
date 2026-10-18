@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { AdminRole } from "@prisma/client";
-import { requireRole, requireSession } from "@/lib/auth";
+import { requireOwner, requireSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const { error } = await requireRole(AdminRole.ADMIN);
+  const { error } = await requireOwner();
   if (error) return error;
 
   const requests = await prisma.deleteRequest.findMany({

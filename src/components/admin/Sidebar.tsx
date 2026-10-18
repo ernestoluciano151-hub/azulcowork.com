@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import GlobalSearch from "./GlobalSearch";
+import { canAccessPath } from "@/lib/rbac-menu";
 
 const links = [
   { href: "/admin/dashboard",            label: "Dashboard",       icon: "📊", adminOnly: false, group: "geral" },
@@ -48,28 +49,36 @@ export default function Sidebar() {
   const router = useRouter();
   const [pendingDeletes, setPendingDeletes] = useState(0);
   const [role, setRole] = useState<string | null>(null);
+  const [isOwner, setIsOwner] = useState(false);
 
   useEffect(() => {
     fetch("/api/admin/me")
       .then((r) => r.ok ? r.json() : null)
-      .then((d) => { if (d) setRole(d.role); })
+      .then((d) => { if (d) { setRole(d.role); setIsOwner(!!d.isOwner); } })
       .catch(() => {});
   }, []);
 
   useEffect(() => {
-    if (role !== "ADMIN") return;
+    if (!isOwner) return;
     fetch("/api/delete-requests")
       .then((r) => r.ok ? r.json() : null)
       .then((d) => { if (d && Array.isArray(d.requests)) setPendingDeletes(d.requests.length); })
       .catch(() => {});
-  }, [pathname, role]);
+  }, [pathname, isOwner]);
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/admin/login");
   }
 
-  const visibleLinks = links.filter(l => !l.adminOnly || role === "ADMIN");
+  // Menu por papel: ADMIN vê tudo (Aprovações só o proprietário); os restantes só os módulos
+  // permitidos em src/lib/rbac-menu.ts. Enquanto o papel não é conhecido, nada é mostrado.
+  const visibleLinks = links.filter((l) => {
+    if (!role) return false;
+    if (l.href === "/admin/delete-requests") return isOwner;
+    if (l.adminOnly && role !== "ADMIN") return false;
+    return canAccessPath(role, l.href);
+  });
 
   return (
     <aside className="flex h-screen w-60 flex-col border-r border-white/10 bg-ink2 p-5">
@@ -231,11 +240,13 @@ export default function Sidebar() {
         ))}
 
         {/* Separador CRM */}
-        <div className="pt-3 pb-1">
-          <p className="px-3 text-[10px] font-semibold uppercase tracking-widest text-azul-glow/70">
-            CRM Comercial
-          </p>
-        </div>
+        {visibleLinks.some(l => l.group === "crm") && (
+          <div className="pt-3 pb-1">
+            <p className="px-3 text-[10px] font-semibold uppercase tracking-widest text-azul-glow/70">
+              CRM Comercial
+            </p>
+          </div>
+        )}
 
         {/* Secção CRM */}
         {visibleLinks.filter(l => l.group === "crm").map((link) => (

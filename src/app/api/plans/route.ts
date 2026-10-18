@@ -16,7 +16,7 @@ import { validatePlanPrices, validateMaxPeople } from "@/lib/plan-validators";
 export const dynamic = "force-dynamic";
 
 export async function GET(_req: NextRequest) {
-  const { error } = await requireRole(AdminRole.ADMIN, AdminRole.COMERCIAL, AdminRole.FINANCEIRO);
+  const { error } = await requireRole(AdminRole.ADMIN, AdminRole.COMERCIAL, AdminRole.FINANCEIRO, AdminRole.VIEWER); // VIEWER: só leitura
   if (error) return error;
 
   const plans = await prisma.meetingPlan.findMany({

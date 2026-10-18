@@ -5,8 +5,7 @@
  */
 
 import { NextRequest, NextResponse }  from "next/server";
-import { AdminRole }                  from "@prisma/client";
-import { requireRole }                from "@/lib/auth";
+import { requireOwner }               from "@/lib/auth";
 import { rejectErpExpense }           from "@/lib/erp-expense-service";
 import "@/lib/bootstrap";
 
@@ -14,7 +13,7 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { session, error } = await requireRole(AdminRole.ADMIN);
+  const { session, error } = await requireOwner();
   if (error) return error;
 
   const { id } = await params;

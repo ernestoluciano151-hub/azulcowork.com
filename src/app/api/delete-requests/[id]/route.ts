@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { AdminRole } from "@prisma/client";
-import { requireRole } from "@/lib/auth";
+import { requireOwner } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const { session, error } = await requireRole(AdminRole.ADMIN);
+  const { session, error } = await requireOwner();
   if (error) return error;
 
   const { action, reviewNote } = await req.json();

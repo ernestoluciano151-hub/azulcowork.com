@@ -26,7 +26,7 @@ function roomLeadPlaceholderDefaults() {
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-  const { error } = await requireRole(AdminRole.ADMIN, AdminRole.COMERCIAL, AdminRole.FINANCEIRO);
+  const { error } = await requireRole(AdminRole.ADMIN, AdminRole.COMERCIAL, AdminRole.FINANCEIRO, AdminRole.VIEWER); // VIEWER: só leitura
   if (error) return error;
 
   const { searchParams } = new URL(req.url);

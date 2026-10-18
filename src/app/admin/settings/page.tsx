@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import AdminLayout from "@/components/admin/AdminLayout";
 
 type User = {
+  isOwner?: boolean;
   id: string;
   email: string;
   name: string | null;
@@ -27,7 +28,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 export default function SettingsPage() {
   const router = useRouter();
   const [tab, setTab] = useState<"seguranca" | "utilizadores" | "sessoes">("seguranca");
-  const [me, setMe] = useState<{ role?: string } | null>(null);
+  const [me, setMe] = useState<{ role?: string; isOwner?: boolean } | null>(null);
 
   // Password change
   const [current, setCurrent] = useState("");
@@ -61,8 +62,7 @@ export default function SettingsPage() {
       .then((r) => r.ok ? r.json() : null)
       .then((d) => {
         if (!d) { router.push("/admin/dashboard"); return; }
-        if (d.role !== "ADMIN") { router.push("/admin/dashboard"); return; }
-        setMe(d);
+        setMe(d); // todos os papéis: Segurança (senha/2FA) e Sessões; Utilizadores só para ADMIN
       });
   }, [router]);
 
@@ -133,12 +133,22 @@ export default function SettingsPage() {
     fetchUsers();
   }
 
-  async function toggleRole(user: User) {
-    await fetch(`/api/admin/users/${user.id}`, {
+  async function changeRole(user: User, role: string) {
+    if (role === user.role) return;
+    if (!confirm(`Alterar o papel de ${user.name || user.email} para ${role}? A sessão dele(a) será terminada.`)) return;
+    const res = await fetch(`/api/admin/users/${user.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ role: user.role === "ADMIN" ? "VIEWER" : "ADMIN" }),
+      body: JSON.stringify({ role }),
     });
+    if (!res.ok) { const d = await res.json().catch(() => ({})); alert(d.error || "Erro ao alterar papel."); }
+    fetchUsers();
+  }
+
+  async function deleteUser(user: User) {
+    if (!confirm(`Eliminar o utilizador ${user.name || user.email}? Esta acção é irreversível.`)) return;
+    const res = await fetch(`/api/admin/users/${user.id}`, { method: "DELETE" });
+    if (!res.ok) { const d = await res.json().catch(() => ({})); alert(d.error || "Erro ao eliminar."); }
     fetchUsers();
   }
 
@@ -168,7 +178,7 @@ export default function SettingsPage() {
 
         {/* Tabs */}
         <div className="mt-6 flex gap-1 rounded-xl border border-white/10 bg-white/[0.03] p-1 w-fit">
-          {(["seguranca", "utilizadores", "sessoes"] as const).map((t) => (
+          {(["seguranca", "utilizadores", "sessoes"] as const).filter((t) => t !== "utilizadores" || me?.role === "ADMIN").map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -233,7 +243,7 @@ export default function SettingsPage() {
                 <h2 className="font-display text-lg font-bold text-paper">Gestão de Utilizadores</h2>
                 <p className="text-sm text-mist mt-1">Máximo de 4 utilizadores. {users.length}/4 em uso.</p>
               </div>
-              {users.length < 4 && (
+              {users.length < 4 && me?.isOwner && (
                 <button
                   onClick={() => setShowAddUser(true)}
                   className="rounded-lg bg-azul px-4 py-2 text-sm font-medium text-white hover:bg-azul-dim"
@@ -270,21 +280,27 @@ export default function SettingsPage() {
                         <p className="text-xs text-mist">{u.email}</p>
                       </td>
                       <td className="px-4 py-3">
-                        <button
-                          onClick={() => toggleRole(u)}
-                          className={`rounded-full px-3 py-1 text-xs font-medium cursor-pointer transition hover:opacity-80 ${
-                            u.role === "ADMIN"
-                              ? "bg-azul/15 text-azul-glow"
-                              : "bg-white/10 text-mist"
-                          }`}
-                          title="Clique para alternar papel"
-                        >
-                          {u.role}
-                        </button>
+                        {me?.isOwner && !u.isOwner ? (
+                          <select
+                            value={u.role}
+                            onChange={(e) => changeRole(u, e.target.value)}
+                            className="rounded-lg border border-white/10 bg-ink px-2 py-1 text-xs text-paper"
+                          >
+                            <option value="ADMIN">ADMIN</option>
+                            <option value="COMERCIAL">COMERCIAL</option>
+                            <option value="FINANCEIRO">FINANCEIRO</option>
+                            <option value="VIEWER">VIEWER</option>
+                          </select>
+                        ) : (
+                          <span className={`rounded-full px-3 py-1 text-xs font-medium ${u.role === "ADMIN" ? "bg-azul/15 text-azul-glow" : "bg-white/10 text-mist"}`}>
+                            {u.role}{u.isOwner ? " · proprietário" : ""}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <button
                           onClick={() => toggleActive(u)}
+                          disabled={!me?.isOwner || !!u.isOwner}
                           className={`rounded-full px-3 py-1 text-xs font-medium transition hover:opacity-80 ${
                             u.active
                               ? "bg-emerald-500/15 text-emerald-300"
@@ -298,12 +314,26 @@ export default function SettingsPage() {
                         {new Date(u.createdAt).toLocaleDateString("pt-PT")}
                       </td>
                       <td className="px-4 py-3">
-                        <button
-                          onClick={() => setResetUser(u)}
-                          className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-paper hover:bg-white/5"
-                        >
-                          Repor senha
-                        </button>
+                        {me?.isOwner ? (
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setResetUser(u)}
+                              className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-paper hover:bg-white/5"
+                            >
+                              Repor senha
+                            </button>
+                            {!u.isOwner && (
+                              <button
+                                onClick={() => deleteUser(u)}
+                                className="rounded-lg border border-red-500/30 px-3 py-1.5 text-xs text-red-300 hover:bg-red-500/10"
+                              >
+                                Eliminar
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-mist">—</span>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -311,6 +341,11 @@ export default function SettingsPage() {
               </table>
             </div>
 
+            {!me?.isOwner && (
+              <div className="mt-4 rounded-lg bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
+                🔒 Apenas o proprietário (Ernesto) pode criar, alterar papéis, eliminar utilizadores ou repor senhas.
+              </div>
+            )}
             <div className="mt-4 rounded-lg bg-azul/10 px-4 py-3 text-sm text-azul-glow">
               ℹ️ Papéis disponíveis: ADMIN (acesso total) · COMERCIAL (CRM + Reservas) · FINANCEIRO (ERP + Pagamentos) · VIEWER (só leitura).
             </div>
