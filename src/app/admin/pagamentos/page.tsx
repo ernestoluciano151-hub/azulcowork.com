@@ -41,17 +41,24 @@ const PAYMENT_METHODS = [
 type Payment = {
   id: string;
   companyId: string | null;
-  company: { id: string; name: string } | null;
-  dueDate: string;
+  // P1: API agora devolve UnifiedPayment — suporta ambos os formatos
+  company?: { id: string; name: string } | null;
+  companyName?: string | null;         // UnifiedPayment
+  dueDate: string | null;
   paidDate: string | null;
   amount: number;
   status: string;
   notes: string | null;
   paymentMethod?: string | null;
+  method?: string | null;              // UnifiedPayment usa "method"
   receiptUrl?: string | null;
   doc2Url?: string | null;
   receiptNumber?: string | null;
   operationRef?: string | null;
+  reference?: string | null;           // UnifiedPayment usa "reference"
+  source?: "COWORK" | "SALA" | "ERP"; // fonte do pagamento
+  reservationId?: string | null;
+  category?: string | null;
 };
 
 type Invoice = {
@@ -288,7 +295,12 @@ function PagamentosTab() {
             {payments.map((p) => (
               <tr key={p.id} className="text-[#F5F7FA] hover:bg-white/[0.02]">
                 <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-[#5C8FFF]">{p.receiptNumber || "—"}</td>
-                <td className="px-4 py-3 font-medium">{p.company?.name ?? <span className="text-[#94A3B8] italic text-xs">Sem empresa</span>}</td>
+                <td className="px-4 py-3 font-medium">
+                  {(p.company?.name ?? p.companyName) ?? <span className="text-[#94A3B8] italic text-xs">Sem empresa</span>}
+                  {p.source && p.source !== "COWORK" && (
+                    <span className="ml-1.5 rounded-full bg-[#2F6FED]/15 px-1.5 py-0.5 text-[10px] text-[#5C8FFF]">{p.source}</span>
+                  )}
+                </td>
                 <td className="px-4 py-3 font-semibold">{formatKz(p.amount)}</td>
                 <td className="px-4 py-3">
                   <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_COLORS[p.status] || "bg-white/10 text-[#94A3B8]"}`}>
@@ -296,12 +308,12 @@ function PagamentosTab() {
                   </span>
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-[#94A3B8]">
-                  {format(new Date(p.dueDate), "dd/MM/yyyy")}
+                  {p.dueDate ? format(new Date(p.dueDate), "dd/MM/yyyy") : "—"}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-[#94A3B8]">
                   {p.paidDate ? format(new Date(p.paidDate), "dd/MM/yyyy") : "—"}
                 </td>
-                <td className="px-4 py-3 text-[#94A3B8] text-xs">{p.paymentMethod || "—"}</td>
+                <td className="px-4 py-3 text-[#94A3B8] text-xs">{p.paymentMethod ?? p.method ?? "—"}</td>
                 <td className="px-4 py-3">
                   <div className="flex gap-2">
                     {p.receiptUrl && (
@@ -315,7 +327,7 @@ function PagamentosTab() {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
-                    {(p.status === "PENDENTE" || p.status === "ATRASADO") && (
+                    {(p.status === "PENDENTE" || p.status === "ATRASADO") && p.source !== "ERP" && (
                       <button
                         onClick={() => markAsPago(p)}
                         disabled={markingId === p.id}
@@ -325,7 +337,7 @@ function PagamentosTab() {
                       </button>
                     )}
                     <button
-                      onClick={() => setDeleteModal({ id: p.id, label: `Pagamento ${p.company?.name ?? "—"} — ${format(new Date(p.dueDate), "MM/yyyy")}` })}
+                      onClick={() => setDeleteModal({ id: p.id, label: `Pagamento ${p.company?.name ?? p.companyName ?? "—"} — ${p.dueDate ? format(new Date(p.dueDate), "MM/yyyy") : ""}` })}
                       className="rounded-lg border border-red-500/20 px-2 py-1 text-xs text-red-400 hover:bg-red-500/10"
                     >
                       🗑️

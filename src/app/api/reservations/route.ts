@@ -235,7 +235,7 @@ export async function POST(req: NextRequest) {
 
         await tx.reservation.update({
           where: { id: reservation.id },
-          data: { paymentId: paymentRec.id, invoiceId: invoiceRec.id, paymentStatus: reservPayStatus },
+          data: { paymentId: paymentRec.id, invoiceId: invoiceRec.id, erpInvoiceId: invoiceRec.id, paymentStatus: reservPayStatus },
         });
 
         // recordFinancialHistory chamado APÓS commit da tx (ver DT-017)
@@ -261,7 +261,7 @@ export async function POST(req: NextRequest) {
           },
         });
 
-        await tx.reservation.update({ where: { id: reservation.id }, data: { invoiceId: invoiceRec.id } });
+        await tx.reservation.update({ where: { id: reservation.id }, data: { invoiceId: invoiceRec.id, erpInvoiceId: invoiceRec.id } });
       }
 
       if (opt === "PAGAR_NO_DIA" && finalTotal > 0) {

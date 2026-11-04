@@ -4,6 +4,7 @@
  */
 
 import { differenceInMonths, addMonths } from "date-fns";
+import type { PrismaClient } from "@prisma/client";
 
 // ── meses inclusivos entre duas datas ────────────────────────────────────────
 //
@@ -92,7 +93,6 @@ export function fmtAOA(v: number): string {
 }
 
 // ── sumário financeiro de uma empresa (usa Prisma) ──────────────────────────
-import type { PrismaClient } from "@prisma/client";
 
 // Tipo compatível com PrismaClient e com o cliente de transacção (tx)
 export type DbClient = Omit<
@@ -208,4 +208,160 @@ export async function recordFinancialHistory(
       createdBy:      params.createdBy ?? null,
     },
   });
+}
+
+// ── P1: Pagamentos unificados (Payment + InvoicePayment + ErpPayment) ─────────
+// Corrige BUG-01 e BUG-03: dashboards que só liam o modelo legado Payment
+// passam a usar esta função e incluem pagamentos de salas e ERP.
+// Não apaga dados — faz UNION em memória dos três modelos.
+
+export type UnifiedPayment = {
+  id:            string;
+  source:        "COWORK" | "SALA" | "ERP";
+  amount:        number;
+  status:        string;
+  date:          Date;        // paidDate ou dueDate
+  paidDate:      Date | null;
+  dueDate:       Date | null;
+  companyId:     string | null;
+  companyName:   string | null;
+  method:        string | null;
+  reference:     string | null;
+  receiptNumber: string | null;
+  notes:         string | null;
+  category:      string | null;
+  reservationId: string | null;
+};
+
+export type UnifiedPaymentFilters = {
+  from?:      Date;
+  to?:        Date;
+  status?:    string;   // PAGO | PENDENTE | ATRASADO | ALL
+  companyId?: string;
+  month?:     string;   // "YYYY-MM"
+};
+
+type DbClientFull = Omit<
+  PrismaClient,
+  "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
+>;
+
+export async function getUnifiedPayments(
+  prisma: DbClientFull,
+  filters: UnifiedPaymentFilters = {}
+): Promise<UnifiedPayment[]> {
+  const { from, to, status, companyId, month } = filters;
+
+  // Intervalo de datas (compatível com o filtro de mês existente em /api/payments)
+  let dateFrom = from;
+  let dateTo   = to;
+  if (month && /^\d{4}-\d{2}$/.test(month)) {
+    const [y, m] = month.split("-").map(Number);
+    dateFrom = new Date(y, m - 1, 1);
+    dateTo   = new Date(y, m, 1);
+  }
+
+  // ── 1. Pagamentos legados de coworking (Payment) ──────────────────────────
+  const paymentWhere: Record<string, unknown> = {};
+  if (companyId) paymentWhere.companyId = companyId;
+  if (status && status !== "ALL") paymentWhere.status = status;
+  if (dateFrom || dateTo) {
+    const range: Record<string, Date> = {};
+    if (dateFrom) range.gte = dateFrom;
+    if (dateTo)   range.lt  = dateTo;
+    paymentWhere.OR = [
+      { status: "PAGO",    paidDate: range },
+      { status: "PAGO",    paidDate: null, dueDate: range },
+      { status: { not: "PAGO" }, dueDate: range },
+    ];
+  }
+
+  // ── 2. Pagamentos ERP (ErpPayment) ─────────────────────────────────────────
+  const erpWhere: Record<string, unknown> = {};
+  if (companyId) erpWhere.companyId = companyId;
+  if (status && status !== "ALL") {
+    // ErpPaymentStatus: PENDING | CONFIRMED | REJECTED
+    const erpStatus = status === "PAGO" ? "CONFIRMED" : status === "PENDENTE" ? "PENDING" : undefined;
+    if (erpStatus) erpWhere.status = erpStatus;
+  }
+  if (dateFrom || dateTo) {
+    const range: Record<string, Date> = {};
+    if (dateFrom) range.gte = dateFrom;
+    if (dateTo)   range.lt  = dateTo;
+    erpWhere.paidAt = range;
+  }
+
+  const [legacyPayments, erpPayments] = await Promise.all([
+    prisma.payment.findMany({
+      where: paymentWhere,
+      include: { company: { select: { id: true, name: true } } },
+      orderBy: [{ paidDate: { sort: "desc", nulls: "last" } }, { dueDate: "desc" }],
+      take: 1000,
+    }),
+    prisma.erpPayment.findMany({
+      where: erpWhere,
+      include: { company: { select: { id: true, name: true } } },
+      orderBy: { paidAt: "desc" },
+      take: 1000,
+    }),
+  ]);
+
+  // Normalizar Payment legado → UnifiedPayment
+  const normalizedLegacy: UnifiedPayment[] = legacyPayments.map((p) => ({
+    id:            p.id,
+    source:        (p.category === "SALA_REUNIAO" ? "SALA" : "COWORK") as "COWORK" | "SALA",
+    amount:        p.amount,
+    status:        p.status,
+    date:          p.paidDate ?? p.dueDate,
+    paidDate:      p.paidDate,
+    dueDate:       p.dueDate,
+    companyId:     p.companyId,
+    companyName:   p.company?.name ?? null,
+    method:        p.paymentMethod,
+    reference:     p.operationRef,
+    receiptNumber: p.receiptNumber,
+    notes:         p.notes,
+    category:      p.category,
+    reservationId: p.reservationId ?? null,
+  }));
+
+  // Normalizar ErpPayment → UnifiedPayment
+  const normalizedErp: UnifiedPayment[] = erpPayments.map((p) => ({
+    id:            p.id,
+    source:        "ERP" as const,
+    amount:        p.amount,
+    status:        p.status === "CONFIRMED" ? "PAGO" : p.status === "PENDING" ? "PENDENTE" : "REJEITADO",
+    date:          p.paidAt,
+    paidDate:      p.status === "CONFIRMED" ? p.paidAt : null,
+    dueDate:       null,
+    companyId:     p.companyId,
+    companyName:   p.company?.name ?? null,
+    method:        p.method,
+    reference:     p.reference,
+    receiptNumber: p.receiptNumber,
+    notes:         p.notes,
+    category:      "ERP",
+    reservationId: null,
+  }));
+
+  return [...normalizedLegacy, ...normalizedErp]
+    .sort((a, b) => (b.date?.getTime() ?? 0) - (a.date?.getTime() ?? 0));
+}
+
+// Sumário de totais usando getUnifiedPayments
+export async function getUnifiedSummary(
+  prisma: DbClientFull,
+  filters: UnifiedPaymentFilters = {}
+) {
+  const all = await getUnifiedPayments(prisma, filters);
+  return {
+    pago:     all.filter(p => p.status === "PAGO").reduce((s, p) => s + p.amount, 0),
+    pendente: all.filter(p => p.status === "PENDENTE").reduce((s, p) => s + p.amount, 0),
+    atrasado: all.filter(p => p.status === "ATRASADO").reduce((s, p) => s + p.amount, 0),
+    total:    all.reduce((s, p) => s + p.amount, 0),
+    count:    all.length,
+    bySalas:  all.filter(p => p.source === "SALA").reduce((s, p) => s + p.amount, 0),
+    byCowork: all.filter(p => p.source === "COWORK").reduce((s, p) => s + p.amount, 0),
+    byErp:    all.filter(p => p.source === "ERP").reduce((s, p) => s + p.amount, 0),
+  };
 }

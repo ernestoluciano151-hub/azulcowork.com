@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { AdminRole } from "@prisma/client";
 import { requireRole } from "@/lib/auth";
-import { recordFinancialHistory } from "@/lib/finance";
+import { recordFinancialHistory, getUnifiedPayments } from "@/lib/finance";
 import { nextDocumentNumber } from "@/lib/document-numbering";
 import { isApiRateLimited } from "@/lib/rateLimit";
 import { recordAudit, actorFromSession } from "@/lib/audit-service";
@@ -20,48 +20,31 @@ export async function GET(req: NextRequest) {
   const q         = searchParams.get("q");
   const companyId = searchParams.get("companyId");
 
-  // Filtro de período (06/12 Out 2026): pagamentos PAGO contam pelo mês em que o
-  // dinheiro entrou (paidDate — caixa); pendentes/atrasados pelo vencimento (dueDate).
-  // Os cartões de totais usam o MESMO filtro da tabela (antes eram sempre globais).
-  const and: Record<string, unknown>[] = [];
-  if (month && /^\d{4}-\d{2}$/.test(month)) {
-    const [y, m] = month.split("-").map(Number);
-    const range = { gte: new Date(y, m - 1, 1), lt: new Date(y, m, 1) };
-    and.push({ OR: [
-      { status: "PAGO", paidDate: range },
-      { status: "PAGO", paidDate: null, dueDate: range },
-      { status: { not: "PAGO" }, dueDate: range },
-    ] });
-  }
-  if (q) and.push({ OR: [
-    { company: { name: { contains: q, mode: "insensitive" } } },
-    { notes:   { contains: q, mode: "insensitive" } },
-  ] });
-  if (companyId) and.push({ companyId });
-
-  const baseWhere = and.length ? { AND: and } : {};
-  const where: Record<string, unknown> = { ...baseWhere };
-  if (status && status !== "ALL") where.status = status;
-
-  const payments = await prisma.payment.findMany({
-    where,
-    include: { company: { select: { id: true, name: true } } },
-    orderBy: [{ paidDate: { sort: "desc", nulls: "last" } }, { dueDate: "desc" }],
-    take: 500,
+  // P1/P3: usar getUnifiedPayments para incluir Payment + ErpPayment num só resultado
+  const allForSummary = await getUnifiedPayments(prisma, {
+    month:     month || undefined,
+    companyId: companyId || undefined,
   });
 
-  const [sumPago, sumPendente, sumAtrasado] = await Promise.all([
-    prisma.payment.aggregate({ where: { ...baseWhere, status: "PAGO"     }, _sum: { amount: true } }),
-    prisma.payment.aggregate({ where: { ...baseWhere, status: "PENDENTE" }, _sum: { amount: true } }),
-    prisma.payment.aggregate({ where: { ...baseWhere, status: "ATRASADO" }, _sum: { amount: true } }),
-  ]);
+  const unified = status && status !== "ALL"
+    ? allForSummary.filter(p => p.status === status)
+    : allForSummary;
+
+  // Filtro de texto aplicado em memória
+  const payments = q
+    ? unified.filter(p =>
+        (p.companyName ?? "").toLowerCase().includes(q.toLowerCase()) ||
+        (p.notes ?? "").toLowerCase().includes(q.toLowerCase()) ||
+        (p.receiptNumber ?? "").toLowerCase().includes(q.toLowerCase())
+      )
+    : unified;
 
   return NextResponse.json({
-    payments,
+    payments: payments.slice(0, 500),
     summary: {
-      pago:      sumPago._sum.amount     || 0,
-      pendente:  sumPendente._sum.amount || 0,
-      atrasado:  sumAtrasado._sum.amount || 0,
+      pago:     allForSummary.filter(p => p.status === "PAGO").reduce((s, p) => s + p.amount, 0),
+      pendente: allForSummary.filter(p => p.status === "PENDENTE").reduce((s, p) => s + p.amount, 0),
+      atrasado: allForSummary.filter(p => p.status === "ATRASADO").reduce((s, p) => s + p.amount, 0),
     },
   });
 }

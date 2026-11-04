@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { AdminRole } from "@prisma/client";
 import { requireRole } from "@/lib/auth";
-import { calcTotalContracted } from "@/lib/finance";
+import { calcTotalContracted, getUnifiedPayments } from "@/lib/finance";
 
 export const dynamic = "force-dynamic";
 
@@ -113,6 +113,18 @@ export async function GET() {
     prisma.expense.aggregate({ where: { status: "PENDENTE", expenseDate: { lt: new Date(now.getFullYear(), now.getMonth(), now.getDate()) } }, _sum: { amount: true }, _count: { id: true } }),
   ]);
 
+  // ── P7: buscar ErpPayments confirmados para incluir nos totais ───────────
+  const start12m = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+  const [erpReceitaMes, erpReceitaAnual, erpReceitaTotal, erpLast12m] = await Promise.all([
+    prisma.erpPayment.aggregate({ where: { status: "CONFIRMED", paidAt: { gte: startOfMonth } }, _sum: { amount: true } }),
+    prisma.erpPayment.aggregate({ where: { status: "CONFIRMED", paidAt: { gte: startOfYear  } }, _sum: { amount: true } }),
+    prisma.erpPayment.aggregate({ where: { status: "CONFIRMED" }, _sum: { amount: true } }),
+    prisma.erpPayment.findMany({ where: { status: "CONFIRMED", paidAt: { gte: start12m } }, select: { paidAt: true, amount: true } }),
+  ]);
+  const erpMesVal   = erpReceitaMes._sum.amount   || 0;
+  const erpAnualVal = erpReceitaAnual._sum.amount  || 0;
+  const erpTotalVal = erpReceitaTotal._sum.amount  || 0;
+
   // ── Build monthly chart data in memory ────────────────────────────────────
   const monthlyData: { month: string; receita: number; despesa: number }[] = [];
   for (let i = 11; i >= 0; i--) {
@@ -131,9 +143,14 @@ export async function GET() {
       .filter(r => r.startDatetime >= d && r.startDatetime < nextD)
       .reduce((s, r) => s + (r.totalAmount || 0), 0);
 
+    // P7: incluir ErpPayments no gráfico mensal
+    const erp = erpLast12m
+      .filter(p => p.paidAt >= d && p.paidAt < nextD)
+      .reduce((s, p) => s + p.amount, 0);
+
     monthlyData.push({
       month:   d.toLocaleDateString("pt-PT", { month: "short", year: "2-digit" }),
-      receita: rec + sala,
+      receita: rec + sala + erp,
       despesa: desp,
     });
   }
@@ -162,12 +179,14 @@ export async function GET() {
   });
 
   return NextResponse.json({
-    receitaMes:        (receitaMesAgg._sum.amount  || 0) + salaReceitaMesVal,
-    receitaAnual:      (receitaAnualAgg._sum.amount || 0) + salaReceitaAnualVal,
-    totalRecebido:     totalPagoGeral,
+    receitaMes:        (receitaMesAgg._sum.amount  || 0) + salaReceitaMesVal + erpMesVal,
+    receitaAnual:      (receitaAnualAgg._sum.amount || 0) + salaReceitaAnualVal + erpAnualVal,
+    totalRecebido:     totalPagoGeral + erpTotalVal,
     salaReceitaMes:    salaReceitaMesVal,
     salaReceitaAnual:  salaReceitaAnualVal,
     salaPendente:      salaPendenteVal,
+    erpReceitaMes:     erpMesVal,
+    erpReceitaAnual:   erpAnualVal,
     totalPendente:    (totalPendenteAgg._sum.amount || 0) + salaPendenteVal,
     totalAtrasado:     totalAtrasadoAgg._sum.amount    || 0,
     mrr:               mrrAgg._sum.rentAmount          || 0,

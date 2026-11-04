@@ -120,6 +120,63 @@ export async function recordAudit(params: AuditParams): Promise<void> {
   });
 }
 
+// ── P4: dual-write CRM — CrmAuditLog (legado) + AuditLog (canónico) ─────────
+// Preserva dados históricos no CrmAuditLog enquanto constrói histórico
+// unificado no AuditLog. Sem apagar dados. Falha silenciosa (fire-and-forget).
+
+type DbTx = Parameters<Parameters<typeof import("@/lib/prisma").prisma["$transaction"]>[0]>[0];
+
+export async function recordCrmAudit(
+  tx: DbTx,
+  params: {
+    action:     "CRM_RECORD_CREATED" | "CRM_RECORD_UPDATED" | "CRM_RECORD_DELETED"
+              | "CRM_STAGE_CHANGED"  | "CRM_MERGE"
+              | "CRM_TAG_ADDED"      | "CRM_TAG_REMOVED"
+              | "CRM_CONTACT_ADDED"
+              | "CRM_TASK_CREATED"   | "CRM_TASK_UPDATED"  | "CRM_TASK_COMPLETED";
+    entityType: string;
+    entityId:   string;
+    companyId?: string | null;
+    actorId?:   string | null;
+    before?:    Record<string, unknown> | null;
+    after?:     Record<string, unknown> | null;
+    ip?:        string;
+  }
+): Promise<void> {
+  const { action, entityType, entityId, companyId, actorId, before, after, ip } = params;
+
+  await Promise.all([
+    // legado — mantido para compatibilidade com as páginas de auditoria CRM existentes
+    tx.crmAuditLog.create({
+      data: {
+        action,
+        entityType,
+        entityId,
+        companyId: companyId ?? null,
+        actorId:   actorId   ?? null,
+        before:    before    ? (before as object)  : undefined,
+        after:     after     ? (after  as object)  : undefined,
+        ip:        ip        ?? null,
+      },
+    }),
+    // canónico — agrega com todos os outros módulos em AuditLog
+    tx.auditLog.create({
+      data: {
+        actorId:    actorId   ?? "UNKNOWN",
+        actorRole:  "UNKNOWN",
+        actorEmail: "",
+        action:     action as import("@prisma/client").AuditAction,
+        entity:     entityType,
+        entityId,
+        before:     before ? (sanitizeForAudit(before) as object) : undefined,
+        after:      after  ? (sanitizeForAudit(after)  as object) : undefined,
+        ipAddress:  ip ?? null,
+        metadata:   companyId ? ({ companyId } as object) : undefined,
+      },
+    }),
+  ]);
+}
+
 // ── Helper para extrair actor de sessão RBAC ──────────────────────────────────
 
 /**

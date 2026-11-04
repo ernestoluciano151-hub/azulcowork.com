@@ -147,6 +147,18 @@ enum AuditAction {
   DOCUMENT_GENERATED
   DOCUMENT_DOWNLOADED
   DOCUMENT_SHARED_PORTAL
+  // CRM — P4: unificação de CrmAuditLog + AuditLog
+  CRM_RECORD_CREATED
+  CRM_RECORD_UPDATED
+  CRM_RECORD_DELETED
+  CRM_STAGE_CHANGED
+  CRM_MERGE
+  CRM_TAG_ADDED
+  CRM_TAG_REMOVED
+  CRM_CONTACT_ADDED
+  CRM_TASK_CREATED
+  CRM_TASK_UPDATED
+  CRM_TASK_COMPLETED
 }
 
 /// Sessões administrativas activas — VOL05-2.
@@ -517,7 +529,9 @@ model Reservation {
 
   // Linked financial records
   paymentId         String?
-  invoiceId         String?
+  invoiceId         String?    // legado — aponta para Invoice (CRM). Mantido para compatibilidade.
+  erpInvoiceId      String?    // P2: ID da última ErpInvoice criada para esta reserva (atalho de leitura rápida)
+  erpInvoices       ErpInvoice[] @relation("ReservationErpInvoices")
   roomBookingLeadId String?
 
   createdAt         DateTime    @default(now())
@@ -1286,6 +1300,7 @@ model ErpInvoice {
   companyId     String?
   company       Company?         @relation(fields: [companyId], references: [id])
   bookingId     String?          // Reservation.id (sala de reunião)
+  booking       Reservation?     @relation("ReservationErpInvoices", fields: [bookingId], references: [id], onDelete: SetNull)
   contractId    String?
   contract      ErpContract?     @relation(fields: [contractId], references: [id])
   status        ErpInvoiceStatus @default(DRAFT)
