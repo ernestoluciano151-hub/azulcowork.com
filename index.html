@@ -21,6 +21,37 @@
 <meta name="twitter:description" content="Coworking moderno em Luanda. Hot desks, salas privadas e salas de reunião. A partir de 9.900 AOA/dia." />
 <meta name="twitter:image" content="https://azulcowork.com/assets/hero-coworking.jpg" />
 
+<!-- Fase 3: Schema.org — rich snippets no Google -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "LocalBusiness",
+  "name": "Azul Coworking",
+  "description": "Coworking moderno em Luanda. Hot desks, salas privadas e salas de reunião.",
+  "url": "https://azulcowork.com",
+  "logo": "https://azulcowork.com/assets/logo-azul.jpeg",
+  "image": "https://azulcowork.com/assets/hero-coworking.jpg",
+  "telephone": "+244976467124",
+  "address": {
+    "@type": "PostalAddress",
+    "streetAddress": "Bairro Azul, Edifício 18",
+    "addressLocality": "Luanda",
+    "addressCountry": "AO"
+  },
+  "openingHoursSpecification": [{
+    "@type": "OpeningHoursSpecification",
+    "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday","Friday"],
+    "opens": "08:00",
+    "closes": "18:00"
+  }],
+  "priceRange": "AOA 9.900–99.900",
+  "sameAs": [
+    "https://www.instagram.com/azulcoworking.ao",
+    "https://www.facebook.com/share/1CacvhGJRR/"
+  ]
+}
+</script>
+
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -373,7 +404,42 @@ tailwind.config = {
       <a href="https://www.instagram.com/azulcoworking.ao?igsh=MXVtMWhzMmxiMmZ1aA%3D%3D&utm_source=qr" target="_blank" rel="noopener" class="w-14 h-14 rounded-xl bg-azul/10 hover:bg-azul/20 flex items-center justify-center text-azul text-2xl">📷</a>
       <a href="https://www.facebook.com/share/1CacvhGJRR/?mibextid=wwXIfr" target="_blank" rel="noopener" class="w-14 h-14 rounded-xl bg-azul/10 hover:bg-azul/20 flex items-center justify-center text-azul text-2xl">f</a>
     </div>
-    <div class="text-center mt-12">
+    <!-- Formulário de contacto — Fase 2 -->
+    <div class="max-w-xl mx-auto mt-14">
+      <form id="contactForm" class="bg-white/5 border border-white/10 rounded-2xl p-8 space-y-4" novalidate>
+        <h3 class="text-navy-foreground font-bold text-xl mb-2">Envie-nos uma mensagem</h3>
+        <div class="grid md:grid-cols-2 gap-4">
+          <div>
+            <label for="cf-nome" class="block text-xs font-medium text-navy-foreground/60 mb-1 uppercase tracking-wider">Nome *</label>
+            <input id="cf-nome" name="nome" type="text" required maxlength="100" placeholder="O seu nome"
+              class="w-full bg-white/10 border border-white/15 rounded-xl px-4 py-3 text-navy-foreground placeholder-navy-foreground/30 focus:outline-none focus:border-azul text-sm" />
+          </div>
+          <div>
+            <label for="cf-email" class="block text-xs font-medium text-navy-foreground/60 mb-1 uppercase tracking-wider">Email *</label>
+            <input id="cf-email" name="email" type="email" required maxlength="200" placeholder="email@empresa.com"
+              class="w-full bg-white/10 border border-white/15 rounded-xl px-4 py-3 text-navy-foreground placeholder-navy-foreground/30 focus:outline-none focus:border-azul text-sm" />
+          </div>
+        </div>
+        <div>
+          <label for="cf-telefone" class="block text-xs font-medium text-navy-foreground/60 mb-1 uppercase tracking-wider">Telefone / WhatsApp</label>
+          <input id="cf-telefone" name="telefone" type="tel" maxlength="30" placeholder="+244 9XX XXX XXX"
+            class="w-full bg-white/10 border border-white/15 rounded-xl px-4 py-3 text-navy-foreground placeholder-navy-foreground/30 focus:outline-none focus:border-azul text-sm" />
+        </div>
+        <div>
+          <label for="cf-mensagem" class="block text-xs font-medium text-navy-foreground/60 mb-1 uppercase tracking-wider">Mensagem *</label>
+          <textarea id="cf-mensagem" name="mensagem" required maxlength="2000" rows="4" placeholder="Descreva o que procura..."
+            class="w-full bg-white/10 border border-white/15 rounded-xl px-4 py-3 text-navy-foreground placeholder-navy-foreground/30 focus:outline-none focus:border-azul text-sm resize-none"></textarea>
+        </div>
+        <div id="cf-feedback" class="hidden rounded-xl px-4 py-3 text-sm font-medium"></div>
+        <button type="submit" id="cf-btn"
+          class="w-full bg-azul text-white py-3.5 rounded-xl font-bold text-sm hover:opacity-90 transition disabled:opacity-50 flex items-center justify-center gap-2">
+          <span id="cf-btn-text">Enviar mensagem</span>
+        </button>
+      </form>
+    </div>
+
+    <div class="text-center mt-10">
+      <p class="text-navy-foreground/40 text-sm mb-4">Ou contacte-nos directamente:</p>
       <a href="https://wa.me/244976467124?text=Ol%C3%A1%2C%20gostaria%20de%20saber%20mais%20sobre%20os%20espa%C3%A7os%20dispon%C3%ADveis%20na%20Azul%20Space."
          target="_blank" rel="noopener" onclick="trackLead('contact_whatsapp')"
          class="inline-flex items-center gap-3 bg-[#25D366] text-white px-8 py-4 rounded-xl font-bold text-base hover:opacity-90">
@@ -483,6 +549,54 @@ tailwind.config = {
       if(Math.abs(diff) > 40) go(diff > 0 ? i+1 : i-1);
     }, {passive:true});
   });
+
+  // Fase 2: Formulário de contacto
+  var cfForm = document.getElementById('contactForm');
+  if (cfForm) {
+    cfForm.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      var btn = document.getElementById('cf-btn');
+      var btnText = document.getElementById('cf-btn-text');
+      var feedback = document.getElementById('cf-feedback');
+      var nome = document.getElementById('cf-nome').value.trim();
+      var email = document.getElementById('cf-email').value.trim();
+      var telefone = document.getElementById('cf-telefone').value.trim();
+      var mensagem = document.getElementById('cf-mensagem').value.trim();
+
+      if (!nome || !email || !mensagem) {
+        feedback.className = 'rounded-xl px-4 py-3 text-sm font-medium bg-red-500/15 text-red-300';
+        feedback.textContent = 'Por favor preencha nome, email e mensagem.';
+        return;
+      }
+
+      btn.disabled = true;
+      btnText.textContent = 'A enviar…';
+      feedback.className = 'hidden';
+
+      try {
+        var r = await fetch('/api/contact', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nome, email, telefone, mensagem }),
+        });
+        var data = await r.json();
+        if (r.ok) {
+          feedback.className = 'rounded-xl px-4 py-3 text-sm font-medium bg-emerald-500/15 text-emerald-300';
+          feedback.textContent = '✅ Mensagem enviada! Responderemos em breve.';
+          cfForm.reset();
+          trackLead('contact_form_submit');
+        } else {
+          throw new Error(data.error || 'Erro ao enviar.');
+        }
+      } catch (err) {
+        feedback.className = 'rounded-xl px-4 py-3 text-sm font-medium bg-red-500/15 text-red-300';
+        feedback.textContent = '⚠️ ' + (err.message || 'Erro ao enviar. Tente pelo WhatsApp.');
+      } finally {
+        btn.disabled = false;
+        btnText.textContent = 'Enviar mensagem';
+      }
+    });
+  }
 </script>
 
 </body>
