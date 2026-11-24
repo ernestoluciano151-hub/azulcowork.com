@@ -14,3 +14,6 @@ dev.db-journal
 # pdf-workers/dist é gerado em cada build (npm run build:pdf-worker) — ver
 # pdf-workers/build.mjs. Nunca deve ser commitado.
 pdf-workers/dist
+
+# Claude Code local settings (não partilhar)
+.claude/

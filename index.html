@@ -5,15 +5,21 @@
 <link rel="icon" href="favicon.ico" />
 <link rel="preload" href="https://scripts.converteai.net/3bc96b23-cdc7-40f5-9939-d1cff052c96e/players/69b286d6d04b0a3cfd7caae8/v4/player.js" as="script">
 <link rel="preload" href="https://scripts.converteai.net/lib/js/smartplayer-wc/v4/smartplayer.js" as="script">
-<link rel="preload" href="https://cdn.converteai.net/3bc96b23-cdc7-40f5-9939-d1cff052c96e/69b2790eec3c62fc7c1901d8/main.m3u8" as="fetch">
 <link rel="dns-prefetch" href="https://cdn.converteai.net">
 <link rel="dns-prefetch" href="https://scripts.converteai.net">
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Azul Coworking — Espaços de trabalho em Luanda</title>
 <meta name="description" content="Coworking moderno em Luanda. Hot desks, salas privadas e salas de reunião. A partir de 9.900 AOA/dia." />
-<meta property="og:title" content="Azul Coworking" />
-<meta property="og:description" content="O seu espaço de trabalho ideal em Luanda." />
+<meta property="og:title" content="Azul Coworking — Espaços de trabalho em Luanda" />
+<meta property="og:description" content="Coworking moderno em Luanda. Hot desks, salas privadas e salas de reunião. A partir de 9.900 AOA/dia." />
 <meta property="og:type" content="website" />
+<meta property="og:url" content="https://azulcowork.com" />
+<meta property="og:image" content="https://azulcowork.com/assets/hero-coworking.jpg" />
+<meta property="og:locale" content="pt_AO" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Azul Coworking — Espaços de trabalho em Luanda" />
+<meta name="twitter:description" content="Coworking moderno em Luanda. Hot desks, salas privadas e salas de reunião. A partir de 9.900 AOA/dia." />
+<meta name="twitter:image" content="https://azulcowork.com/assets/hero-coworking.jpg" />
 
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -99,7 +105,7 @@ tailwind.config = {
           📞 Contactar
         </a>
       </div>
-      <button id="navToggle" class="md:hidden text-navy-foreground text-2xl">☰</button>
+      <button id="navToggle" aria-label="Abrir menu" aria-expanded="false" class="md:hidden text-navy-foreground text-2xl">☰</button>
     </div>
     <div id="navMobile" class="hidden md:hidden pb-6">
       <div class="flex flex-col gap-4">
@@ -121,7 +127,7 @@ tailwind.config = {
 <!-- HERO -->
 <section id="inicio" class="relative min-h-screen flex items-center overflow-hidden">
   <div class="absolute inset-0">
-    <img src="assets/hero-coworking.jpg" alt="Azul Coworking espaço" class="w-full h-full object-cover" />
+    <img src="assets/hero-coworking.jpg" alt="Azul Coworking espaço" class="w-full h-full object-cover" fetchpriority="high" width="1920" height="1080" />
     <div class="absolute inset-0 bg-gradient-hero"></div>
     <div class="absolute inset-0 bg-navy/70"></div>
   </div>
@@ -201,14 +207,14 @@ tailwind.config = {
     <p class="text-slate-500 text-center mb-10 max-w-2xl mx-auto">Escritórios totalmente equipados, modernos e funcionais no Bairro Azul.</p>
     <div class="relative max-w-5xl mx-auto carousel" data-carousel data-autoplay="4000">
       <div class="carousel-track rounded-2xl">
-        <div class="carousel-slide px-2"><img src="assets/carousel-1.jpeg" alt="Sala de Reunião/Formação" class="w-full aspect-square md:aspect-[4/3] object-cover rounded-2xl"/></div>
-        <div class="carousel-slide px-2"><img src="assets/carousel-2.jpeg" alt="Sala Privada Executivo" class="w-full aspect-square md:aspect-[4/3] object-cover rounded-2xl"/></div>
-        <div class="carousel-slide px-2"><img src="assets/carousel-3.jpeg" alt="Sala de Reunião/Formação" class="w-full aspect-square md:aspect-[4/3] object-cover rounded-2xl"/></div>
-        <div class="carousel-slide px-2"><img src="assets/carousel-4.jpeg" alt="Ilha Open Space" class="w-full aspect-square md:aspect-[4/3] object-cover rounded-2xl"/></div>
-        <div class="carousel-slide px-2"><img src="assets/carousel-5.jpeg" alt="Sala Privada" class="w-full aspect-square md:aspect-[4/3] object-cover rounded-2xl"/></div>
+        <div class="carousel-slide px-2"><img src="assets/carousel-1.jpeg" alt="Sala de Reunião/Formação" class="w-full aspect-square md:aspect-[4/3] object-cover rounded-2xl" loading="lazy" width="800" height="600"/></div>
+        <div class="carousel-slide px-2"><img src="assets/carousel-2.jpeg" alt="Sala Privada Executivo" class="w-full aspect-square md:aspect-[4/3] object-cover rounded-2xl" loading="lazy" width="800" height="600"/></div>
+        <div class="carousel-slide px-2"><img src="assets/carousel-3.jpeg" alt="Sala de Reunião/Formação" class="w-full aspect-square md:aspect-[4/3] object-cover rounded-2xl" loading="lazy" width="800" height="600"/></div>
+        <div class="carousel-slide px-2"><img src="assets/carousel-4.jpeg" alt="Ilha Open Space" class="w-full aspect-square md:aspect-[4/3] object-cover rounded-2xl" loading="lazy" width="800" height="600"/></div>
+        <div class="carousel-slide px-2"><img src="assets/carousel-5.jpeg" alt="Sala Privada" class="w-full aspect-square md:aspect-[4/3] object-cover rounded-2xl" loading="lazy" width="800" height="600"/></div>
       </div>
-      <button data-prev class="absolute left-2 md:-left-5 top-1/2 -translate-y-1/2 bg-white/90 border border-slate-200 rounded-full p-2 shadow-lg hover:bg-white">‹</button>
-      <button data-next class="absolute right-2 md:-right-5 top-1/2 -translate-y-1/2 bg-white/90 border border-slate-200 rounded-full p-2 shadow-lg hover:bg-white">›</button>
+      <button data-prev aria-label="Slide anterior" class="absolute left-2 md:-left-5 top-1/2 -translate-y-1/2 bg-white/90 border border-slate-200 rounded-full p-2 shadow-lg hover:bg-white">‹</button>
+      <button data-next aria-label="Próximo slide" class="absolute right-2 md:-right-5 top-1/2 -translate-y-1/2 bg-white/90 border border-slate-200 rounded-full p-2 shadow-lg hover:bg-white">›</button>
       <div data-dots class="dots flex justify-center gap-2 mt-6"></div>
     </div>
   </div>
@@ -227,9 +233,9 @@ tailwind.config = {
       <div class="group bg-white rounded-2xl overflow-hidden border border-slate-200 hover:shadow-azul transition-all duration-500 hover:-translate-y-1">
         <div class="carousel h-56" data-carousel data-autoplay="3500">
           <div class="carousel-track h-full">
-            <div class="carousel-slide h-full"><img src="assets/openspace-1.jpeg" alt="Open Space 1" class="w-full h-56 object-cover"/></div>
-            <div class="carousel-slide h-full"><img src="assets/openspace-2.jpeg" alt="Open Space 2" class="w-full h-56 object-cover"/></div>
-            <div class="carousel-slide h-full"><img src="assets/openspace-3.jpeg" alt="Open Space 3" class="w-full h-56 object-cover"/></div>
+            <div class="carousel-slide h-full"><img src="assets/openspace-1.jpeg" alt="Open Space 1" class="w-full h-56 object-cover" loading="lazy" width="600" height="224"/></div>
+            <div class="carousel-slide h-full"><img src="assets/openspace-2.jpeg" alt="Open Space 2" class="w-full h-56 object-cover" loading="lazy" width="600" height="224"/></div>
+            <div class="carousel-slide h-full"><img src="assets/openspace-3.jpeg" alt="Open Space 3" class="w-full h-56 object-cover" loading="lazy" width="600" height="224"/></div>
           </div>
           <div data-dots class="dots absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5"></div>
         </div>
@@ -246,9 +252,9 @@ tailwind.config = {
       <div class="group bg-white rounded-2xl overflow-hidden border border-slate-200 hover:shadow-azul transition-all duration-500 hover:-translate-y-1">
         <div class="carousel h-56" data-carousel data-autoplay="3500">
           <div class="carousel-track h-full">
-            <div class="carousel-slide h-full"><img src="assets/privada-1.jpeg" alt="Sala Privada 1" class="w-full h-56 object-cover"/></div>
-            <div class="carousel-slide h-full"><img src="assets/privada-2.jpeg" alt="Sala Privada 2" class="w-full h-56 object-cover"/></div>
-            <div class="carousel-slide h-full"><img src="assets/privada-3.jpeg" alt="Sala Privada 3" class="w-full h-56 object-cover"/></div>
+            <div class="carousel-slide h-full"><img src="assets/privada-1.jpeg" alt="Sala Privada 1" class="w-full h-56 object-cover" loading="lazy" width="600" height="224"/></div>
+            <div class="carousel-slide h-full"><img src="assets/privada-2.jpeg" alt="Sala Privada 2" class="w-full h-56 object-cover" loading="lazy" width="600" height="224"/></div>
+            <div class="carousel-slide h-full"><img src="assets/privada-3.jpeg" alt="Sala Privada 3" class="w-full h-56 object-cover" loading="lazy" width="600" height="224"/></div>
           </div>
           <div data-dots class="dots absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5"></div>
         </div>
@@ -265,10 +271,10 @@ tailwind.config = {
       <div class="group bg-white rounded-2xl overflow-hidden border border-slate-200 hover:shadow-azul transition-all duration-500 hover:-translate-y-1">
         <div class="carousel h-56" data-carousel data-autoplay="3500">
           <div class="carousel-track h-full">
-            <div class="carousel-slide h-full"><img src="assets/reuniao-1.jpeg" alt="Reunião 1" class="w-full h-56 object-cover"/></div>
-            <div class="carousel-slide h-full"><img src="assets/reuniao-2.jpeg" alt="Reunião 2" class="w-full h-56 object-cover"/></div>
-            <div class="carousel-slide h-full"><img src="assets/reuniao-3.jpeg" alt="Reunião 3" class="w-full h-56 object-cover"/></div>
-            <div class="carousel-slide h-full"><img src="assets/reuniao-4.jpeg" alt="Reunião 4" class="w-full h-56 object-cover"/></div>
+            <div class="carousel-slide h-full"><img src="assets/reuniao-1.jpeg" alt="Reunião 1" class="w-full h-56 object-cover" loading="lazy" width="600" height="224"/></div>
+            <div class="carousel-slide h-full"><img src="assets/reuniao-2.jpeg" alt="Reunião 2" class="w-full h-56 object-cover" loading="lazy" width="600" height="224"/></div>
+            <div class="carousel-slide h-full"><img src="assets/reuniao-3.jpeg" alt="Reunião 3" class="w-full h-56 object-cover" loading="lazy" width="600" height="224"/></div>
+            <div class="carousel-slide h-full"><img src="assets/reuniao-4.jpeg" alt="Reunião 4" class="w-full h-56 object-cover" loading="lazy" width="600" height="224"/></div>
           </div>
           <div data-dots class="dots absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5"></div>
         </div>
@@ -403,7 +409,10 @@ tailwind.config = {
 <script>
   document.getElementById('year').textContent = new Date().getFullYear();
   // Mobile nav
-  document.getElementById('navToggle').addEventListener('click', function(){
+  var navToggle = document.getElementById('navToggle');
+  navToggle.addEventListener('click', function(){
+    var expanded = this.getAttribute('aria-expanded') === 'true';
+    this.setAttribute('aria-expanded', String(!expanded));
     document.getElementById('navMobile').classList.toggle('hidden');
   });
 
@@ -466,6 +475,13 @@ tailwind.config = {
     go(0);
     var ms = parseInt(root.getAttribute('data-autoplay')||'0',10);
     if(ms>0) setInterval(function(){ go(i+1); }, ms);
+    // Swipe mobile
+    var startX = 0;
+    root.addEventListener('touchstart', function(e){ startX = e.touches[0].clientX; }, {passive:true});
+    root.addEventListener('touchend', function(e){
+      var diff = startX - e.changedTouches[0].clientX;
+      if(Math.abs(diff) > 40) go(diff > 0 ? i+1 : i-1);
+    }, {passive:true});
   });
 </script>
 
