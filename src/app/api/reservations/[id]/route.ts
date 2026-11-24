@@ -18,7 +18,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const { error } = await requireRole(AdminRole.ADMIN, AdminRole.COMERCIAL, AdminRole.FINANCEIRO);
   if (error) return error;
 
-  const [reservation, invoice, payments, liquidationNotes] = await Promise.all([
+  const [reservation, invoice, erpInvoices, payments, liquidationNotes] = await Promise.all([
     prisma.reservation.findUnique({
       where: { id: params.id },
       include: {
@@ -32,6 +32,11 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
         invoicePayments: { orderBy: { createdAt: "asc" } },
       },
     }),
+    // P2: ErpInvoices ligadas a esta reserva (via bookingId)
+    prisma.erpInvoice.findMany({
+      where: { bookingId: params.id },
+      orderBy: { createdAt: "desc" },
+    }),
     prisma.payment.findMany({
       where: { reservationId: params.id },
       orderBy: { createdAt: "asc" },
@@ -44,6 +49,9 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
   if (!reservation) return NextResponse.json({ error: "Não encontrado." }, { status: 404 });
 
+  // P2: usar ErpInvoice mais recente se existir, senão Invoice legada
+  const primaryErpInvoice = erpInvoices[0] ?? null;
+
   return NextResponse.json({
     reservation,
     invoice:          invoice ? {
@@ -53,6 +61,15 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       createdAt:       invoice.createdAt.toISOString(),
       updatedAt:       invoice.updatedAt.toISOString(),
       invoicePayments: invoice.invoicePayments.map(p => ({ ...p, paidDate: p.paidDate?.toISOString() ?? null, createdAt: p.createdAt.toISOString() })),
+    } : null,
+    // ErpInvoice canónica (preferida para download/recibo quando disponível)
+    erpInvoice: primaryErpInvoice ? {
+      id:            primaryErpInvoice.id,
+      invoiceNumber: primaryErpInvoice.invoiceNumber,
+      status:        primaryErpInvoice.status,
+      amount:        primaryErpInvoice.totalAmount,
+      issueDate:     primaryErpInvoice.issueDate.toISOString(),
+      dueDate:       primaryErpInvoice.dueDate.toISOString(),
     } : null,
     payments:         payments.map(p => ({
       ...p,

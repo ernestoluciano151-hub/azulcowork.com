@@ -45,6 +45,11 @@ type LiquidationNote = {
   id: string; noteNumber: string; createdAt: string;
 };
 
+type ErpInvoice = {
+  id: string; invoiceNumber: string; status: string;
+  amount: number; issueDate: string; dueDate: string;
+};
+
 const STATUS_BADGE: Record<string, string> = {
   CONFIRMADA:         "bg-emerald-500/15 text-emerald-300",
   RESERVADO:          "bg-blue-500/15 text-blue-300",
@@ -68,10 +73,11 @@ export default function ReservationDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router  = useRouter();
 
-  const [res,     setRes]     = useState<Reservation     | null>(null);
-  const [invoice, setInvoice] = useState<Invoice         | null>(null);
-  const [payments, setPayments] = useState<Payment[]>([]);
-  const [notes,   setNotes]   = useState<LiquidationNote[]>([]);
+  const [res,        setRes]       = useState<Reservation     | null>(null);
+  const [invoice,    setInvoice]   = useState<Invoice         | null>(null);
+  const [erpInvoice, setErpInvoice] = useState<ErpInvoice     | null>(null);
+  const [payments,   setPayments]  = useState<Payment[]>([]);
+  const [notes,      setNotes]     = useState<LiquidationNote[]>([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState("");
   const [toast,   setToast]   = useState<{ msg: string; ok: boolean } | null>(null);
@@ -83,6 +89,7 @@ export default function ReservationDetailPage() {
     const d = await r.json();
     setRes(d.reservation);
     setInvoice(d.invoice);
+    setErpInvoice(d.erpInvoice ?? null);
     setPayments(d.payments || []);
     setNotes(d.liquidationNotes || []);
     setLoading(false);
@@ -251,8 +258,51 @@ export default function ReservationDetailPage() {
             {/* ── RIGHT: sidebar (1/3) ── */}
             <div className="space-y-5">
 
-              {/* Fatura */}
-              {invoice ? (
+              {/* Fatura — ErpInvoice (canónica) tem prioridade sobre Invoice legada */}
+              {erpInvoice ? (
+                <section className="rounded-2xl border border-[#2F6FED]/25 bg-[#2F6FED]/5 p-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <h2 className="text-sm font-bold text-[#5C8FFF]">📄 Fatura</h2>
+                    <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[9px] font-medium text-emerald-300 uppercase tracking-wider">ERP</span>
+                  </div>
+                  <p className="font-mono text-sm text-[#F5F7FA] font-semibold">{erpInvoice.invoiceNumber}</p>
+                  <div className="mt-3 space-y-1.5 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-[#94A3B8]">Total</span>
+                      <span className="text-[#F5F7FA] font-medium">{formatKz(erpInvoice.amount)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-[#94A3B8]">Emissão</span>
+                      <span className="text-[#F5F7FA]">{fmtDate(erpInvoice.issueDate)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-[#94A3B8]">Vencimento</span>
+                      <span className="text-[#F5F7FA]">{fmtDate(erpInvoice.dueDate)}</span>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-center gap-2 flex-wrap">
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                      erpInvoice.status === "PAID"     ? "bg-emerald-500/15 text-emerald-300"
+                      : erpInvoice.status === "PARTIAL" ? "bg-blue-500/15 text-blue-300"
+                      : "bg-amber-500/15 text-amber-300"
+                    }`}>
+                      {erpInvoice.status}
+                    </span>
+                    <a href={`/api/erp/invoices/${erpInvoice.id}/download`} className="text-xs text-[#5C8FFF] hover:underline">
+                      📄 Fatura
+                    </a>
+                    <a href={`/api/erp/invoices/${erpInvoice.id}/receipt`} className="text-xs text-emerald-400 hover:underline">
+                      🧾 Recibo
+                    </a>
+                  </div>
+                  {/* Fatura legada disponível como fallback */}
+                  {invoice && (
+                    <p className="mt-3 text-[10px] text-[#94A3B8]">
+                      Fatura legada: <span className="font-mono text-[#5C8FFF]">{invoice.invoiceNumber}</span>
+                    </p>
+                  )}
+                </section>
+              ) : invoice ? (
                 <section className="rounded-2xl border border-[#2F6FED]/25 bg-[#2F6FED]/5 p-5">
                   <h2 className="text-sm font-bold text-[#5C8FFF] mb-3">📄 Fatura</h2>
                   <p className="font-mono text-sm text-[#F5F7FA] font-semibold">{invoice.invoiceNumber}</p>
@@ -286,8 +336,6 @@ export default function ReservationDetailPage() {
                       🧾 Recibo
                     </a>
                   </div>
-
-                  {/* InvoicePayments breakdown */}
                   {invoice.invoicePayments.length > 0 && (
                     <div className="mt-4 border-t border-white/10 pt-3 space-y-2">
                       <p className="text-[10px] font-semibold text-[#94A3B8] uppercase tracking-wider">Parcelas</p>
